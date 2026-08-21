@@ -8,12 +8,13 @@ st.set_page_config(page_title="Simulador de Fútbol", page_icon="⚽", layout="c
 st.title("⚽ Simulador de Predicciones de Fútbol")
 st.markdown("---")
 
-# 1. CARGAR DATOS DESDE TU GOOGLE SHEETS
+# 1. CARGAR DATOS DESDE TU GOOGLE SHEETS (Método Directo por ID)
 @st.cache_data
 def cargar_datos():
-    # Enlace optimizado directamente a tu Google Sheet (Pestaña 'Registro de Partidos')
-    url_sheet = "https://docs.google.com/spreadsheets/d/16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg/export?format=csv&gid=0"
-    df = pd.read_csv(url_sheet)
+    # ID extraída de tu enlace de Google Sheets
+    sheet_id = "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg"
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+    df = pd.read_csv(url)
     
     # Limpieza de columnas
     df.columns = df.columns.astype(str).str.strip()
@@ -26,7 +27,7 @@ def cargar_datos():
 try:
     df = cargar_datos()
 except Exception as e:
-    st.error(f"⚠️ Error al cargar los datos del Google Sheets. Asegúrate de que esté configurado como público ('Cualquier persona con el enlace'). Detalle: {e}")
+    st.error(f"⚠️ Error al cargar los datos del Google Sheets. Asegúrate de que el acceso esté como 'Cualquier persona con el enlace'. Detalle: {e}")
     st.stop()
 
 # 2. PANEL DE CONTROL LATERAL (MENÚS VISUALES)
