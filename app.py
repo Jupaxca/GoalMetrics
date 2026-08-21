@@ -85,7 +85,7 @@ st.sidebar.markdown("---")
 if num_exactos >= 2:
     st.sidebar.success(f"✅ Partidos exactos encontrados: {num_exactos}")
 elif num_exactos == 1:
-    st.sidebar.warning(f"⚠️ Pocos partidos exactos (1). Se activará respaldo.")
+    st.sidebar.warning(f"⚠️ Solo 1 partido exacto. Se activará respaldo.")
 else:
     st.sidebar.error("❌ 0 partidos exactos encontrados.")
 
@@ -128,14 +128,14 @@ def renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa):
         tooltip=['Métrica', 'Puntuación']
     ).properties(height=240)
 
-    st.altair_chart(chart, width='stretch')
+    st.altair_chart(chart, use_container_width=True)
 
 # --- PANEL PRINCIPAL ---
 col_btn1, col_btn2 = st.columns([1, 4])
 with col_btn1:
-    btn_analizar = st.button("⚡ Analizar", type="primary", width='stretch')
+    btn_analizar = st.button("⚡ Analizar", type="primary", use_container_width=True)
 with col_btn2:
-    if st.button("🧹 Limpiar", width='content'):
+    if st.button("🧹 Limpiar", use_container_width=False):
         st.rerun()
 
 if btn_analizar:
@@ -145,9 +145,13 @@ if btn_analizar:
     historial = pd.DataFrame()
     fuente_datos = ""
     
+    # ===== LÓGICA PRINCIPAL =====
+    # Mínimo 2 partidos exactos → usa TODOS los que cumplan el filtro
+    # Cuando haya más datos, automáticamente analiza todos
     if len(df_exactos) >= 2:
-        historial = df_exactos.head(2).copy()
-        fuente_datos = f"Exacto ({condicion_label} vs {nivel_sel})"
+        historial = df_exactos.copy()   # ← TODOS los partidos exactos
+        fuente_datos = f"Exacto ({condicion_label} vs {nivel_sel}) — {len(historial)} partidos"
+    
     elif len(df_exactos) == 1:
         partido_1 = df_exactos.head(1).copy()
         cond_opuesta = "visitante" if condicion_sel == "local" else "local"
@@ -168,18 +172,22 @@ if btn_analizar:
         st.error(f"❌ No hay datos suficientes para analizar a {equipo_sel}.")
         st.stop()
 
+    # ===== CABECERA =====
     st.markdown(f"""
         <div style="background-color: {color_equipo}; padding: 18px; border-radius: 12px; color: white; text-align: center; font-weight: bold; font-size: 22px; margin-bottom: 25px;">
             🛡️ {equipo_sel.upper()} ({condicion_label.upper()} vs {nivel_sel.upper()})
         </div>
     """, unsafe_allow_html=True)
     
+    # ===== PESOS TEMPORALES (más peso a partidos recientes) =====
     hoy = pd.Timestamp.today().normalize()
     historial['Dias_Pasados'] = (hoy - pd.to_datetime(historial['Fecha'])).dt.days.replace(0, 0.1)
     historial['Peso'] = 1 / (1 + (historial['Dias_Pasados'] / 30))
     
     def prom(col):
-        return round(float(np.average(historial[col], weights=historial['Peso'])), 4) if col in historial.columns else 0.0
+        if col not in historial.columns:
+            return 0.0
+        return round(float(np.average(historial[col], weights=historial['Peso'])), 4)
 
     lam_f = prom('Goles')
     lam_c = prom('Goles Rival')
@@ -205,9 +213,12 @@ if btn_analizar:
     conteo = Counter(marcadores)
     marcador_mas_comun = conteo.most_common(1)[0][0]
     
-    if triunfos > 50: veredicto = f"Tendencia Fuerte: Marcador proyectado {marcador_mas_comun}."
-    elif derrotas > 50: veredicto = f"Alerta de Complicación: Marcador proyectado {marcador_mas_comun}."
-    else: veredicto = f"Partido Muy Parejo: Marcador proyectado {marcador_mas_comun}."
+    if triunfos > 50:
+        veredicto = f"Tendencia Fuerte: Marcador proyectado {marcador_mas_comun}."
+    elif derrotas > 50:
+        veredicto = f"Alerta de Complicación: Marcador proyectado {marcador_mas_comun}."
+    else:
+        veredicto = f"Partido Muy Parejo: Marcador proyectado {marcador_mas_comun}."
 
     st.markdown(f'<div class="insight-box"><b>Veredicto GoalMetrics:</b> {veredicto}</div>', unsafe_allow_html=True)
 
@@ -250,21 +261,34 @@ if btn_analizar:
     st.markdown("---")
     
     def crear_grafico(serie, titulo):
-        df_c = pd.DataFrame({titulo: serie.value_counts().sort_index().index.astype(str), 'Prob (%)': (serie.value_counts().sort_index() / num_sim) * 100})
-        return alt.Chart(df_c).mark_bar(color=color_equipo).encode(x=alt.X(f"{titulo}:N", sort=None, labelAngle=0), y=alt.Y('Prob (%):Q', format='.1f')).properties(height=300)
+        df_c = pd.DataFrame({
+            titulo: serie.value_counts().sort_index().index.astype(str), 
+            'Prob (%)': (serie.value_counts().sort_index() / num_sim) * 100
+        })
+        return alt.Chart(df_c).mark_bar(color=color_equipo).encode(
+            x=alt.X(f"{titulo}:N", sort=None, labelAngle=0), 
+            y=alt.Y('Prob (%):Q', format='.1f')
+        ).properties(height=300)
 
     st.markdown("#### ⚽ Probabilidad de Goles a Favor")
-    st.altair_chart(crear_grafico(pd.Series(sg_fav), 'Goles'), width='stretch')
+    st.altair_chart(crear_grafico(pd.Series(sg_fav), 'Goles'), use_container_width=True)
 
     st.markdown("#### 🚩 Probabilidad de Córners")
-    st.altair_chart(crear_grafico(pd.Series(s_corn).astype(int), 'Córners'), width='stretch')
+    st.altair_chart(crear_grafico(pd.Series(s_corn).astype(int), 'Córners'), use_container_width=True)
     
     st.markdown("---")
     
     col_l, col_r = st.columns(2)
     with col_l:
         st.markdown("#### 🏆 Top 5 Marcadores")
-        st.dataframe(pd.DataFrame([{"Marcador": r, "Probabilidad": f"{(f/num_sim)*100:.1f}%"} for r, f in conteo.most_common(5)]), hide_index=True, width='stretch')
+        st.dataframe(
+            pd.DataFrame([
+                {"Marcador": r, "Probabilidad": f"{(f/num_sim)*100:.1f}%"} 
+                for r, f in conteo.most_common(5)
+            ]), 
+            hide_index=True, 
+            use_container_width=True
+        )
             
     with col_r:
         st.markdown("#### 📈 Probabilidades de Líneas")
@@ -275,11 +299,23 @@ if btn_analizar:
         st.metric(label=f"🛑 Más de {linea_faltas} Faltas", value=f"{(s_faltas > linea_faltas).mean() * 100:.1f}%")
 
     st.markdown("---")
-    st.info(f"💡 Base del análisis: {len(historial)} partidos analizados bajo el modo: {fuente_datos}")
+    st.info(f"💡 Base del análisis: **{len(historial)} partidos** analizados bajo el modo: {fuente_datos}")
     
-    with st.expander("📋 Ver detalle completo de los partidos utilizados (Rivales y Estadísticas)"):
+    # ===== HISTORIAL VISUAL (solo últimos 5 para no saturar) =====
+    with st.expander("📋 Ver detalle de los partidos utilizados (últimos 5 + resumen)"):
         h_disp = historial.copy()
-        h_disp['Fecha'] = pd.to_datetime(h_disp['Fecha']).dt.strftime('%Y-%m-%d')
-        cols = [c for c in ['Fecha', 'Equipo', 'Condición', 'Rival', 'Nivel Rival', 'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas'] if c in h_disp.columns]
-        st.dataframe(h_disp[cols], hide_index=True, width='stretch')
-    
+        h_disp = h_disp.sort_values(by='Fecha', ascending=False)
+        
+        # Mostramos solo los 5 más recientes en la tabla (el análisis usó todos)
+        h_mostrar = h_disp.head(5).copy()
+        h_mostrar['Fecha'] = pd.to_datetime(h_mostrar['Fecha']).dt.strftime('%Y-%m-%d')
+        
+        cols = [c for c in ['Fecha', 'Equipo', 'Condición', 'Rival', 'Nivel Rival', 
+                           'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas', 'Peso'] 
+                if c in h_mostrar.columns]
+        
+        st.caption(f"Mostrando los 5 partidos más recientes de los {len(historial)} utilizados en el cálculo (ordenados por fecha).")
+        st.dataframe(h_mostrar[cols], hide_index=True, use_container_width=True)
+        
+        if len(historial) > 5:
+            st.caption(f"ℹ️ Se analizaron {len(historial)} partidos en total. Los más antiguos también influyen, pero con menor peso.")
