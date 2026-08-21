@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import altair as alt
 from collections import Counter
 
 # CONFIGURACIÓN DE LA PÁGINA
@@ -251,25 +252,34 @@ if st.session_state.ejecutar:
         
         st.markdown("---")
 
-        # GRÁFICO DE GOLES (EN PORCENTAJE)
-        st.markdown("#### ⚽ Distribución de Probabilidad de Goles a Favor")
-        st.markdown('<div class="explanation-text">Este gráfico indica la probabilidad en porcentaje de que el equipo anote 0, 1, 2, 3 o más goles. El eje izquierdo refleja el porcentaje (%) de ocurrencia.</div>', unsafe_allow_html=True)
-        conteo_goles = pd.Series(sim_goles_favor).value_counts().sort_index()
-        df_goles_chart = pd.DataFrame({
-            'Goles': conteo_goles.index,
-            'Probabilidad (%)': (conteo_goles / num_sim) * 100
-        }).set_index('Goles')
-        st.bar_chart(df_goles_chart, color=color_equipo, horizontal=False)
+        # FUNCIÓN PARA CREAR GRÁFICOS ALTAIR CON FORMATO DE PORCENTAJE (%) EN EL EJE Y
+        def crear_grafico_porcentaje(serie_datos, titulo_x):
+            conteo_vals = serie_datos.value_counts().sort_index()
+            df_chart = pd.DataFrame({
+                str(titulo_x): conteo_vals.index.astype(str),
+                'Probabilidad (%)': (conteo_vals / num_sim) * 100
+            })
+            
+            chart = alt.Chart(df_chart).mark_bar(color=color_equipo).encode(
+                x=alt.X(f"{titulo_x}:N", sort=None, title=str(titulo_x), axis=alt.Axis(labelAngle=0)),
+                y=alt.Y('Probabilidad (%):Q', title='Probabilidad (%)', axis=alt.Axis(format='.1f'))
+            ).properties(
+                height=300
+            ).interactive()
+            
+            return chart
 
-        # GRÁFICO DE CÓRNERS (EN PORCENTAJE)
+        # GRÁFICO DE GOLES
+        st.markdown("#### ⚽ Distribución de Probabilidad de Goles a Favor")
+        st.markdown('<div class="explanation-text">Este gráfico indica qué tan probable es (en porcentaje) que el equipo anote 0, 1, 2, 3 o más goles.</div>', unsafe_allow_html=True)
+        chart_goles = crear_grafico_porcentaje(pd.Series(sim_goles_favor), 'Goles')
+        st.altair_chart(chart_goles, use_container_width=True)
+
+        # GRÁFICO DE CÓRNERS
         st.markdown("#### 🚩 Distribución de Probabilidad de Córners")
-        st.markdown('<div class="explanation-text">Muestra las probabilidades expresadas en porcentaje (%) para cada volumen de saques de esquina a favor durante el desarrollo del encuentro.</div>', unsafe_allow_html=True)
-        conteo_corners = pd.Series(sim_corners).astype(int).value_counts().sort_index()
-        df_corners_chart = pd.DataFrame({
-            'Córners': conteo_corners.index,
-            'Probabilidad (%)': (conteo_corners / num_sim) * 100
-        }).set_index('Córners')
-        st.bar_chart(df_corners_chart, color=color_equipo, horizontal=False)
+        st.markdown('<div class="explanation-text">Muestra las probabilidades expresadas en porcentaje (%) para cada volumen de saques de esquina a favor.</div>', unsafe_allow_html=True)
+        chart_corners = crear_grafico_porcentaje(pd.Series(sim_corners).astype(int), 'Córners')
+        st.altair_chart(chart_corners, use_container_width=True)
         
         st.markdown("---")
         
@@ -277,7 +287,7 @@ if st.session_state.ejecutar:
         
         with col_left:
             st.markdown("#### 🏆 Top 5 Marcadores Más Probables")
-            st.markdown('<div class="explanation-text">Los 5 resultados finales más repetidos (Goles de tu equipo - Goles del rival) de acuerdo con los patrones analizados.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="explanation-text">Los 5 resultados finales más repetidos (Goles de tu equipo - Goles del rival).</div>', unsafe_allow_html=True)
             tabla_data = []
             for res, freq in conteo.most_common(5):
                 prob = (freq / num_sim) * 100
