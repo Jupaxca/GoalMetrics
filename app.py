@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# ESTILOS CSS PROFESIONALES
+# ESTILOS CSS PROFESIONALES (Forzando modo oscuro estable)
 st.markdown("""
     <style>
     .stApp {
@@ -56,14 +56,21 @@ st.markdown("""
     .brand-subtitle {
         color: #9CA3AF;
         font-size: 15px;
+        margin-bottom: 5px;
+    }
+    .brand-author {
+        color: #3B82F6;
+        font-size: 14px;
+        font-weight: 600;
         margin-bottom: 20px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# ENCABEZADO DE MARCA "GoalMetrics"
+# ENCABEZADO DE MARCA CON TU FIRMA
 st.markdown('<div class="brand-title">📊 GoalMetrics <span style="color: #3B82F6; font-size: 20px;">FOOTBALL ANALYTICS</span></div>', unsafe_allow_html=True)
 st.markdown('<div class="brand-subtitle">Plataforma avanzada de simulación estadística y predicción de rendimiento deportivo.</div>', unsafe_allow_html=True)
+st.markdown('<div class="brand-author">By: Juan Camilo Barreto</div>', unsafe_allow_html=True)
 st.markdown("---")
 
 # 1. CARGAR DATOS DESDE GOOGLE SHEETS
@@ -111,13 +118,12 @@ colores_equipos = {
     "Real Madr": "#00529F"
 }
 
-# 2. PANEL LATERAL CON FILTRO INTELIGENTE DE TORNEOS
+# 2. PANEL LATERAL
 st.sidebar.header("⚙️ Configuración de Análisis")
 
 lista_equipos = sorted([str(x) for x in df['Equipo'].unique() if pd.notna(x)])
 equipo_seleccionado = st.sidebar.selectbox("🏟️ Selecciona el Equipo", lista_equipos)
 
-# FILTRAR LOS TORNEOS DISPONIBLES EXCLUSIVAMENTE PARA EL EQUIPO SELECCIONADO
 df_equipo = df[df['Equipo'] == equipo_seleccionado]
 lista_niveles_equipo = sorted([str(x) for x in df_equipo['Nivel Rival'].unique() if pd.notna(x)])
 
@@ -195,19 +201,43 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         sim_corners = np.random.poisson(lam=weighted_avg('Corners'), size=num_sim)
         sim_faltas = np.random.poisson(lam=weighted_avg('Faltas'), size=num_sim)
         
+        # CÁLCULOS 1X2, BTTS Y MERCADOS NUEVOS (DOBLE OPORTUNIDAD / DNB)
         triunfos = (sim_goles_favor > sim_goles_contra).mean() * 100
         empates = (sim_goles_favor == sim_goles_contra).mean() * 100
         derrotas = (sim_goles_favor < sim_goles_contra).mean() * 100
         ambos_anotan = ((sim_goles_favor > 0) & (sim_goles_contra > 0)).mean() * 100
         
+        # Nuevas métricas avanzadas
+        doble_oportunidad_1x = triunfos + empates
+        doble_oportunidad_x2 = derrotas + empates
+        total_sin_empate = triunfos + derrotas
+        dnb_favor = (triunfos / total_sin_empate * 100) if total_sin_empate > 0 else 50.0
+        
         marcadores = [f"{f}-{c}" for f, c in zip(sim_goles_favor, sim_goles_contra)]
         conteo = Counter(marcadores)
         
+        # BLOQUE DE RESUMEN 1X2 Y MERCADOS
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-        col_m1.metric("🟢 Prob. Victoria", f"{triunfos:.1f}%")
-        col_m2.metric("🟡 Prob. Empate", f"{empates:.1f}%")
-        col_m3.metric("🔴 Prob. Derrota", f"{derrotas:.1f}%")
+        col_m1.metric("🟢 Victoria (1)", f"{triunfos:.1f}%")
+        col_m2.metric("🟡 Empate (X)", f"{empates:.1f}%")
+        col_m3.metric("🔴 Derrota (2)", f"{derrotas:.1f}%")
         col_m4.metric("⚽ Ambos Anotan (BTTS)", f"{ambos_anotan:.1f}%")
+        
+        col_n1, col_n2, col_n3 = st.columns(3)
+        col_n1.metric("🛡️ Doble Oportunidad (1X)", f"{doble_oportunidad_1x:.1f}%")
+        col_n2.metric("🛡️ Doble Oportunidad (X2)", f"{doble_oportunidad_x2:.1f}%")
+        col_n3.metric("⚖️ Apuesta sin Empate (DNB)", f"{dnb_favor:.1f}%")
+        
+        st.markdown("---")
+        
+        # GRÁFICO VISUAL DE DISTRIBUCIÓN DE GOLES A FAVOR
+        st.markdown("#### 📊 Distribución de Probabilidad de Goles a Favor")
+        conteo_goles = pd.Series(sim_goles_favor).value_counts().sort_index()
+        df_goles_chart = pd.DataFrame({
+            'Goles': conteo_goles.index,
+            'Probabilidad (%)': (conteo_goles / num_sim) * 100
+        }).set_index('Goles')
+        st.bar_chart(df_goles_chart, color="#3B82F6")
         
         st.markdown("---")
         
