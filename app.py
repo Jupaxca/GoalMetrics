@@ -11,7 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 1. CARGAR DATOS DESDE GOOGLE SHEETS (NORMALIZACIÓN TOTAL)
+# 1. CARGAR DATOS DESDE GOOGLE SHEETS CON LIMPIEZA TOTAL
 def cargar_datos():
     sheet_id = "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg"
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
@@ -21,6 +21,7 @@ def cargar_datos():
     df = df.dropna(subset=['Equipo', 'Fecha', 'Condición', 'Nivel Rival'])
     df['Fecha'] = pd.to_datetime(df['Fecha'])
     df['Equipo'] = df['Equipo'].astype(str).str.strip()
+    # Normalizamos la condición a minúsculas para evitar fallos de mayúsculas/minúsculas
     df['Condición'] = df['Condición'].astype(str).str.strip().str.lower()
     df['Nivel Rival'] = df['Nivel Rival'].astype(str).str.strip()
     return df
@@ -70,10 +71,10 @@ condicion_seleccionada = condicion_label.lower()
 
 nivel_seleccionado = st.sidebar.selectbox("⭐ Torneo / Nivel del Rival", lista_niveles_equipo)
 
-df_ordenado_sidebar = df.sort_values(by='Fecha', ascending=False)
-historial_exacto_sidebar = df_ordenado_sidebar[(df_ordenado_sidebar['Equipo'] == equipo_seleccionado) & 
-                                               (df_ordenado_sidebar['Condición'] == condicion_seleccionada) & 
-                                               (df_ordenado_sidebar['Nivel Rival'] == str(nivel_seleccionado))]
+df_ordenado = df.sort_values(by='Fecha', ascending=False)
+historial_exacto_sidebar = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
+                                       (df_ordenado['Condición'] == condicion_seleccionada) & 
+                                       (df_ordenado['Nivel Rival'] == str(nivel_seleccionado))]
 
 st.sidebar.markdown("---")
 st.sidebar.info(f"🔍 Diagnóstico: {len(historial_exacto_sidebar)} partido(s) exacto(s) hallado(s).")
@@ -156,46 +157,44 @@ st.markdown("---")
 # 3. PANEL PRINCIPAL
 st.markdown("### 🕹️ Centro de Simulación")
 
-if st.button("⚡ Ejecutar Motor de Predicción V8", type="primary", use_container_width=True):
-    st.session_state.ejecutar_v8 = True
+if st.button("⚡ Ejecutar Motor de Predicción Final", type="primary", use_container_width=True):
+    st.session_state.ejecutar_final = True
 
-if 'ejecutar_v8' not in st.session_state:
-    st.session_state.ejecutar_v8 = False
+if 'ejecutar_final' not in st.session_state:
+    st.session_state.ejecutar_final = False
 
-if st.session_state.ejecutar_v8:
-    df_ordenado = df.sort_values(by='Fecha', ascending=False)
-    
+if st.session_state.ejecutar_final:
     exactos = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
                           (df_ordenado['Condición'] == condicion_seleccionada) & 
                           (df_ordenado['Nivel Rival'] == str(nivel_seleccionado))].copy()
     
     if len(exactos) >= 2:
-        historial = exactos.copy()
+        # CASO A: 2 o más partidos exactos -> Usamos exclusivamente esos
+        historial = exactos.head(2).copy()
         fuente_datos = f"Exacto ({condicion_label} vs Nivel {nivel_seleccionado})"
         
     elif len(exactos) == 1:
-        # CONSERVAMOS EL 1 PARTIDO EXACTO
+        # CASO B: Exactamente 1 partido exacto -> Tomamos ese 1 + el más reciente de la otra condición
         p_exacto = exactos.copy()
         cond_contraria = "visitante" if condicion_seleccionada == "local" else "local"
         
         contrarios = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
-                                 (df_ordenado['Condición'] == cond_contraria) & 
-                                 (df_ordenado['Nivel Rival'] == str(nivel_seleccionado))].copy()
+                                 (df_ordenado['Condición'] == cond_contraria)].copy()
         
-        if len(contrarios) == 0:
-            contrarios = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
-                                     (df_ordenado['Condición'] == cond_contraria)].copy()
-        
-        # Baremo táctico a los contrarios
-        factor = 0.88 if condicion_seleccionada == "visitante" else 1.12
-        for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
-            if col in contrarios.columns:
-                contrarios[col] = contrarios[col] * factor
-                
-        # FUSIÓN BLINDADA CON IGNORE_INDEX PARA QUE NO SE SOBREESCRIBAN
-        historial = pd.concat([p_exacto, contrarios], ignore_index=True)
-        fuente_datos = f"Cruce Táctico (1 Exacto {condicion_label} + {len(contrarios)} {cond_contraria.capitalize()}(s) con Baremo)"
-        
+        if len(contrarios) >= 1:
+            p_contrario = contrarios.head(1).copy()
+            
+            # Aplicar baremo táctico
+            factor = 0.88 if condicion_seleccionada == "visitante" else 1.12
+            for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
+                if col in p_contrario.columns:
+                    p_contrario[col] = p_contrario[col] * factor
+            
+            historial = pd.concat([p_exacto, p_contrario], ignore_index=True)
+            fuente_datos = f"Cruce Táctico (1 Exacto {condicion_label} + 1 Reciente {cond_contraria.capitalize()} con Baremo)"
+        else:
+            historial = p_exacto.copy()
+            fuente_datos = "Solo 1 partido exacto disponible"
     else:
         historial = pd.DataFrame()
         fuente_datos = "Sin registros suficientes"
@@ -323,4 +322,4 @@ if st.session_state.ejecutar_v8:
             columnas_disponibles = [col for col in ['Fecha', 'Equipo', 'Condición', 'Rival', 'Nivel Rival', 'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas'] if col in historial_display.columns]
             st.dataframe(historial_display[columnas_disponibles], hide_index=True, use_container_width=True)
 else:
-    st.info("👈 Configura los parámetros en la barra lateral y presiona **'Ejecutar Motor de Predicción V8'** para generar la simulación estadística.")
+    st.info("👈 Configura los parámetros en la barra lateral y presiona **'Ejecutar Motor de Predicción Final'** para generar la simulación estadística.")
