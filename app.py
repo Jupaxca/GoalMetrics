@@ -4,42 +4,68 @@ import numpy as np
 from collections import Counter
 
 # CONFIGURACIÓN DE LA PÁGINA
-st.set_page_config(page_title="Simulador Pro - Fútbol", page_icon="⚽", layout="wide")
+st.set_page_config(
+    page_title="GoalMetrics | Football Analytics", 
+    page_icon="📊", 
+    layout="wide"
+)
 
-# ESTILOS CSS PERSONALIZADOS
+# ESTILOS CSS PROFESIONALES
 st.markdown("""
     <style>
     .main {
-        background-color: #0e1117;
+        background-color: #090D16;
+        color: #F3F4F6;
+    }
+    .stSidebar {
+        background-color: #111827;
     }
     .stButton>button {
         width: 100%;
         border-radius: 8px;
         font-weight: bold;
-        background-color: #10b981;
+        background-color: #3B82F6;
         color: white;
         font-size: 16px;
-        padding: 10px;
+        padding: 12px;
+        border: none;
+        transition: 0.3s;
     }
     .stButton>button:hover {
-        background-color: #059669;
+        background-color: #2563EB;
     }
     .team-header {
-        padding: 15px;
-        border-radius: 10px;
+        padding: 18px;
+        border-radius: 12px;
         color: white;
         text-align: center;
         font-weight: bold;
-        font-size: 20px;
+        font-size: 22px;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+    .brand-title {
+        font-size: 32px;
+        font-weight: 800;
+        color: #F3F4F6;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .brand-subtitle {
+        color: #9CA3AF;
+        font-size: 15px;
         margin-bottom: 20px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("⚽ Simulador Táctico & Predictivo de Fútbol")
+# ENCABEZADO DE MARCA "GoalMetrics"
+st.markdown('<div class="brand-title">📊 GoalMetrics <span style="color: #3B82F6; font-size: 20px;">FOOTBALL ANALYTICS</span></div>', unsafe_allow_html=True)
+st.markdown('<div class="brand-subtitle">Plataforma avanzada de simulación estadística y predicción de rendimiento deportivo.</div>', unsafe_allow_html=True)
 st.markdown("---")
 
-# 1. CARGAR DATOS DESDE TU GOOGLE SHEETS
+# 1. CARGAR DATOS DESDE GOOGLE SHEETS
 @st.cache_data
 def cargar_datos():
     sheet_id = "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg"
@@ -60,31 +86,31 @@ except Exception as e:
     st.error(f"⚠️ Error al cargar los datos del Google Sheets. Detalle: {e}")
     st.stop()
 
-# DICCIONARIO COMPLETO DE COLORES OFICIALES POR EQUIPO
+# DICCIONARIO DE COLORES
 colores_equipos = {
-    "Palmeiras": "#006400",       # Verde esmeralda
-    "Flamengo": "#C8102E",        # Rojo rubro-negro
-    "Paranaense": "#CC0000",      # Rojo atlético
-    "Fluminense": "#8B0000",      # Granate / tricolor
-    "Vasco": "#222222",           # Negro y blanco
-    "Arsenal": "#EF0107",         # Rojo Arsenal
-    "Aston villa": "#670E36",     # Vinotinto Aston Villa
-    "Barcelona": "#A50044",       # Azulgrana
-    "Bayern Mı": "#DC052D",       # Rojo Bayern
-    "Benfica": "#E30613",         # Rojo Benfica
-    "Como": "#002D62",            # Azul Como
-    "Freiburg": "#000000",        # Negro Freiburg
-    "Inter": "#010E80",           # Azul Inter de Milán
-    "Liverpool": "#C8102E",       # Rojo Liverpool
-    "Lyon": "#1D428A",            # Azul Lyon
-    "Manchest": "#DA291C",        # Rojo Manchester United / City
-    "Newcastle": "#241F20",       # Negro Urracas
-    "Porto": "#003399",           # Azul Porto
-    "PSG": "#004170",             # Azul PSG
-    "Real Madr": "#00529F"        # Blanco / Azul Real Madrid
+    "Palmeiras": "#006400",
+    "Flamengo": "#C8102E",
+    "Paranaense": "#CC0000",
+    "Fluminense": "#8B0000",
+    "Vasco": "#222222",
+    "Arsenal": "#EF0107",
+    "Aston villa": "#670E36",
+    "Barcelona": "#A50044",
+    "Bayern Mı": "#DC052D",
+    "Benfica": "#E30613",
+    "Como": "#002D62",
+    "Freiburg": "#000000",
+    "Inter": "#010E80",
+    "Liverpool": "#C8102E",
+    "Lyon": "#1D428A",
+    "Manchest": "#DA291C",
+    "Newcastle": "#241F20",
+    "Porto": "#003399",
+    "PSG": "#004170",
+    "Real Madr": "#00529F"
 }
 
-# 2. PANEL DE CONTROL LATERAL
+# 2. PANEL LATERAL
 st.sidebar.header("⚙️ Configuración de Análisis")
 
 lista_equipos = sorted([str(x) for x in df['Equipo'].unique() if pd.notna(x)])
@@ -94,7 +120,6 @@ equipo_seleccionado = st.sidebar.selectbox("🏟️ Selecciona el Equipo", lista
 condicion_seleccionada = st.sidebar.selectbox("📍 Condición", ["Local", "Visitante"])
 nivel_seleccionado = st.sidebar.selectbox("⭐ Torneo / Nivel del Rival", lista_niveles)
 
-# CONTADOR EN TIEMPO REAL DE PARTIDOS DISPONIBLES
 historial_exacto = df[(df['Equipo'] == equipo_seleccionado) & 
                        (df['Condición'] == condicion_seleccionada) & 
                        (df['Nivel Rival'] == nivel_seleccionado)]
@@ -103,22 +128,22 @@ st.sidebar.markdown("---")
 if len(historial_exacto) >= 2:
     st.sidebar.success(f"✅ Partidos exactos encontrados: **{len(historial_exacto)}**")
 else:
-    st.sidebar.warning(f"⚠️ Pocos partidos exactos ({len(historial_exacto)}). Se activará respaldo automático si es necesario.")
+    st.sidebar.warning(f"⚠️ Pocos partidos exactos ({len(historial_exacto)}). Se activará respaldo automático.")
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("🎯 Líneas de Apuesta / Estudio")
+st.sidebar.subheader("🎯 Líneas de Estudio / Apuesta")
 linea_goles = st.sidebar.slider("⚽ Línea de Goles", 0.5, 3.5, 1.5, 0.5)
 linea_tiros = st.sidebar.slider("👟 Línea de Tiros Totales", 5.0, 25.0, 12.5, 0.5)
 linea_tiros_puerta = st.sidebar.slider("🎯 Línea Tiros a Puerta", 1.0, 10.0, 4.5, 0.5)
 linea_corners = st.sidebar.slider("🚩 Línea de Córners", 1.0, 15.0, 5.5, 0.5)
 linea_faltas = st.sidebar.slider("🛑 Línea de Faltas", 5.0, 25.0, 10.5, 0.5)
 
-color_equipo = colores_equipos.get(equipo_seleccionado, "#374151")
+color_equipo = colores_equipos.get(equipo_seleccionado, "#1F2937")
 
-# 3. PANEL PRINCIPAL Y LÓGICA INTELIGENTE DE RESPALDO
-st.markdown("### 🕹️ Panel de Simulación")
+# 3. PANEL PRINCIPAL
+st.markdown("### 🕹️ Centro de Simulación")
 
-if st.button("🎯 Realizar Predicción", type="primary"):
+if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
     
     historial = historial_exacto.copy()
     fuente_datos = "Exacto (Condición y Nivel)"
@@ -144,7 +169,7 @@ if st.button("🎯 Realizar Predicción", type="primary"):
     """, unsafe_allow_html=True)
     
     if len(historial) < 2:
-        st.error(f"❌ No hay suficiente información en el registro (incluso con respaldo) para analizar a {equipo_seleccionado}. Necesitas al menos 2 partidos.")
+        st.error(f"❌ No hay suficiente información en el registro para analizar a {equipo_seleccionado}. Se requieren al menos 2 partidos.")
     else:
         historial['Dias_Pasados'] = (pd.Timestamp.now() - historial['Fecha']).dt.days.replace(0, 0.1)
         historial['Peso'] = 1 / (1 + (historial['Dias_Pasados'] / 30))
@@ -166,8 +191,23 @@ if st.button("🎯 Realizar Predicción", type="primary"):
         sim_corners = np.random.poisson(lam=weighted_avg('Corners'), size=num_sim)
         sim_faltas = np.random.poisson(lam=weighted_avg('Faltas'), size=num_sim)
         
+        # CÁLCULOS 1X2 Y BTTS (AMBOS ANOTAN)
+        triunfos = (sim_goles_favor > sim_goles_contra).mean() * 100
+        empates = (sim_goles_favor == sim_goles_contra).mean() * 100
+        derrotas = (sim_goles_favor < sim_goles_contra).mean() * 100
+        ambos_anotan = ((sim_goles_favor > 0) & (sim_goles_contra > 0)).mean() * 100
+        
         marcadores = [f"{f}-{c}" for f, c in zip(sim_goles_favor, sim_goles_contra)]
         conteo = Counter(marcadores)
+        
+        # BLOQUE DE RESUMEN 1X2
+        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+        col_m1.metric("🟢 Prob. Victoria", f"{triunfos:.1f}%")
+        col_m2.metric("🟡 Prob. Empate", f"{empates:.1f}%")
+        col_m3.metric("🔴 Prob. Derrota", f"{derrotas:.1f}%")
+        col_m4.metric("⚽ Ambos Anotan (BTTS)", f"{ambos_anotan:.1f}%")
+        
+        st.markdown("---")
         
         col_left, col_right = st.columns(2)
         
