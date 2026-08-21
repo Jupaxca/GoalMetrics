@@ -69,7 +69,6 @@ lista_niveles_equipo = sorted([str(x) for x in df_equipo['Nivel Rival'].unique()
 condicion_seleccionada = st.sidebar.selectbox("📍 Condición", ["Local", "Visitante"])
 nivel_seleccionado = st.sidebar.selectbox("⭐ Torneo / Nivel del Rival", lista_niveles_equipo)
 
-# Validación preliminar ordenada por fecha para el aviso lateral
 df_ordenado_sidebar = df.sort_values(by='Fecha', ascending=False)
 historial_exacto_sidebar = df_ordenado_sidebar[(df_ordenado_sidebar['Equipo'] == equipo_seleccionado) & 
                                                (df_ordenado_sidebar['Condición'] == condicion_seleccionada) & 
@@ -79,7 +78,7 @@ st.sidebar.markdown("---")
 if len(historial_exacto_sidebar) >= 2:
     st.sidebar.success(f"✅ Partidos exactos encontrados: **{len(historial_exacto_sidebar)}**")
 else:
-    st.sidebar.warning(f"⚠️ Pocos partidos exactos ({len(historial_exacto_sidebar)}). Se aplicará respaldo inteligente por fecha.")
+    st.sidebar.warning(f"⚠️ Pocos partidos exactos ({len(historial_exacto_sidebar)}). Se activará cruce táctico con baremo.")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🎯 Líneas de Estudio / Apuesta")
@@ -156,7 +155,7 @@ st.markdown('<div class="brand-subtitle">Plataforma avanzada de simulación esta
 st.markdown(f'<div class="brand-author">By: Juan Camilo Barreto</div>', unsafe_allow_html=True)
 st.markdown("---")
 
-# 3. PANEL PRINCIPAL (ÚNICO BOTÓN DE ANÁLISIS ANCHO)
+# 3. PANEL PRINCIPAL
 st.markdown("### 🕹️ Centro de Simulación")
 
 if st.button("⚡ Ejecutar Motor de Predicción", type="primary", use_container_width=True):
@@ -169,25 +168,50 @@ if st.session_state.ejecutar:
     # Ordenar toda la base de datos por fecha descendente (lo más reciente primero)
     df_ordenado = df.sort_values(by='Fecha', ascending=False)
     
-    # 1. Búsqueda estricta de partidos exactos (Condición y Nivel)
-    historial = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
-                            (df_ordenado['Condición'] == condicion_seleccionada) & 
-                            (df_ordenado['Nivel Rival'] == nivel_seleccionado)].copy()
+    # 1. Buscar estrictamente los partidos exactos (Condición y Nivel)
+    historial_exacto = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
+                                   (df_ordenado['Condición'] == condicion_seleccionada) & 
+                                   (df_ordenado['Nivel Rival'] == nivel_seleccionado)].copy()
     
+    historial = historial_exacto.copy()
     fuente_datos = f"Exacto ({condicion_seleccionada} vs Nivel {nivel_seleccionado})"
     
-    # 2. Respaldo inteligente respetando la condición (si hay menos de 2 exactos)
+    # 2. LÓGICA DE CRUCE TÁCTICO INTELIGENTE CON BAREMO
     if len(historial) < 2:
-        historial_condicion = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
-                                          (df_ordenado['Condición'] == condicion_seleccionada)].copy()
+        condicion_contraria = "Visitante" if condicion_seleccionada == "Local" else "Local"
         
-        if len(historial_condicion) >= 2:
-            historial = historial_condicion.head(5) # Tomamos hasta los últimos 5 más recientes de esa condición
-            fuente_datos = f"Global de {condicion_seleccionada} (Partidos más recientes)"
+        # Buscamos el partido(s) que sí existan en la condición seleccionada
+        partidos_exactos_actuales = historial_exacto.copy()
+        
+        # Buscamos el último partido más reciente en la condición contraria contra el mismo nivel (o global)
+        historial_contrario = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
+                                          (df_ordenado['Condición'] == condicion_contraria) & 
+                                          (df_ordenado['Nivel Rival'] == nivel_seleccionado)].copy()
+        
+        if len(historial_contrario) == 0:
+            # Si no hay contra ese nivel exacto, tomamos el último de la condición contraria en general
+            historial_contrario = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
+                                              (df_ordenado['Condición'] == condicion_contraria)].copy()
+        
+        if len(historial_contrario) >= 1:
+            # Tomamos estrictamente EL ÚLTIMO (el más reciente) de la otra condición
+            ultimo_contrario = historial_contrario.head(1).copy()
+            
+            # Aplicamos el BAREMO TÁCTICO (Factor de ajuste por cambio de condición)
+            # Si pasamos de Local a Visitante reducimos ligeramente la expectativa, y viceversa
+            factor_baremo = 0.88 if condicion_seleccionada == "Visitante" else 1.12
+            
+            for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
+                if col in ultimo_contrario.columns:
+                    ultimo_contrario[col] = ultimo_contrario[col] * factor_baremo
+            
+            # Fusionamos el exacto que teníamos con este último cruzado y ajustado
+            historial = pd.concat([partidos_exactos_actuales, ultimo_contrario])
+            fuente_datos = f"Cruce Táctico (Exacto + Último {condicion_contraria} con Baremo)"
         else:
-            # 3. Respaldo de emergencia global si la condición tiene pocos registros
-            historial = df_ordenado[df_ordenado['Equipo'] == equipo_seleccionado].head(5).copy()
-            fuente_datos = "Emergencia (Historial global mixto por escasez de datos)"
+            # Respaldo final de emergencia si de verdad no hay nada más
+            historial = df_ordenado[df_ordenado['Equipo'] == equipo_seleccionado].head(3).copy()
+            fuente_datos = "Emergencia (Historial global mixto por escasez absoluta)"
     
     # ENCABEZADO DEL EQUIPO
     st.markdown(f"""
@@ -307,7 +331,7 @@ if st.session_state.ejecutar:
             st.metric(label=f"🛑 Más de {linea_faltas} Faltas", value=f"{(sim_faltas > linea_faltas).mean() * 100:.1f}%")
 
         st.markdown("---")
-        st.info(f"💡 **Base del análisis:** {len(historial)} partidos analizados bajo el modo: **{fuente_datos}** (ponderados por fecha).")
+        st.info(f"💡 **Base del análisis:** {len(historial)} partidos analizados bajo el modo: **{fuente_datos}** (con ponderación temporal y baremo táctico aplicado).")
         
         with st.expander("📋 Ver detalle completo de los partidos utilizados (Rivales y Estadísticas)"):
             historial_display = historial.copy()
