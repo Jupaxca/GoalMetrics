@@ -191,7 +191,7 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         sim_corners = np.random.poisson(lam=weighted_avg('Corners'), size=num_sim)
         sim_faltas = np.random.poisson(lam=weighted_avg('Faltas'), size=num_sim)
         
-        # CÁLCULOS 1X2 Y BTTS (AMBOS ANOTAN)
+        # CÁLCULOS 1X2 Y BTTS
         triunfos = (sim_goles_favor > sim_goles_contra).mean() * 100
         empates = (sim_goles_favor == sim_goles_contra).mean() * 100
         derrotas = (sim_goles_favor < sim_goles_contra).mean() * 100
@@ -229,3 +229,7 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
 
         st.markdown("---")
         st.info(f"💡 **Base del análisis:** {len(historial)} partidos analizados bajo el modo: **{fuente_datos}** (ponderados por fecha).")
+        
+        # 🔍 APARTADO NUEVO: HISTORIAL DE PARTIDOS UTILIZADOS
+        with st.expander("📋 Ver detalle de los partidos utilizados en este análisis"):
+            st.dataframe(historial[['Fecha', 'Equipo', 'Condición', 'Nivel Rival', 'Goles', 'Goles Rival', 'Tiros', 'Corners', 'Faltas']], hide_index=True, use_container_width=True)
