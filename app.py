@@ -11,8 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 1. CARGAR DATOS DESDE GOOGLE SHEETS
-@st.cache_data
+# 1. CARGAR DATOS DESDE GOOGLE SHEETS SIN CACHÉ
 def cargar_datos():
     sheet_id = "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg"
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
@@ -75,10 +74,7 @@ historial_exacto_sidebar = df_ordenado_sidebar[(df_ordenado_sidebar['Equipo'] ==
                                                (df_ordenado_sidebar['Nivel Rival'] == str(nivel_seleccionado))]
 
 st.sidebar.markdown("---")
-if len(historial_exacto_sidebar) >= 2:
-    st.sidebar.success(f"✅ Partidos exactos encontrados: **{len(historial_exacto_sidebar)}**")
-else:
-    st.sidebar.warning(f"⚠️ Pocos partidos exactos ({len(historial_exacto_sidebar)}). Se activará cruce táctico con baremo.")
+st.sidebar.info(f"🔍 Diagnóstico: {len(historial_exacto_sidebar)} partido(s) exacto(s) hallado(s).")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🎯 Líneas de Estudio / Apuesta")
@@ -158,59 +154,52 @@ st.markdown("---")
 # 3. PANEL PRINCIPAL
 st.markdown("### 🕹️ Centro de Simulación")
 
-if st.button("⚡ Ejecutar Motor de Predicción V2", type="primary", use_container_width=True):
-    st.session_state.ejecutar_v2 = True
+if st.button("⚡ Ejecutar Motor de Predicción V5", type="primary", use_container_width=True):
+    st.session_state.ejecutar_v5 = True
 
-if 'ejecutar_v2' not in st.session_state:
-    st.session_state.ejecutar_v2 = False
+if 'ejecutar_v5' not in st.session_state:
+    st.session_state.ejecutar_v5 = False
 
-if st.session_state.ejecutar_v2:
+if st.session_state.ejecutar_v5:
     df_ordenado = df.sort_values(by='Fecha', ascending=False)
     
-    # FILTRO 1: Partidos exactos de la condición y nivel seleccionados
-    exactos_condicion = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
-                                    (df_ordenado['Condición'] == condicion_seleccionada) & 
-                                    (df_ordenado['Nivel Rival'] == str(nivel_seleccionado))].copy()
+    # Búsqueda estrictamente exacta (Condición + Nivel)
+    exactos = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
+                          (df_ordenado['Condición'] == condicion_seleccionada) & 
+                          (df_ordenado['Nivel Rival'] == str(nivel_seleccionado))].copy()
     
-    if len(exactos_condicion) >= 2:
-        historial = exactos_condicion.head(2).copy()
+    if len(exactos) >= 2:
+        # CASO 1: Existen 2 o más partidos exactos -> Análisis normal y exclusivo
+        historial = exactos.copy()
         fuente_datos = f"Exacto ({condicion_seleccionada} vs Nivel {nivel_seleccionado})"
         
-    elif len(exactos_condicion) == 1:
-        # CONSERVACIÓN ESTRICTA DEL ÚNICO PARTIDO EXACTO
-        p_exacto = exactos_condicion.head(1).copy()
-        
-        # Buscar el partido más reciente de la condición contraria
+    elif len(exactos) == 1:
+        # CASO 2: Existe exactamente 1 partido exacto -> Tomamos ese 1 y sumamos los que haya del otro lado con baremo
+        p_exacto = exactos.copy()
         cond_contraria = "Visitante" if condicion_seleccionada == "Local" else "Local"
-        contrarios = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
-                                 (df_ordenado['Condición'] == cond_contraria)].copy()
         
-        if len(contrarios) >= 1:
-            p_contrario = contrarios.head(1).copy()
-            
-            # Aplicar baremo táctico
-            factor = 0.88 if condicion_seleccionada == "Visitante" else 1.12
-            for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
-                if col in p_contrario.columns:
-                    p_contrario[col] = p_contrario[col] * factor
-            
-            # FUSIÓN DIRECTA Y EXPLÍCITA
-            historial = pd.concat([p_exacto, p_contrario])
-            fuente_datos = f"Cruce Táctico (1 Exacto {condicion_seleccionada} + 1 Reciente {cond_contraria} con Baremo)"
-        else:
-            historial = p_exacto.copy()
-            fuente_datos = "Solo 1 partido exacto disponible"
+        contrarios = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
+                                 (df_ordenado['Condición'] == cond_contraria) & 
+                                 (df_ordenado['Nivel Rival'] == str(nivel_seleccionado))].copy()
+        
+        if len(contrarios) == 0:
+            contrarios = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
+                                     (df_ordenado['Condición'] == cond_contraria)].copy()
+        
+        # Aplicamos baremo táctico a los del otro lado
+        factor = 0.88 if condicion_seleccionada == "Visitante" else 1.12
+        for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
+            if col in contrarios.columns:
+                contrarios[col] = contrarios[col] * factor
+                
+        historial = pd.concat([p_exacto, contrarios])
+        fuente_datos = f"Cruce Táctico (1 Exacto {condicion_seleccionada} + {len(contrarios)} {cond_contraria}(s) con Baremo)"
+        
     else:
-        # Si hay 0 exactos, tomamos los 2 más recientes de la condición buscada
-        mismas_cond = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
-                                  (df_ordenado['Condición'] == condicion_seleccionada)].copy()
-        if len(mismas_cond) >= 2:
-            historial = mismas_cond.head(2).copy()
-            fuente_datos = f"Global de {condicion_seleccionada} (2 más recientes)"
-        else:
-            historial = df_ordenado[df_ordenado['Equipo'] == equipo_seleccionado].head(2).copy()
-            fuente_datos = "Emergencia (2 últimos partidos globales)"
-    
+        # CASO 3: Hay 0 partidos exactos -> No se fuerza análisis inventado
+        historial = pd.DataFrame()
+        fuente_datos = "Sin registros suficientes"
+
     # ENCABEZADO DEL EQUIPO
     st.markdown(f"""
         <div class="team-header">
@@ -218,8 +207,8 @@ if st.session_state.ejecutar_v2:
         </div>
     """, unsafe_allow_html=True)
     
-    if len(historial) < 2:
-        st.error(f"❌ No hay suficiente información en el registro para analizar a {equipo_seleccionado}. Se requieren al menos 2 partidos.")
+    if len(historial) < 1:
+        st.error(f"❌ No hay suficientes partidos exactos registrados para {equipo_seleccionado} en esta condición y nivel. Se requiere al menos 1 partido exacto.")
     else:
         historial['Dias_Pasados'] = (pd.Timestamp.now() - historial['Fecha']).dt.days.replace(0, 0.1)
         historial['Peso'] = 1 / (1 + (historial['Dias_Pasados'] / 30))
@@ -334,4 +323,4 @@ if st.session_state.ejecutar_v2:
             columnas_disponibles = [col for col in ['Fecha', 'Equipo', 'Condición', 'Rival', 'Nivel Rival', 'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas'] if col in historial_display.columns]
             st.dataframe(historial_display[columnas_disponibles], hide_index=True, use_container_width=True)
 else:
-    st.info("👈 Configura los parámetros en la barra lateral y presiona **'Ejecutar Motor de Predicción V2'** para generar la simulación estadística.")
+    st.info("👈 Configura los parámetros en la barra lateral y presiona **'Ejecutar Motor de Predicción V5'** para generar la simulación estadística.")
