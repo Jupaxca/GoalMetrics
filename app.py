@@ -165,44 +165,42 @@ if 'ejecutar' not in st.session_state:
     st.session_state.ejecutar = False
 
 if st.session_state.ejecutar:
-    # Ordenar toda la base de datos por fecha descendente (lo más reciente primero)
     df_ordenado = df.sort_values(by='Fecha', ascending=False)
     
-    # 1. Buscar estrictamente los partidos exactos (Condición y Nivel)
+    # PASO 1: Capturamos estrictamente los partidos exactos que existan
     historial_exacto = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
                                    (df_ordenado['Condición'] == condicion_seleccionada) & 
                                    (df_ordenado['Nivel Rival'] == nivel_seleccionado)].copy()
     
-    historial = historial_exacto.copy()
     fuente_datos = f"Exacto ({condicion_seleccionada} vs Nivel {nivel_seleccionado})"
+    historial = historial_exacto.copy()
     
-    # 2. CRUCE TÁCTICO INTELIGENTE (Conserva el exacto que sí hay y busca solo 1 del contrario)
+    # PASO 2: Si hay menos de 2 partidos exactos, conservamos lo que haya y completamos con 1 solo partido del contrario
     if len(historial) < 2:
         condicion_contraria = "Visitante" if condicion_seleccionada == "Local" else "Local"
         
-        # Buscamos en la condición contraria contra el mismo nivel
+        # Buscamos el partido más reciente de la condición contraria
         historial_contrario = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
                                           (df_ordenado['Condición'] == condicion_contraria) & 
                                           (df_ordenado['Nivel Rival'] == nivel_seleccionado)].copy()
         
         if len(historial_contrario) == 0:
-            # Si no hay contra ese nivel, toma el último de la condición contraria en general
             historial_contrario = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
                                               (df_ordenado['Condición'] == condicion_contraria)].copy()
         
         if len(historial_contrario) >= 1:
-            # Tomamos estrictamente EL ÚLTIMO (1 solo partido) de la otra condición
+            # Tomamos obligatoriamente solo el último (1 partido) de la otra condición
             ultimo_contrario = historial_contrario.head(1).copy()
             
-            # Aplicamos el BAREMO TÁCTICO a ese único partido complementario
+            # Aplicamos el baremo táctico a ese único partido complementario
             factor_baremo = 0.88 if condicion_seleccionada == "Visitante" else 1.12
             for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
                 if col in ultimo_contrario.columns:
                     ultimo_contrario[col] = ultimo_contrario[col] * factor_baremo
             
-            # UNIMOS el exacto que sí existía + el único complementario ajustado
+            # Combinamos los exactos que sí existían + el único complementario ajustado
             historial = pd.concat([historial_exacto, ultimo_contrario])
-            fuente_datos = f"Cruce Táctico ({len(historial_exacto)} Exacto + 1 {condicion_contraria} con Baremo)"
+            fuente_datos = f"Cruce Táctico ({len(historial_exacto)} Exacto + 1 {condicion_contraria} ajustado con Baremo)"
         else:
             historial = df_ordenado[df_ordenado['Equipo'] == equipo_seleccionado].head(3).copy()
             fuente_datos = "Emergencia (Historial global mixto por escasez absoluta)"
@@ -273,7 +271,6 @@ if st.session_state.ejecutar:
         
         st.markdown("---")
 
-        # FUNCIÓN PARA CREAR GRÁFICOS ALTAIR CON FORMATO DE PORCENTAJE (%) EN EL EJE Y
         def crear_grafico_porcentaje(serie_datos, titulo_x):
             conteo_vals = serie_datos.value_counts().sort_index()
             df_chart = pd.DataFrame({
@@ -290,13 +287,11 @@ if st.session_state.ejecutar:
             
             return chart
 
-        # GRÁFICO DE GOLES
         st.markdown("#### ⚽ Distribución de Probabilidad de Goles a Favor")
         st.markdown('<div class="explanation-text">Este gráfico indica qué tan probable es (en porcentaje) que el equipo anote 0, 1, 2, 3 o más goles. El eje izquierdo refleja el porcentaje (%) de ocurrencia.</div>', unsafe_allow_html=True)
         chart_goles = crear_grafico_porcentaje(pd.Series(sim_goles_favor), 'Goles')
         st.altair_chart(chart_goles, use_container_width=True)
 
-        # GRÁFICO DE CÓRNERS
         st.markdown("#### 🚩 Distribución de Probabilidad de Córners")
         st.markdown('<div class="explanation-text">Muestra las probabilidades expresadas en porcentaje (%) para cada volumen de saques de esquina a favor durante el desarrollo del encuentro.</div>', unsafe_allow_html=True)
         chart_corners = crear_grafico_porcentaje(pd.Series(sim_corners).astype(int), 'Córners')
