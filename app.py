@@ -165,24 +165,24 @@ if 'ejecutar' not in st.session_state:
     st.session_state.ejecutar = False
 
 if st.session_state.ejecutar:
-    # ORDENAR ESTRICTAMENTE TODO POR FECHA (LO MÁS RECIENTE PRIMERO)
     df_ordenado = df.sort_values(by='Fecha', ascending=False)
     
-    # PASO 1: Capturamos los partidos exactos ordenados por fecha descendente
+    # BÚSQUEDA ESTRICTA DE PARTIDOS EXACTOS ORDENADOS POR FECHA
     historial_exacto = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
                                    (df_ordenado['Condición'] == condicion_seleccionada) & 
                                    (df_ordenado['Nivel Rival'] == nivel_seleccionado)].copy()
     
     if len(historial_exacto) >= 2:
-        # Si hay suficientes exactos, tomamos estrictamente los 2 más recientes
+        # Caso A: Tenemos 2 o más partidos exactos. Usamos estrictamente los 2 más recientes.
         historial = historial_exacto.head(2).copy()
-        fuente_datos = f"Exacto ({condicion_seleccionada} vs Nivel {nivel_seleccionado} - Más recientes)"
+        fuente_datos = f"Exacto ({condicion_seleccionada} vs Nivel {nivel_seleccionado} - 2 más recientes)"
         
     elif len(historial_exacto) == 1:
-        # CASO EXACTO: Tenemos exactamente 1 partido. Lo conservamos obligatoriamente.
-        condicion_contraria = "Visitante" if condicion_seleccionada == "Local" else "Local"
+        # Caso B: Tenemos EXACTAMENTE 1 partido de la condición buscada. Lo conservamos obligatoriamente.
+        partido_exacto_unico = historial_exacto.head(1).copy()
         
-        # Buscamos en la condición contraria, ordenado por fecha para asegurar que sea EL MÁS RECIENTE
+        # Buscamos el partido más reciente de la condición contraria para completar la pareja
+        condicion_contraria = "Visitante" if condicion_seleccionada == "Local" else "Local"
         historial_contrario = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
                                           (df_ordenado['Condición'] == condicion_contraria)].copy()
         
@@ -190,21 +190,21 @@ if st.session_state.ejecutar:
             # Tomamos estrictamente el ÚNICO y MÁS RECIENTE de la otra condición
             ultimo_contrario = historial_contrario.head(1).copy()
             
-            # Aplicamos el baremo táctico a ese único partido complementario
+            # Aplicamos el baremo táctico exclusivamente a este partido complementario
             factor_baremo = 0.88 if condicion_seleccionada == "Visitante" else 1.12
             for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
                 if col in ultimo_contrario.columns:
                     ultimo_contrario[col] = ultimo_contrario[col] * factor_baremo
             
-            # Unimos el 1 partido exacto que sí tenías + el último complementario ajustado
-            historial = pd.concat([historial_exacto, ultimo_contrario])
-            fuente_datos = f"Cruce Táctico (1 Exacto + 1 Más Reciente {condicion_contraria} con Baremo)"
+            # UNIMOS de forma explícita: 1 partido exacto tuyo + 1 partido reciente contrario ajustado
+            historial = pd.concat([partido_exacto_unico, ultimo_contrario])
+            fuente_datos = f"Cruce Táctico (1 Exacto {condicion_seleccionada} + 1 Más Reciente {condicion_contraria} con Baremo)"
         else:
-            historial = historial_exacto.copy()
-            fuente_datos = f"Solo 1 partido exacto disponible"
+            historial = partido_exacto_unico.copy()
+            fuente_datos = "Solo 1 partido exacto disponible (Insuficiente)"
             
     else:
-        # Si hay 0 exactos, tomamos los 2 más recientes de su misma condición
+        # Caso C: Hay 0 partidos exactos. Buscamos los 2 más recientes de su misma condición general
         historial_condicion = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
                                           (df_ordenado['Condición'] == condicion_seleccionada)].copy()
         if len(historial_condicion) >= 2:
