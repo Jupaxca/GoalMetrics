@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import altair as alt
+import plotly.graph_objects as go
 from collections import Counter
 
 # CONFIGURACIÓN DE LA PÁGINA
@@ -25,16 +26,15 @@ def cargar_datos():
     df['Condición'] = df['Condición'].astype(str).str.strip().str.lower()
     df['Nivel Rival'] = df['Nivel Rival'].astype(str).str.strip()
     
-    # Forzar numéricos para evitar que textos ocultos rompan el código
     for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
     return df
 
-# 2. MOTOR MATEMÁTICO SELLADO (Esto evita que los % cambien al dar clic)
+# 2. MOTOR MATEMÁTICO SELLADO (Evita que los % cambien al dar clic)
 @st.cache_data
 def simular_montecarlo(lam_fav, lam_con, lam_tir, lam_tpuerta, lam_corn, lam_faltas):
-    rng = np.random.default_rng(42) # Semilla inamovible
+    rng = np.random.default_rng(42)
     num_sim = 10000
     return (
         rng.poisson(lam=lam_fav, size=num_sim),
@@ -77,7 +77,7 @@ condicion_sel = condicion_label.lower()
 
 nivel_sel = st.sidebar.selectbox("⭐ Torneo / Nivel del Rival", lista_niveles)
 
-# Diagnóstico visual del sidebar
+# Diagnóstico en el sidebar
 df_diagnostico = df_equipo.sort_values(by='Fecha', ascending=False)
 exactos_check = df_diagnostico[(df_diagnostico['Condición'] == condicion_sel) & 
                                (df_diagnostico['Nivel Rival'] == nivel_sel)]
@@ -110,6 +110,36 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
+# --- FUNCIÓN DE GRÁFICO DE RADAR ---
+def renderizar_radar(lam_f, lam_t, lam_tp, lam_co, lam_fa):
+    val_ataque = min((lam_f * 3.33), 10)
+    val_tiros = min((lam_t / 2.5), 10)
+    val_precis = min((lam_tp * 1.66), 10)
+    val_corners = min((lam_co / 1.5), 10)
+    val_discip = min(((25 - lam_fa) / 2.5), 10)
+
+    categories = ['Ataque', 'Volumen Tiros', 'Precisión', 'Córners', 'Disciplina']
+    values = [val_ataque, val_tiros, val_precis, val_corners, val_discip]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(
+          r=values,
+          theta=categories,
+          fill='toself',
+          fillcolor=color_equipo,
+          line_color=color_equipo
+    ))
+
+    fig.update_layout(
+      polar=dict(radialaxis=dict(visible=True, range=[0, 10])),
+      showlegend=False,
+      paper_bgcolor='rgba(0,0,0,0)',
+      plot_bgcolor='rgba(0,0,0,0)',
+      font_color="white",
+      margin=dict(t=20, b=20, l=20, r=20)
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
 # --- PANEL PRINCIPAL ---
 col_btn1, col_btn2 = st.columns([1, 4])
 with col_btn1:
@@ -119,38 +149,26 @@ with col_btn2:
         st.rerun()
 
 if btn_analizar:
-    # 1. ORDENAR DATOS PRINCIPALES
     df_base = df[df['Equipo'] == equipo_sel].sort_values(by='Fecha', ascending=False)
-    
-    # 2. SELECCIÓN BLINDADA DE PARTIDOS
     df_exactos = df_base[(df_base['Condición'] == condicion_sel) & (df_base['Nivel Rival'] == nivel_sel)]
     
     historial = pd.DataFrame()
     fuente_datos = ""
     
     if len(df_exactos) >= 2:
-        # TOMA LOS DOS MÁS RECIENTES EXACTOS
         historial = df_exactos.head(2).copy()
         fuente_datos = f"Exacto ({condicion_label} vs {nivel_sel})"
-        
     elif len(df_exactos) == 1:
-        # TOMA EL ÚNICO EXACTO
         partido_1 = df_exactos.head(1).copy()
-        
-        # BUSCA ESTRICTAMENTE EL CONTRARIO
         cond_opuesta = "visitante" if condicion_sel == "local" else "local"
         df_opuestos = df_base[df_base['Condición'] == cond_opuesta]
         
         if len(df_opuestos) >= 1:
             partido_2 = df_opuestos.head(1).copy()
-            
-            # APLICA BAREMO SOLO AL PARTIDO 2 (CONTRARIO)
             factor = 0.88 if condicion_sel == "visitante" else 1.12
             for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
                 if col in partido_2.columns:
                     partido_2[col] = (partido_2[col] * factor).round(2)
-            
-            # FUSIÓN FORZADA (Garantiza que salgan los dos en la tabla)
             historial = pd.concat([partido_1, partido_2], ignore_index=True)
             fuente_datos = f"Mixto con respaldo ({cond_opuesta.capitalize()} ajustado)"
         else:
@@ -160,14 +178,12 @@ if btn_analizar:
         st.error(f"❌ No hay datos suficientes para analizar a {equipo_sel}.")
         st.stop()
 
-    # BANNER DEL EQUIPO
     st.markdown(f"""
         <div style="background-color: {color_equipo}; padding: 18px; border-radius: 12px; color: white; text-align: center; font-weight: bold; font-size: 22px; margin-bottom: 25px;">
             🛡️ {equipo_sel.upper()} ({condicion_label.upper()} vs {nivel_sel.upper()})
         </div>
     """, unsafe_allow_html=True)
     
-    # CÁLCULO DE PROMEDIOS PONDERADOS
     hoy = pd.Timestamp.today().normalize()
     historial['Dias_Pasados'] = (hoy - pd.to_datetime(historial['Fecha'])).dt.days.replace(0, 0.1)
     historial['Peso'] = 1 / (1 + (historial['Dias_Pasados'] / 30))
@@ -182,10 +198,8 @@ if btn_analizar:
     lam_co = prom('Corners')
     lam_fa = prom('Faltas')
     
-    # EJECUTAR SIMULACIÓN (LLama a la función bloqueada)
     sg_fav, sg_con, s_tir, s_tpuerta, s_corn, s_faltas = simular_montecarlo(lam_f, lam_c, lam_t, lam_tp, lam_co, lam_fa)
     
-    # PROBABILIDADES
     num_sim = 10000
     triunfos = (sg_fav > sg_con).mean() * 100
     empates = (sg_fav == sg_con).mean() * 100
@@ -206,6 +220,10 @@ if btn_analizar:
     else: veredicto = f"Partido Muy Parejo: Marcador proyectado {marcador_mas_comun}."
 
     st.markdown(f'<div class="insight-box"><b>Veredicto GoalMetrics:</b> {veredicto}</div>', unsafe_allow_html=True)
+
+    # GRÁFICO DE RADAR AÑADIDO
+    st.subheader("🧬 ADN del Equipo (Radar Stats)")
+    renderizar_radar(lam_f, lam_t, lam_tp, lam_co, lam_fa)
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("🟢 Victoria (1)", f"{triunfos:.1f}%")
@@ -253,3 +271,4 @@ if btn_analizar:
         h_disp['Fecha'] = pd.to_datetime(h_disp['Fecha']).dt.strftime('%Y-%m-%d')
         cols = [c for c in ['Fecha', 'Equipo', 'Condición', 'Rival', 'Nivel Rival', 'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas'] if c in h_disp.columns]
         st.dataframe(h_disp[cols], hide_index=True, use_container_width=True)
+                    
