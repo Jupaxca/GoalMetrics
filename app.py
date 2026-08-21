@@ -3,21 +3,14 @@ import pandas as pd
 import numpy as np
 from collections import Counter
 
-# CONFIGURACIÓN DE LA PÁGINA (Modo ancho para mejor distribución)
+# CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(page_title="Simulador Pro - Fútbol", page_icon="⚽", layout="wide")
 
-# ESTILOS CSS PERSONALIZADOS PARA UN LOOK MÁS PROFESIONAL
+# ESTILOS CSS PERSONALIZADOS
 st.markdown("""
     <style>
     .main {
         background-color: #0e1117;
-    }
-    .metric-card {
-        background-color: #1f2937;
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #374151;
-        text-align: center;
     }
     .stButton>button {
         width: 100%;
@@ -25,9 +18,20 @@ st.markdown("""
         font-weight: bold;
         background-color: #10b981;
         color: white;
+        font-size: 16px;
+        padding: 10px;
     }
     .stButton>button:hover {
         background-color: #059669;
+    }
+    .team-header {
+        padding: 15px;
+        border-radius: 10px;
+        color: white;
+        text-align: center;
+        font-weight: bold;
+        font-size: 20px;
+        margin-bottom: 20px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -56,6 +60,17 @@ except Exception as e:
     st.error(f"⚠️ Error al cargar los datos del Google Sheets. Detalle: {e}")
     st.stop()
 
+# Diccionario amplio de colores por equipo (puedes ir añadiendo más)
+colores_equipos = {
+    "Flamengo": "#C8102E",
+    "Fluminense": "#8B0000",
+    "Palmeiras": "#006400",
+    "Vasco": "#222222",
+    "Benfica": "#E30613",
+    "Real Madrid": "#00529F",
+    "Barcelona": "#A50044"
+}
+
 # 2. PANEL DE CONTROL LATERAL
 st.sidebar.header("⚙️ Configuración de Análisis")
 
@@ -64,7 +79,18 @@ lista_niveles = sorted([str(x) for x in df['Nivel Rival'].unique() if pd.notna(x
 
 equipo_seleccionado = st.sidebar.selectbox("🏟️ Selecciona el Equipo", lista_equipos)
 condicion_seleccionada = st.sidebar.selectbox("📍 Condición", ["Local", "Visitante"])
-nivel_seleccionado = st.sidebar.selectbox("⭐ Nivel del Rival", lista_niveles)
+nivel_seleccionado = st.sidebar.selectbox("⭐ Torneo / Nivel del Rival", lista_niveles)
+
+# 💡 CONTADOR EN TIEMPO REAL DE PARTIDOS DISPONIBLES
+historial_exacto = df[(df['Equipo'] == equipo_seleccionado) & 
+                       (df['Condición'] == condicion_seleccionada) & 
+                       (df['Nivel Rival'] == nivel_seleccionado)]
+
+st.sidebar.markdown("---")
+if len(historial_exacto) >= 2:
+    st.sidebar.success(f"✅ Partidos exactos encontrados: **{len(historial_exacto)}**")
+else:
+    st.sidebar.warning(f"⚠️ Pocos partidos exactos ({len(historial_exacto)}). Se activará respaldo automático si es necesario.")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🎯 Líneas de Apuesta / Estudio")
@@ -74,22 +100,44 @@ linea_tiros_puerta = st.sidebar.slider("🎯 Línea Tiros a Puerta", 1.0, 10.0, 
 linea_corners = st.sidebar.slider("🚩 Línea de Córners", 1.0, 15.0, 5.5, 0.5)
 linea_faltas = st.sidebar.slider("🛑 Línea de Faltas", 5.0, 25.0, 10.5, 0.5)
 
-# 3. BOTÓN DE EJECUCIÓN PRINCIPAL
+color_equipo = colores_equipos.get(equipo_seleccionado, "#374151")
+
+# 3. PANEL PRINCIPAL Y LÓGICA INTELIGENTE DE RESPALDO
 st.markdown("### 🕹️ Panel de Simulación")
-if st.button("🚀 Ejecutar Análisis Estadístico (10,000 Simulaciones)", type="primary"):
+
+if st.button("🎯 Realizar Predicción", type="primary"):
     
-    historial = df[(df['Equipo'] == equipo_seleccionado) & 
-                   (df['Condición'] == condicion_seleccionada) & 
-                   (df['Nivel Rival'] == nivel_seleccionado)]
+    # LÓGICA INTELIGENTE DE FILTRADO (CON FALLBACK)
+    historial = historial_exacto.copy()
+    fuente_datos = "Exacto (Condición y Nivel)"
     
-    # Encabezado visual atractivo del análisis actual
+    # Si hay menos de 2 partidos exactos, buscamos en la condición contraria contra el mismo nivel
+    if len(historial) < 2:
+        condicion_contraria = "Visitante" if condicion_seleccionada == "Local" else "Local"
+        historial_respaldo = df[(df['Equipo'] == equipo_seleccionado) & 
+                                (df['Condición'] == condicion_contraria) & 
+                                (df['Nivel Rival'] == nivel_seleccionado)]
+        
+        if len(historial_respaldo) + len(historial) >= 2:
+            # Usamos los de respaldo y aplicamos un factor de ajuste de localía/visita
+            factor_ajuste = 0.85 if condicion_seleccionada == "Local" else 1.15 # Penaliza si buscábamos local y metemos visitante, o viceversa
+            
+            # Combinamos o usamos el respaldo ajustado
+            historial = historial_respaldo.copy()
+            # Ajustamos levemente las métricas ofensivas según el cambio de condición
+            for col in ['Goles', 'Tiros Prom', 'A Puerta Prom', 'Corners']:
+                if col in historial.columns:
+                    historial[col] = historial[col] * factor_ajuste
+            fuente_datos = f"Mixto con respaldo ({condicion_contraria} ajustado)"
+    
     st.markdown(f"""
-        ### 📊 Reporte para: <span style='color:#10b981;'>{equipo_seleccionado.upper()}</span> 
-        *(Jugando como **{condicion_seleccionada.upper()}** ante un rival nivel **{nivel_seleccionado.upper()}**)*
+        <div class="team-header" style="background-color: {color_equipo};">
+            🛡️ {equipo_seleccionado.upper()} ({condicion_seleccionada.upper()} vs {nivel_seleccionado.upper()})
+        </div>
     """, unsafe_allow_html=True)
     
     if len(historial) < 2:
-        st.warning(f"⚠️ Tienes solo {len(historial)} partido(s) registrado(s) para este escenario. Se necesitan al menos 2 para tener precisión.")
+        st.error(f"❌ No hay suficiente información en el registro (incluso con respaldo) para analizar a {equipo_seleccionado} contra {nivel_rival if 'nivel_rival' in locals() else 'este torneo'}. Necesitas al menos 2 partidos.")
     else:
         # Cálculo Ponderado por Recencia
         historial['Dias_Pasados'] = (pd.Timestamp.now() - historial['Fecha']).dt.days.replace(0, 0.1)
@@ -115,14 +163,11 @@ if st.button("🚀 Ejecutar Análisis Estadístico (10,000 Simulaciones)", type=
         marcadores = [f"{f}-{c}" for f, c in zip(sim_goles_favor, sim_goles_contra)]
         conteo = Counter(marcadores)
         
-        st.markdown("---")
-        
-        # DISTRIBUCIÓN EN DOS COLUMNAS LIMPIAS
+        # DISTRIBUCIÓN EN DOS COLUMNAS
         col_left, col_right = st.columns(2)
         
         with col_left:
             st.markdown("#### 🏆 Top 5 Marcadores Más Probables")
-            # Creamos una mini tabla visual bonita
             tabla_data = []
             for res, freq in conteo.most_common(5):
                 prob = (freq / num_sim) * 100
@@ -138,4 +183,4 @@ if st.button("🚀 Ejecutar Análisis Estadístico (10,000 Simulaciones)", type=
             st.metric(label=f"🛑 Más de {linea_faltas} Faltas", value=f"{(sim_faltas > linea_faltas).mean() * 100:.1f}%")
 
         st.markdown("---")
-        st.info(f"💡 **Partidos analizados en el historial:** {len(historial)} encuentros ponderados por fecha (dando mayor peso a los más recientes).")
+        st.info(f"💡 **Base del análisis:** {len(historial)} partidos analizados bajo el modo: **{fuente_datos}** (ponderados por fecha).")
