@@ -88,7 +88,7 @@ linea_faltas = st.sidebar.slider("🛑 Línea de Faltas", 5.0, 25.0, 10.5, 0.5)
 
 color_equipo = colores_equipos.get(equipo_seleccionado, "#3B82F6")
 
-# ESTILOS CSS DINÁMICOS (Sin afectar el diseño interno de las tablas)
+# ESTILOS CSS DINÁMICOS
 st.markdown(f"""
     <style>
     .stApp {{
@@ -232,12 +232,13 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         marcadores = [f"{f}-{c}" for f, c in zip(sim_goles_favor, sim_goles_contra)]
         conteo = Counter(marcadores)
         
+        # EXPLICACIÓN DETALLADA DE LA FIABILIDAD
         if num_exactos >= 4:
-            nivel_fiabilidad = "Alta (Basado en 4+ partidos exactos)"
+            explicacion_fiabilidad = f"Alta. Se encontraron {num_exactos} partidos exactos cumpliendo con la condición y el nivel de rival seleccionados, lo que otorga una base estadística muy sólida."
         elif num_exactos >= 2:
-            nivel_fiabilidad = "Media (Basado en registros justos)"
+            explicacion_fiabilidad = f"Media. Se cuenta con {num_exactos} partidos exactos; es una muestra válida, aunque limitada, ponderada por la fecha de los encuentros."
         else:
-            nivel_fiabilidad = "Moderada (Activado con respaldo inteligente)"
+            explicacion_fiabilidad = f"Moderada / Respaldo Activado. Había pocos partidos exactos ({num_exactos}), por lo que el sistema aplicó el respaldo inteligente usando la condición contraria con su respectivo ajuste matemático."
 
         marcador_mas_comun = conteo.most_common(1)[0][0]
         if triunfos > 50:
@@ -247,7 +248,7 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         else:
             veredicto = f"Partido Muy Parejo: Escenario sumamente equilibrado con alta probabilidad de empate o diferencia mínima. El resultado más común simulado fue {marcador_mas_comun}."
 
-        st.markdown(f'<div class="insight-box"><b>Veredicto GoalMetrics:</b> {veredicto}<br><br><b>Fiabilidad de los Datos:</b> {nivel_fiabilidad}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="insight-box"><b>Veredicto GoalMetrics:</b> {veredicto}<br><br><b>Fiabilidad de los Datos:</b> {explicacion_fiabilidad}</div>', unsafe_allow_html=True)
 
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         col_m1.metric("🟢 Victoria (1)", f"{triunfos:.1f}%")
@@ -262,8 +263,9 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         
         st.markdown("---")
 
-        # GRÁFICO DE GOLES (Usa el color del equipo en las barras)
+        # GRÁFICO DE GOLES CON EXPLICACIÓN
         st.markdown("#### ⚽ Distribución de Probabilidad de Goles a Favor")
+        st.markdown('<div class="explanation-text">Este gráfico muestra qué tan probable es que el equipo anote 0, 1, 2, 3 o más goles en el partido. Las barras más altas indican la cantidad de anotaciones que ocurrieron con mayor frecuencia en la simulación.</div>', unsafe_allow_html=True)
         conteo_goles = pd.Series(sim_goles_favor).value_counts().sort_index()
         df_goles_chart = pd.DataFrame({
             'Goles': conteo_goles.index,
@@ -271,8 +273,9 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         }).set_index('Goles')
         st.bar_chart(df_goles_chart, color=color_equipo)
 
-        # GRÁFICO DE CÓRNERS (Usa el color del equipo en las barras)
+        # GRÁFICO DE CÓRNERS CON EXPLICACIÓN
         st.markdown("#### 🚩 Distribución de Probabilidad de Córners")
+        st.markdown('<div class="explanation-text">Representa las probabilidades de saques de esquina que cobrará el equipo. Te ayuda a visualizar el volumen ofensivo a través de tiros de esquina esperados.</div>', unsafe_allow_html=True)
         conteo_corners = pd.Series(sim_corners).astype(int).value_counts().sort_index()
         df_corners_chart = pd.DataFrame({
             'Córners': conteo_corners.index,
