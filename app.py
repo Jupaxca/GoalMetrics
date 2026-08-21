@@ -201,13 +201,12 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         sim_corners = np.random.poisson(lam=weighted_avg('Corners'), size=num_sim)
         sim_faltas = np.random.poisson(lam=weighted_avg('Faltas'), size=num_sim)
         
-        # CÁLCULOS 1X2, BTTS Y MERCADOS NUEVOS (DOBLE OPORTUNIDAD / DNB)
+        # CÁLCULOS 1X2, BTTS Y MERCADOS
         triunfos = (sim_goles_favor > sim_goles_contra).mean() * 100
         empates = (sim_goles_favor == sim_goles_contra).mean() * 100
         derrotas = (sim_goles_favor < sim_goles_contra).mean() * 100
         ambos_anotan = ((sim_goles_favor > 0) & (sim_goles_contra > 0)).mean() * 100
         
-        # Nuevas métricas avanzadas
         doble_oportunidad_1x = triunfos + empates
         doble_oportunidad_x2 = derrotas + empates
         total_sin_empate = triunfos + derrotas
@@ -216,7 +215,7 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         marcadores = [f"{f}-{c}" for f, c in zip(sim_goles_favor, sim_goles_contra)]
         conteo = Counter(marcadores)
         
-        # BLOQUE DE RESUMEN 1X2 Y MERCADOS
+        # BLOQUE DE RESUMEN 1X2
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         col_m1.metric("🟢 Victoria (1)", f"{triunfos:.1f}%")
         col_m2.metric("🟡 Empate (X)", f"{empates:.1f}%")
@@ -230,14 +229,31 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         
         st.markdown("---")
         
-        # GRÁFICO VISUAL DE DISTRIBUCIÓN DE GOLES A FAVOR
-        st.markdown("#### 📊 Distribución de Probabilidad de Goles a Favor")
+        # 📊 GRÁFICO 1: COMPARATIVA 1X2 VISUAL
+        st.markdown("#### 📊 Probabilidades del Resultado (1X2)")
+        df_1x2_chart = pd.DataFrame({
+            'Resultado': ['Victoria (1)', 'Empate (X)', 'Derrota (2)'],
+            'Probabilidad (%)': [triunfos, empates, derrotas]
+        }).set_index('Resultado')
+        st.bar_chart(df_1x2_chart, color="#10B981")
+
+        # 📊 GRÁFICO 2: DISTRIBUCIÓN DE GOLES A FAVOR
+        st.markdown("#### ⚽ Distribución de Probabilidad de Goles a Favor")
         conteo_goles = pd.Series(sim_goles_favor).value_counts().sort_index()
         df_goles_chart = pd.DataFrame({
             'Goles': conteo_goles.index,
             'Probabilidad (%)': (conteo_goles / num_sim) * 100
         }).set_index('Goles')
         st.bar_chart(df_goles_chart, color="#3B82F6")
+
+        # 📊 GRÁFICO 3: DISTRIBUCIÓN DE CÓRNERS
+        st.markdown("#### 🚩 Distribución de Probabilidad de Córners")
+        conteo_corners = pd.Series(sim_corners).astype(int).value_counts().sort_index()
+        df_corners_chart = pd.DataFrame({
+            'Córners': conteo_corners.index,
+            'Probabilidad (%)': (conteo_corners / num_sim) * 100
+        }).set_index('Córners')
+        st.bar_chart(df_corners_chart, color="#F59E0B")
         
         st.markdown("---")
         
