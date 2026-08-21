@@ -64,6 +64,14 @@ st.markdown("""
         font-weight: 600;
         margin-bottom: 20px;
     }
+    .insight-box {
+        padding: 15px;
+        border-radius: 10px;
+        background-color: #1F2937;
+        border-left: 5px solid #3B82F6;
+        margin-bottom: 20px;
+        font-size: 16px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -94,28 +102,29 @@ except Exception as e:
     st.error(f"⚠️ Error al cargar los datos del Google Sheets. Detalle: {e}")
     st.stop()
 
-# DICCIONARIO DE COLORES
+# DICCIONARIO DE COLORES OFICIALES Y COMPLETOS
 colores_equipos = {
-    "Palmeiras": "#006400",
-    "Flamengo": "#C8102E",
-    "Paranaense": "#CC0000",
-    "Fluminense": "#8B0000",
-    "Vasco": "#222222",
-    "Arsenal": "#EF0107",
-    "Aston villa": "#670E36",
-    "Barcelona": "#A50044",
-    "Bayern Mı": "#DC052D",
-    "Benfica": "#E30613",
-    "Como": "#002D62",
-    "Freiburg": "#000000",
-    "Inter": "#010E80",
-    "Liverpool": "#C8102E",
-    "Lyon": "#1D428A",
-    "Manchest": "#DA291C",
-    "Newcastle": "#241F20",
-    "Porto": "#003399",
-    "PSG": "#004170",
-    "Real Madr": "#00529F"
+    "Palmeiras": "#006400",          # Verde esmeralda
+    "Flamengo": "#C8102E",           # Rojo y negro
+    "Paranaense": "#CC0000",         # Rojo atlético
+    "Fluminense": "#8B0000",         # Granate tricolor
+    "Vasco": "#222222",              # Negro cruz de malta
+    "Arsenal": "#EF0107",            # Rojo Arsenal
+    "Aston villa": "#670E36",        # Vinotinto Aston Villa
+    "Barcelona": "#A50044",          # Azulgrana
+    "Bayern Munich": "#DC052D",      # Rojo Bayern
+    "Benfica": "#E30613",            # Rojo Benfica
+    "Como": "#002D62",               # Azul Como
+    "Freiburg": "#000000",           # Negro Freiburg
+    "Inter": "#010E80",              # Azul Inter de Milán
+    "Liverpool": "#C8102E",          # Rojo Liverpool
+    "Lyon": "#1D428A",               # Azul Lyon
+    "Manchester City": "#6CABDD",    # Celeste Manchester City
+    "Manchester United": "#DA291C",  # Rojo Manchester United
+    "Newcastle": "#241F20",          # Negro y blanco urracas
+    "Porto": "#003399",              # Azul Porto
+    "PSG": "#004170",                # Azul oscuro PSG
+    "Real Madrid": "#00529F"         # Azul Real Madrid
 }
 
 # 2. PANEL LATERAL
@@ -155,6 +164,7 @@ st.markdown("### 🕹️ Centro de Simulación")
 
 if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
     
+    num_exactos = len(historial_exacto)
     historial = historial_exacto.copy()
     fuente_datos = "Exacto (Condición y Nivel)"
     
@@ -201,7 +211,6 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         sim_corners = np.random.poisson(lam=weighted_avg('Corners'), size=num_sim)
         sim_faltas = np.random.poisson(lam=weighted_avg('Faltas'), size=num_sim)
         
-        # CÁLCULOS 1X2, BTTS Y MERCADOS
         triunfos = (sim_goles_favor > sim_goles_contra).mean() * 100
         empates = (sim_goles_favor == sim_goles_contra).mean() * 100
         derrotas = (sim_goles_favor < sim_goles_contra).mean() * 100
@@ -215,7 +224,23 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         marcadores = [f"{f}-{c}" for f, c in zip(sim_goles_favor, sim_goles_contra)]
         conteo = Counter(marcadores)
         
-        # BLOQUE DE RESUMEN 1X2
+        if num_exactos >= 4:
+            nivel_fiabilidad = "🟢 Alta (Basado en 4+ partidos exactos)"
+        elif num_exactos >= 2:
+            nivel_fiabilidad = "🟡 Media (Basado en registros justos)"
+        else:
+            nivel_fiabilidad = "🟠 Moderada (Activado con respaldo inteligente)"
+
+        marcador_mas_comun = conteo.most_common(1)[0][0]
+        if triunfos > 50:
+            veredicto = f"🔥 **Tendencia Fuerte:** {equipo_seleccionado} muestra un dominio estadístico claro en esta condición. El marcador más repetido en las simulaciones es **{marcador_mas_comun}**."
+        elif derrotas > 50:
+            veredicto = f"⚠️ **Alerta de Complicación:** Las métricas favorecen al rival en este escenario. El marcador más probable es **{marcador_mas_comun}**, sugiriendo cautela."
+        else:
+            veredicto = f"⚖️ **Partido Muy Parejo:** Escenario sumamente equilibrado con alta probabilidad de empate o diferencia mínima. El resultado más común simulado fue **{marcador_mas_comun}**."
+
+        st.markdown(f'<div class="insight-box">💡 <b>Veredicto GoalMetrics:</b> {veredicto}<br><br>📊 <b>Fiabilidad de los Datos:</b> {nivel_fiabilidad}</div>', unsafe_allow_html=True)
+
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         col_m1.metric("🟢 Victoria (1)", f"{triunfos:.1f}%")
         col_m2.metric("🟡 Empate (X)", f"{empates:.1f}%")
@@ -228,16 +253,7 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         col_n3.metric("⚖️ Apuesta sin Empate (DNB)", f"{dnb_favor:.1f}%")
         
         st.markdown("---")
-        
-        # 📊 GRÁFICO 1: COMPARATIVA 1X2 VISUAL
-        st.markdown("#### 📊 Probabilidades del Resultado (1X2)")
-        df_1x2_chart = pd.DataFrame({
-            'Resultado': ['Victoria (1)', 'Empate (X)', 'Derrota (2)'],
-            'Probabilidad (%)': [triunfos, empates, derrotas]
-        }).set_index('Resultado')
-        st.bar_chart(df_1x2_chart, color="#10B981")
 
-        # 📊 GRÁFICO 2: DISTRIBUCIÓN DE GOLES A FAVOR
         st.markdown("#### ⚽ Distribución de Probabilidad de Goles a Favor")
         conteo_goles = pd.Series(sim_goles_favor).value_counts().sort_index()
         df_goles_chart = pd.DataFrame({
@@ -246,7 +262,12 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         }).set_index('Goles')
         st.bar_chart(df_goles_chart, color="#3B82F6")
 
-        # 📊 GRÁFICO 3: DISTRIBUCIÓN DE CÓRNERS
+        st.markdown("#### 📈 Comparativa de Goles Esperados (Tus Goles vs Goles del Rival)")
+        df_xg_chart = pd.DataFrame({
+            'Promedio Esperado': [lambda_favor, lambda_contra]
+        }, index=[f"{equipo_seleccionado} (Anotados)", "Rival (Concedidos)"])
+        st.bar_chart(df_xg_chart, color="#10B981")
+
         st.markdown("#### 🚩 Distribución de Probabilidad de Córners")
         conteo_corners = pd.Series(sim_corners).astype(int).value_counts().sort_index()
         df_corners_chart = pd.DataFrame({
