@@ -154,10 +154,10 @@ st.markdown('<div class="brand-subtitle">Plataforma avanzada de simulación esta
 st.markdown(f'<div class="brand-author">By: Juan Camilo Barreto</div>', unsafe_allow_html=True)
 st.markdown("---")
 
-# 3. PANEL PRINCIPAL (ÚNICO BOTÓN DE ANÁLISIS)
+# 3. PANEL PRINCIPAL (ÚNICO BOTÓN DE ANÁLISIS ANCHO)
 st.markdown("### 🕹️ Centro de Simulación")
 
-if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
+if st.button("⚡ Ejecutar Motor de Predicción", type="primary", use_container_width=True):
     st.session_state.ejecutar = True
 
 if 'ejecutar' not in st.session_state:
@@ -308,5 +308,4 @@ if st.session_state.ejecutar:
             columnas_disponibles = [col for col in ['Fecha', 'Equipo', 'Condición', 'Rival', 'Nivel Rival', 'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas'] if col in historial_display.columns]
             st.dataframe(historial_display[columnas_disponibles], hide_index=True, use_container_width=True)
 else:
-    st.info("👈 Configura los parámetros en la barra lateral y presiona **'Analizar'** para generar la simulación estadística.")
-
+    st.info("👈 Configura los parámetros en la barra lateral y presiona **'Ejecutar Motor de Predicción'** para generar la simulación estadística.")
