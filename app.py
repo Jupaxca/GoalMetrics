@@ -165,31 +165,29 @@ if 'ejecutar' not in st.session_state:
     st.session_state.ejecutar = False
 
 if st.session_state.ejecutar:
+    # ORDENAR ESTRICTAMENTE TODO POR FECHA (LO MÁS RECIENTE PRIMERO)
     df_ordenado = df.sort_values(by='Fecha', ascending=False)
     
-    # PASO 1: Capturamos estrictamente los partidos exactos que existan
+    # PASO 1: Capturamos los partidos exactos ordenados por fecha descendente
     historial_exacto = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
                                    (df_ordenado['Condición'] == condicion_seleccionada) & 
                                    (df_ordenado['Nivel Rival'] == nivel_seleccionado)].copy()
     
-    fuente_datos = f"Exacto ({condicion_seleccionada} vs Nivel {nivel_seleccionado})"
-    historial = historial_exacto.copy()
-    
-    # PASO 2: Si hay menos de 2 partidos exactos, conservamos lo que haya y completamos con 1 solo partido del contrario
-    if len(historial) < 2:
+    if len(historial_exacto) >= 2:
+        # Si hay suficientes exactos, tomamos estrictamente los 2 más recientes
+        historial = historial_exacto.head(2).copy()
+        fuente_datos = f"Exacto ({condicion_seleccionada} vs Nivel {nivel_seleccionado} - Más recientes)"
+        
+    elif len(historial_exacto) == 1:
+        # CASO EXACTO: Tenemos exactamente 1 partido. Lo conservamos obligatoriamente.
         condicion_contraria = "Visitante" if condicion_seleccionada == "Local" else "Local"
         
-        # Buscamos el partido más reciente de la condición contraria
+        # Buscamos en la condición contraria, ordenado por fecha para asegurar que sea EL MÁS RECIENTE
         historial_contrario = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
-                                          (df_ordenado['Condición'] == condicion_contraria) & 
-                                          (df_ordenado['Nivel Rival'] == nivel_seleccionado)].copy()
-        
-        if len(historial_contrario) == 0:
-            historial_contrario = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
-                                              (df_ordenado['Condición'] == condicion_contraria)].copy()
+                                          (df_ordenado['Condición'] == condicion_contraria)].copy()
         
         if len(historial_contrario) >= 1:
-            # Tomamos obligatoriamente solo el último (1 partido) de la otra condición
+            # Tomamos estrictamente el ÚNICO y MÁS RECIENTE de la otra condición
             ultimo_contrario = historial_contrario.head(1).copy()
             
             # Aplicamos el baremo táctico a ese único partido complementario
@@ -198,12 +196,23 @@ if st.session_state.ejecutar:
                 if col in ultimo_contrario.columns:
                     ultimo_contrario[col] = ultimo_contrario[col] * factor_baremo
             
-            # Combinamos los exactos que sí existían + el único complementario ajustado
+            # Unimos el 1 partido exacto que sí tenías + el último complementario ajustado
             historial = pd.concat([historial_exacto, ultimo_contrario])
-            fuente_datos = f"Cruce Táctico ({len(historial_exacto)} Exacto + 1 {condicion_contraria} ajustado con Baremo)"
+            fuente_datos = f"Cruce Táctico (1 Exacto + 1 Más Reciente {condicion_contraria} con Baremo)"
+        else:
+            historial = historial_exacto.copy()
+            fuente_datos = f"Solo 1 partido exacto disponible"
+            
+    else:
+        # Si hay 0 exactos, tomamos los 2 más recientes de su misma condición
+        historial_condicion = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
+                                          (df_ordenado['Condición'] == condicion_seleccionada)].copy()
+        if len(historial_condicion) >= 2:
+            historial = historial_condicion.head(2).copy()
+            fuente_datos = f"Global de {condicion_seleccionada} (2 más recientes)"
         else:
             historial = df_ordenado[df_ordenado['Equipo'] == equipo_seleccionado].head(3).copy()
-            fuente_datos = "Emergencia (Historial global mixto por escasez absoluta)"
+            fuente_datos = "Emergencia (Historial global mixto)"
     
     # ENCABEZADO DEL EQUIPO
     st.markdown(f"""
