@@ -57,24 +57,11 @@ colores_equipos = {
     "Real Madrid": "#00529F"
 }
 
-# DICCIONARIO DE ICONOS / EMOJIS REPRESENTATIVOS POR EQUIPO
-iconos_equipos = {
-    "Palmeiras": "🟢", "Flamengo": "🔴", "Paranaense": "🔴",
-    "Fluminense": "🇭🇺", "Vasco": "⚓", "Arsenal": "🔴",
-    "Aston villa": "🦁", "Barcelona": "🔵🔴", "Bayern Munich": "🔴⚪",
-    "Benfica": "🦅", "Como": "🌊", "Freiburg": "🦊",
-    "Inter": "🐍", "Liverpool": "🔴", "Lyon": "🦁",
-    "Manchester City": "🩵", "Manchester United": "👹", "Newcastle": "🐦‍⬛",
-    "Porto": "🔵⚪", "PSG": "🗼", "Real Madrid": "👑"
-}
-
 # 2. PANEL LATERAL
 st.sidebar.header("⚙️ Configuración de Análisis")
 
 lista_equipos = sorted([str(x) for x in df['Equipo'].unique() if pd.notna(x)])
 equipo_seleccionado = st.sidebar.selectbox("🏟️ Selecciona el Equipo", lista_equipos)
-
-icono_actual = iconos_equipos.get(equipo_seleccionado, "⚽")
 
 df_equipo = df[df['Equipo'] == equipo_seleccionado]
 lista_niveles_equipo = sorted([str(x) for x in df_equipo['Nivel Rival'].unique() if pd.notna(x)])
@@ -167,26 +154,16 @@ st.markdown('<div class="brand-subtitle">Plataforma avanzada de simulación esta
 st.markdown(f'<div class="brand-author">By: Juan Camilo Barreto</div>', unsafe_allow_html=True)
 st.markdown("---")
 
-# 3. PANEL PRINCIPAL (AUTOLIMPIEZA AL CAMBIAR PARÁMETROS)
+# 3. PANEL PRINCIPAL (ÚNICO BOTÓN DE ANÁLISIS)
 st.markdown("### 🕹️ Centro de Simulación")
 
-# Botón único de análisis
 if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
-    st.session_state.analizar = True
+    st.session_state.ejecutar = True
 
-# Si el usuario cambia cualquier parámetro en la barra lateral, detectamos el cambio y recalculamos fluidamente
-parametros_actuales = f"{equipo_seleccionado}-{condicion_seleccionada}-{nivel_seleccionado}-{linea_goles}"
-if 'ultimo_parametro' not in st.session_state:
-    st.session_state.ultimo_parametro = parametros_actuales
+if 'ejecutar' not in st.session_state:
+    st.session_state.ejecutar = False
 
-if st.session_state.ultimo_parametro != parametros_actuales:
-    st.session_state.analizar = True
-    st.session_state.ultimo_parametro = parametros_actuales
-
-if 'analizar' not in st.session_state:
-    st.session_state.analizar = False
-
-if st.session_state.analizar:
+if st.session_state.ejecutar:
     num_exactos = len(historial_exacto)
     historial = historial_exacto.copy()
     fuente_datos = "Exacto (Condición y Nivel)"
@@ -205,10 +182,10 @@ if st.session_state.analizar:
                     historial[col] = historial[col] * factor_ajuste
             fuente_datos = f"Mixto con respaldo ({condicion_contraria} ajustado)"
     
-    # ENCABEZADO DEL EQUIPO CON SU ICONO REPRESENTATIVO
+    # ENCABEZADO DEL EQUIPO
     st.markdown(f"""
         <div class="team-header">
-            {icono_actual} {equipo_seleccionado.upper()} ({condicion_seleccionada.upper()} vs {nivel_seleccionado.upper()})
+            🛡️ {equipo_seleccionado.upper()} ({condicion_seleccionada.upper()} vs {nivel_seleccionado.upper()})
         </div>
     """, unsafe_allow_html=True)
     
