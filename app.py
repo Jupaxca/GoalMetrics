@@ -154,30 +154,31 @@ st.markdown("---")
 # 3. PANEL PRINCIPAL
 st.markdown("### 🕹️ Centro de Simulación")
 
-if st.button("⚡ Ejecutar Motor de Predicción V5", type="primary", use_container_width=True):
-    st.session_state.ejecutar_v5 = True
+if st.button("⚡ Ejecutar Motor de Predicción V6", type="primary", use_container_width=True):
+    st.session_state.ejecutar_v6 = True
 
-if 'ejecutar_v5' not in st.session_state:
-    st.session_state.ejecutar_v5 = False
+if 'ejecutar_v6' not in st.session_state:
+    st.session_state.ejecutar_v6 = False
 
-if st.session_state.ejecutar_v5:
+if st.session_state.ejecutar_v6:
     df_ordenado = df.sort_values(by='Fecha', ascending=False)
     
-    # Búsqueda estrictamente exacta (Condición + Nivel)
+    # 1. Búsqueda estricta de partidos exactos
     exactos = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
                           (df_ordenado['Condición'] == condicion_seleccionada) & 
                           (df_ordenado['Nivel Rival'] == str(nivel_seleccionado))].copy()
     
     if len(exactos) >= 2:
-        # CASO 1: Existen 2 o más partidos exactos -> Análisis normal y exclusivo
+        # CASO 1: Hay 2 o más exactos -> Usamos exclusivamente esos
         historial = exactos.copy()
         fuente_datos = f"Exacto ({condicion_seleccionada} vs Nivel {nivel_seleccionado})"
         
     elif len(exactos) == 1:
-        # CASO 2: Existe exactamente 1 partido exacto -> Tomamos ese 1 y sumamos los que haya del otro lado con baremo
+        # CASO 2: Hay exactamente 1 partido exacto -> Tomamos ese 1 + los que existan de la otra condición
         p_exacto = exactos.copy()
         cond_contraria = "Visitante" if condicion_seleccionada == "Local" else "Local"
         
+        # Buscamos los partidos de la condición contraria (del mismo nivel o globales)
         contrarios = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
                                  (df_ordenado['Condición'] == cond_contraria) & 
                                  (df_ordenado['Nivel Rival'] == str(nivel_seleccionado))].copy()
@@ -186,17 +187,18 @@ if st.session_state.ejecutar_v5:
             contrarios = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
                                      (df_ordenado['Condición'] == cond_contraria)].copy()
         
-        # Aplicamos baremo táctico a los del otro lado
+        # Aplicamos baremo táctico a los contrarios
         factor = 0.88 if condicion_seleccionada == "Visitante" else 1.12
         for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
             if col in contrarios.columns:
                 contrarios[col] = contrarios[col] * factor
                 
+        # Unimos el 1 exacto + los contrarios que hayan aparecido
         historial = pd.concat([p_exacto, contrarios])
         fuente_datos = f"Cruce Táctico (1 Exacto {condicion_seleccionada} + {len(contrarios)} {cond_contraria}(s) con Baremo)"
         
     else:
-        # CASO 3: Hay 0 partidos exactos -> No se fuerza análisis inventado
+        # CASO 3: Hay 0 partidos exactos
         historial = pd.DataFrame()
         fuente_datos = "Sin registros suficientes"
 
@@ -323,4 +325,4 @@ if st.session_state.ejecutar_v5:
             columnas_disponibles = [col for col in ['Fecha', 'Equipo', 'Condición', 'Rival', 'Nivel Rival', 'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas'] if col in historial_display.columns]
             st.dataframe(historial_display[columnas_disponibles], hide_index=True, use_container_width=True)
 else:
-    st.info("👈 Configura los parámetros en la barra lateral y presiona **'Ejecutar Motor de Predicción V5'** para generar la simulación estadística.")
+    st.info("👈 Configura los parámetros en la barra lateral y presiona **'Ejecutar Motor de Predicción V6'** para generar la simulación estadística.")
