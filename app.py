@@ -88,7 +88,7 @@ linea_faltas = st.sidebar.slider("🛑 Línea de Faltas", 5.0, 25.0, 10.5, 0.5)
 
 color_equipo = colores_equipos.get(equipo_seleccionado, "#3B82F6")
 
-# ESTILOS CSS DINÁMICOS COMPLETOS
+# ESTILOS CSS DINÁMICOS
 st.markdown(f"""
     <style>
     .stApp {{
@@ -251,25 +251,25 @@ if st.session_state.ejecutar:
         
         st.markdown("---")
 
-        # GRÁFICO DE GOLES CON EXPLICACIÓN AMIGABLE
+        # GRÁFICO DE GOLES (EN PORCENTAJE)
         st.markdown("#### ⚽ Distribución de Probabilidad de Goles a Favor")
-        st.markdown('<div class="explanation-text">Este gráfico indica qué tan probable es que el equipo anote 0, 1, 2, 3 o más goles. Las barras más altas representan la cantidad de goles que ocurren con mayor frecuencia según el rendimiento histórico.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="explanation-text">Este gráfico indica la probabilidad en porcentaje de que el equipo anote 0, 1, 2, 3 o más goles. El eje izquierdo refleja el porcentaje (%) de ocurrencia.</div>', unsafe_allow_html=True)
         conteo_goles = pd.Series(sim_goles_favor).value_counts().sort_index()
         df_goles_chart = pd.DataFrame({
             'Goles': conteo_goles.index,
             'Probabilidad (%)': (conteo_goles / num_sim) * 100
         }).set_index('Goles')
-        st.bar_chart(df_goles_chart, color=color_equipo)
+        st.bar_chart(df_goles_chart, color=color_equipo, horizontal=False)
 
-        # GRÁFICO DE CÓRNERS CON EXPLICACIÓN AMIGABLE
+        # GRÁFICO DE CÓRNERS (EN PORCENTAJE)
         st.markdown("#### 🚩 Distribución de Probabilidad de Córners")
-        st.markdown('<div class="explanation-text">Muestra las probabilidades del volumen de saques de esquina a favor que conseguirá el equipo durante el desarrollo del encuentro.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="explanation-text">Muestra las probabilidades expresadas en porcentaje (%) para cada volumen de saques de esquina a favor durante el desarrollo del encuentro.</div>', unsafe_allow_html=True)
         conteo_corners = pd.Series(sim_corners).astype(int).value_counts().sort_index()
         df_corners_chart = pd.DataFrame({
             'Córners': conteo_corners.index,
             'Probabilidad (%)': (conteo_corners / num_sim) * 100
         }).set_index('Córners')
-        st.bar_chart(df_corners_chart, color=color_equipo)
+        st.bar_chart(df_corners_chart, color=color_equipo, horizontal=False)
         
         st.markdown("---")
         
@@ -281,7 +281,7 @@ if st.session_state.ejecutar:
             tabla_data = []
             for res, freq in conteo.most_common(5):
                 prob = (freq / num_sim) * 100
-                tabla_data.append({"Marcador (Favor - Contra)": res, "Probabilidad": f"{prob:.1f}%"})
+                tabla_data.append({"Marcador (Favor - Contra)": res, "Probabilidad (%)": f"{prob:.1f}%"})
             st.dataframe(pd.DataFrame(tabla_data), hide_index=True, use_container_width=True)
                 
         with col_right:
