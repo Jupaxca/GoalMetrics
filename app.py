@@ -57,11 +57,41 @@ colores_equipos = {
     "Real Madrid": "#00529F"
 }
 
+# DICCIONARIO DE ESCUDOS OFICIALES (URLs de Wikimedia Commons / Logos transparentes)
+escudos_equipos = {
+    "Palmeiras": "https://upload.wikimedia.org/wikipedia/commons/1/10/Palmeiras_logo.svg",
+    "Flamengo": "https://upload.wikimedia.org/wikipedia/commons/2/2e/Flamengo_braz_logo.svg",
+    "Paranaense": "https://upload.wikimedia.org/wikipedia/commons/b/be/Club_Athletico_Paranaense_logo_%282019%29.svg",
+    "Fluminense": "https://upload.wikimedia.org/wikipedia/commons/a/ad/Fluminense_FC_escudo.svg",
+    "Vasco": "https://upload.wikimedia.org/wikipedia/commons/a/ac/CRVascodaGama.svg",
+    "Arsenal": "https://upload.wikimedia.org/wikipedia/commons/5/53/Arsenal_FC.svg",
+    "Aston villa": "https://upload.wikimedia.org/wikipedia/commons/9/9f/Aston_Villa_FC_crest_%282024%29.svg",
+    "Barcelona": "https://upload.wikimedia.org/wikipedia/commons/4/47/FC_Barcelona_%28crest%29.svg",
+    "Bayern Munich": "https://upload.wikimedia.org/wikipedia/commons/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282002%2C_diamond%29.svg",
+    "Benfica": "https://upload.wikimedia.org/wikipedia/commons/a/a2/SL_Benfica_logo.svg",
+    "Como": "https://upload.wikimedia.org/wikipedia/commons/9/91/Como_1907_logo.svg",
+    "Freiburg": "https://upload.wikimedia.org/wikipedia/commons/6/6d/SC_Freiburg_logo.svg",
+    "Inter": "https://upload.wikimedia.org/wikipedia/commons/0/05/FC_Internazionale_Milano_2021.svg",
+    "Liverpool": "https://upload.wikimedia.org/wikipedia/commons/0/0c/Liverpool_FC.svg",
+    "Lyon": "https://upload.wikimedia.org/wikipedia/commons/c/c6/Olympique_Lyonnais_logo.svg",
+    "Manchester City": "https://upload.wikimedia.org/wikipedia/commons/e/eb/Manchester_City_FC_badge.svg",
+    "Manchester United": "https://upload.wikimedia.org/wikipedia/commons/7/7a/Manchester_United_FC_crest.svg",
+    "Newcastle": "https://upload.wikimedia.org/wikipedia/commons/5/56/Newcastle_United_Logo.svg",
+    "Porto": "https://upload.wikimedia.org/wikipedia/commons/f/f5/FC_Porto_%28Logo%29.svg",
+    "PSG": "https://upload.wikimedia.org/wikipedia/commons/a/a7/Paris_Saint-Germain_F.C..svg",
+    "Real Madrid": "https://upload.wikimedia.org/wikipedia/commons/5/56/Real_Madrid_CF.svg"
+}
+
 # 2. PANEL LATERAL
 st.sidebar.header("⚙️ Configuración de Análisis")
 
 lista_equipos = sorted([str(x) for x in df['Equipo'].unique() if pd.notna(x)])
 equipo_seleccionado = st.sidebar.selectbox("🏟️ Selecciona el Equipo", lista_equipos)
+
+# Mostrar escudo en la barra lateral si está disponible
+escudo_actual = escudos_equipos.get(equipo_seleccionado, "")
+if escudo_actual:
+    st.sidebar.image(escudo_actual, width=90)
 
 df_equipo = df[df['Equipo'] == equipo_seleccionado]
 lista_niveles_equipo = sorted([str(x) for x in df_equipo['Nivel Rival'].unique() if pd.notna(x)])
@@ -110,6 +140,10 @@ st.markdown(f"""
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
         text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
         background-color: {color_equipo};
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 15px;
     }}
     .brand-title {{
         font-size: 32px;
@@ -187,11 +221,20 @@ if st.session_state.ejecutar:
                     historial[col] = historial[col] * factor_ajuste
             fuente_datos = f"Mixto con respaldo ({condicion_contraria} ajustado)"
     
-    st.markdown(f"""
-        <div class="team-header">
-            🛡️ {equipo_seleccionado.upper()} ({condicion_seleccionada.upper()} vs {nivel_seleccionado.upper()})
-        </div>
-    """, unsafe_allow_html=True)
+    # ENCABEZADO DEL EQUIPO CON ESCUDO INTEGRADO
+    if escudo_actual:
+        st.markdown(f"""
+            <div class="team-header">
+                <img src="{escudo_actual}" width="35" style="vertical-align: middle;">
+                <span>{equipo_seleccionado.upper()} ({condicion_seleccionada.upper()} vs {nivel_seleccionado.upper()})</span>
+            </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+            <div class="team-header">
+                🛡️ {equipo_seleccionado.upper()} ({condicion_seleccionada.upper()} vs {nivel_seleccionado.upper()})
+            </div>
+        """, unsafe_allow_html=True)
     
     if len(historial) < 2:
         st.error(f"❌ No hay suficiente información en el registro para analizar a {equipo_seleccionado}. Se requieren al menos 2 partidos.")
@@ -271,13 +314,13 @@ if st.session_state.ejecutar:
 
         # GRÁFICO DE GOLES
         st.markdown("#### ⚽ Distribución de Probabilidad de Goles a Favor")
-        st.markdown('<div class="explanation-text">Este gráfico indica qué tan probable es (en porcentaje) que el equipo anote 0, 1, 2, 3 o más goles.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="explanation-text">Este gráfico indica qué tan probable es (en porcentaje) que el equipo anote 0, 1, 2, 3 o más goles. El eje izquierdo refleja el porcentaje (%) de ocurrencia.</div>', unsafe_allow_html=True)
         chart_goles = crear_grafico_porcentaje(pd.Series(sim_goles_favor), 'Goles')
         st.altair_chart(chart_goles, use_container_width=True)
 
         # GRÁFICO DE CÓRNERS
         st.markdown("#### 🚩 Distribución de Probabilidad de Córners")
-        st.markdown('<div class="explanation-text">Muestra las probabilidades expresadas en porcentaje (%) para cada volumen de saques de esquina a favor.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="explanation-text">Muestra las probabilidades expresadas en porcentaje (%) para cada volumen de saques de esquina a favor durante el desarrollo del encuentro.</div>', unsafe_allow_html=True)
         chart_corners = crear_grafico_porcentaje(pd.Series(sim_corners).astype(int), 'Córners')
         st.altair_chart(chart_corners, use_container_width=True)
         
@@ -287,7 +330,7 @@ if st.session_state.ejecutar:
         
         with col_left:
             st.markdown("#### 🏆 Top 5 Marcadores Más Probables")
-            st.markdown('<div class="explanation-text">Los 5 resultados finales más repetidos (Goles de tu equipo - Goles del rival).</div>', unsafe_allow_html=True)
+            st.markdown('<div class="explanation-text">Los 5 resultados finales más repetidos (Goles de tu equipo - Goles del rival) de acuerdo con los patrones analizados.</div>', unsafe_allow_html=True)
             tabla_data = []
             for res, freq in conteo.most_common(5):
                 prob = (freq / num_sim) * 100
