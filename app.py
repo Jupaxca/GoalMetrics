@@ -156,19 +156,20 @@ if 'ejecutar' not in st.session_state:
     st.session_state.ejecutar = False
 
 if st.session_state.ejecutar:
-    # FIJAMOS LA SEMILLA ALEATORIA PARA RESULTADOS 100% ESTABLES Y DETERMINISTAS
-    np.random.seed(42)
-    
+    # Filtramos el equipo y ordenamos por fecha de más reciente a más antiguo
     df_eq = df[df['Equipo'] == equipo_seleccionado].sort_values(by='Fecha', ascending=False)
     
+    # Buscamos partidos exactos
     exactos = df_eq[(df_eq['Condición'] == condicion_seleccionada) & 
                     (df_eq['Nivel Rival'] == str(nivel_seleccionado))].copy()
     
     if len(exactos) >= 2:
+        # Caso 1: 2 o más partidos exactos (usamos los 2 más recientes)
         historial = exactos.head(2).copy()
         fuente_datos = f"Exacto ({condicion_label} vs Nivel {nivel_seleccionado})"
         
     elif len(exactos) == 1:
+        # Caso 2: Exactamente 1 partido exacto -> tomamos ese 1 + 1 partido más reciente de la otra condición
         p_exacto = exactos.copy()
         cond_contraria = "visitante" if condicion_seleccionada == "local" else "local"
         
@@ -177,6 +178,7 @@ if st.session_state.ejecutar:
         if len(contrarios) >= 1:
             p_contrario = contrarios.head(1).copy()
             
+            # Aplicamos baremo táctico
             factor = 0.88 if condicion_seleccionada == "visitante" else 1.12
             for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
                 if col in p_contrario.columns:
@@ -188,6 +190,7 @@ if st.session_state.ejecutar:
             historial = p_exacto.copy()
             fuente_datos = "Solo 1 partido exacto disponible"
     else:
+        # Caso 3: 0 partidos exactos
         historial = pd.DataFrame()
         fuente_datos = "Sin registros suficientes"
 
@@ -213,13 +216,16 @@ if st.session_state.ejecutar:
         col_tiros = 'Tiros Prom' if 'Tiros Prom' in historial.columns else 'Tiros'
         col_puerta = 'A Puerta Prom' if 'A Puerta Prom' in historial.columns else 'A Puerta'
         
+        # GENERADOR ESTABLE CON SEMILLA FIJA (Garantiza resultados 100% idénticos por clic)
+        rng = np.random.default_rng(42)
         num_sim = 10000
-        sim_goles_favor = np.random.poisson(lam=lambda_favor, size=num_sim)
-        sim_goles_contra = np.random.poisson(lam=lambda_contra, size=num_sim)
-        sim_tiros = np.random.poisson(lam=weighted_avg(col_tiros), size=num_sim)
-        sim_tiros_puerta = np.random.poisson(lam=weighted_avg(col_puerta), size=num_sim)
-        sim_corners = np.random.poisson(lam=weighted_avg('Corners'), size=num_sim)
-        sim_faltas = np.random.poisson(lam=weighted_avg('Faltas'), size=num_sim)
+        
+        sim_goles_favor = rng.poisson(lam=lambda_favor, size=num_sim)
+        sim_goles_contra = rng.poisson(lam=lambda_contra, size=num_sim)
+        sim_tiros = rng.poisson(lam=weighted_avg(col_tiros), size=num_sim)
+        sim_tiros_puerta = rng.poisson(lam=weighted_avg(col_puerta), size=num_sim)
+        sim_corners = rng.poisson(lam=weighted_avg('Corners'), size=num_sim)
+        sim_faltas = rng.poisson(lam=weighted_avg('Faltas'), size=num_sim)
         
         triunfos = (sim_goles_favor > sim_goles_contra).mean() * 100
         empates = (sim_goles_favor == sim_goles_contra).mean() * 100
