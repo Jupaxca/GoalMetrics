@@ -11,19 +11,18 @@ st.set_page_config(
     layout="wide"
 )
 
-# 1. CARGAR DATOS DESDE GOOGLE SHEETS CON LIMPIEZA TOTAL DE TEXTO
+# 1. CARGAR DATOS DESDE GOOGLE SHEETS (CON NORMALIZACIÓN TOTAL)
 @st.cache_data
 def cargar_datos():
     sheet_id = "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg"
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
     df = pd.read_csv(url)
     
-    # Limpieza estricta de nombres de columnas y textos para evitar espacios invisibles
     df.columns = df.columns.astype(str).str.strip()
     df = df.dropna(subset=['Equipo', 'Fecha', 'Condición', 'Nivel Rival'])
     df['Fecha'] = pd.to_datetime(df['Fecha'])
     df['Equipo'] = df['Equipo'].astype(str).str.strip()
-    df['Condición'] = df['Condición'].astype(str).str.strip()
+    df['Condición'] = df['Condición'].astype(str).str.strip().str.capitalize()
     df['Nivel Rival'] = df['Nivel Rival'].astype(str).str.strip()
     return df
 
@@ -168,22 +167,30 @@ if 'ejecutar' not in st.session_state:
 if st.session_state.ejecutar:
     df_ordenado = df.sort_values(by='Fecha', ascending=False)
     
-    # BÚSQUEDA EXACTA BLINDADA
+    # BÚSQUEDA EXACTA BLINDADA (Condición y Nivel exacto)
     historial_exacto = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
                                    (df_ordenado['Condición'] == condicion_seleccionada) & 
-                                   (df_ordenado['Nivel Rival'] == nivel_seleccionado)].copy()
+                                   (df_ordenado['Nivel Rival'] == str(nivel_seleccionado))].copy()
     
     if len(historial_exacto) >= 2:
         historial = historial_exacto.head(2).copy()
         fuente_datos = f"Exacto ({condicion_seleccionada} vs Nivel {nivel_seleccionado} - 2 más recientes)"
         
     elif len(historial_exacto) == 1:
-        # CONSERVAMOS EL ÚNICO PARTIDO EXACTO OBLIGATORIAMENTE
+        # CONSERVAMOS EL ÚNICO PARTIDO EXACTO DE FORMA SAGRADA
         partido_exacto_unico = historial_exacto.head(1).copy()
         
         condicion_contraria = "Visitante" if condicion_seleccionada == "Local" else "Local"
+        
+        # Buscamos en la condición contraria contra el mismo nivel exacto primero
         historial_contrario = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
-                                          (df_ordenado['Condición'] == condicion_contraria)].copy()
+                                          (df_ordenado['Condición'] == condicion_contraria) & 
+                                          (df_ordenado['Nivel Rival'] == str(nivel_seleccionado))].copy()
+        
+        # Si no hay contra el mismo nivel en la otra condición, buscamos el último global de la otra condición
+        if len(historial_contrario) == 0:
+            historial_contrario = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
+                                              (df_ordenado['Condición'] == condicion_contraria)].copy()
         
         if len(historial_contrario) >= 1:
             ultimo_contrario = historial_contrario.head(1).copy()
@@ -193,15 +200,15 @@ if st.session_state.ejecutar:
                 if col in ultimo_contrario.columns:
                     ultimo_contrario[col] = ultimo_contrario[col] * factor_baremo
             
-            # FUSIÓN ESTRICTA: 1 exacto tuyo + 1 contrario reciente ajustado
+            # FUSIÓN ESTRICTA: 1 partido exacto tuyo + 1 partido reciente contrario ajustado con baremo
             historial = pd.concat([partido_exacto_unico, ultimo_contrario])
             fuente_datos = f"Cruce Táctico (1 Exacto {condicion_seleccionada} + 1 Más Reciente {condicion_contraria} con Baremo)"
         else:
             historial = partido_exacto_unico.copy()
-            fuente_datos = "Solo 1 partido exacto disponible"
+            fuente_datos = "Solo 1 partido exacto disponible (Insuficiente)"
             
     else:
-        # RESPALDO ESTRICTO: Si hay 0 exactos, buscamos estrictamente en su condición buscada
+        # Si hay 0 exactos, buscamos estrictamente en su misma condición
         historial_condicion = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
                                           (df_ordenado['Condición'] == condicion_seleccionada)].copy()
         if len(historial_condicion) >= 2:
