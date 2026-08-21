@@ -88,7 +88,7 @@ linea_faltas = st.sidebar.slider("🛑 Línea de Faltas", 5.0, 25.0, 10.5, 0.5)
 
 color_equipo = colores_equipos.get(equipo_seleccionado, "#3B82F6")
 
-# ESTILOS CSS DINÁMICOS
+# ESTILOS CSS DINÁMICOS COMPLETOS
 st.markdown(f"""
     <style>
     .stApp {{
@@ -97,20 +97,6 @@ st.markdown(f"""
     }}
     .stSidebar {{
         background-color: #111827;
-    }}
-    .stButton>button {{
-        width: 100%;
-        border-radius: 8px;
-        font-weight: bold;
-        background-color: {color_equipo};
-        color: white;
-        font-size: 16px;
-        padding: 12px;
-        border: none;
-        transition: 0.3s;
-    }}
-    .stButton>button:hover {{
-        opacity: 0.85;
     }}
     .team-header {{
         padding: 18px;
@@ -167,11 +153,21 @@ st.markdown('<div class="brand-subtitle">Plataforma avanzada de simulación esta
 st.markdown(f'<div class="brand-author">By: Juan Camilo Barreto</div>', unsafe_allow_html=True)
 st.markdown("---")
 
-# 3. PANEL PRINCIPAL
+# 3. PANEL PRINCIPAL Y GESTIÓN DE ESTADO (LIMPIAR SIN RECARGAR)
 st.markdown("### 🕹️ Centro de Simulación")
 
-if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
-    
+if 'ejecutar' not in st.session_state:
+    st.session_state.ejecutar = False
+
+col_btn1, col_btn2 = st.columns([1, 5])
+with col_btn1:
+    if st.button("⚡ Analizar", type="primary"):
+        st.session_state.ejecutar = True
+with col_btn2:
+    if st.button("🧹 Limpiar"):
+        st.session_state.ejecutar = False
+
+if st.session_state.ejecutar:
     num_exactos = len(historial_exacto)
     historial = historial_exacto.copy()
     fuente_datos = "Exacto (Condición y Nivel)"
@@ -232,23 +228,15 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         marcadores = [f"{f}-{c}" for f, c in zip(sim_goles_favor, sim_goles_contra)]
         conteo = Counter(marcadores)
         
-        # FIABILIDAD DIRECTA Y LIMPIA
-        if num_exactos >= 4:
-            nivel_fiabilidad = "🟢 Alta (Muestra robusta de partidos)"
-        elif num_exactos >= 2:
-            nivel_fiabilidad = "🟡 Media (Muestra estándar de partidos)"
-        else:
-            nivel_fiabilidad = "🟠 Moderada (Modo Respaldo Inteligente Activo)"
-
         marcador_mas_comun = conteo.most_common(1)[0][0]
         if triunfos > 50:
-            veredicto = f"Tendencia Fuerte: {equipo_seleccionado} muestra un dominio estadístico claro en esta condición. El marcador más repetido en las 10,000 simulaciones es {marcador_mas_comun}."
+            veredicto = f"Tendencia Fuerte: {equipo_seleccionado} muestra un dominio estadístico claro en esta condición. El marcador más probable proyectado es {marcador_mas_comun}."
         elif derrotas > 50:
-            veredicto = f"Alerta de Complicación: Las métricas favorecen al rival en este escenario. El marcador más probable es {marcador_mas_comun}, sugiriendo cautela."
+            veredicto = f"Alerta de Complicación: Las métricas favorecen al rival en este escenario. El marcador más probable proyectado es {marcador_mas_comun}, sugiriendo cautela."
         else:
-            veredicto = f"Partido Muy Parejo: Escenario sumamente equilibrado con alta probabilidad de empate o diferencia mínima. El resultado más común simulado fue {marcador_mas_comun}."
+            veredicto = f"Partido Muy Parejo: Escenario sumamente equilibrado con alta probabilidad de empate o diferencia mínima. El resultado más probable proyectado fue {marcador_mas_comun}."
 
-        st.markdown(f'<div class="insight-box"><b>Veredicto GoalMetrics:</b> {veredicto}<br><br><b>Nivel de Fiabilidad:</b> {nivel_fiabilidad}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="insight-box"><b>Veredicto GoalMetrics:</b> {veredicto}</div>', unsafe_allow_html=True)
 
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         col_m1.metric("🟢 Victoria (1)", f"{triunfos:.1f}%")
@@ -263,9 +251,9 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         
         st.markdown("---")
 
-        # GRÁFICO DE GOLES CON EXPLICACIÓN
+        # GRÁFICO DE GOLES CON EXPLICACIÓN AMIGABLE
         st.markdown("#### ⚽ Distribución de Probabilidad de Goles a Favor")
-        st.markdown('<div class="explanation-text">Este gráfico muestra qué tan probable es que el equipo anote 0, 1, 2, 3 o más goles en el partido. Las barras más altas indican la cantidad de anotaciones que ocurrieron con mayor frecuencia en la simulación.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="explanation-text">Este gráfico indica qué tan probable es que el equipo anote 0, 1, 2, 3 o más goles. Las barras más altas representan la cantidad de goles que ocurren con mayor frecuencia según el rendimiento histórico.</div>', unsafe_allow_html=True)
         conteo_goles = pd.Series(sim_goles_favor).value_counts().sort_index()
         df_goles_chart = pd.DataFrame({
             'Goles': conteo_goles.index,
@@ -273,9 +261,9 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         }).set_index('Goles')
         st.bar_chart(df_goles_chart, color=color_equipo)
 
-        # GRÁFICO DE CÓRNERS CON EXPLICACIÓN
+        # GRÁFICO DE CÓRNERS CON EXPLICACIÓN AMIGABLE
         st.markdown("#### 🚩 Distribución de Probabilidad de Córners")
-        st.markdown('<div class="explanation-text">Representa las probabilidades de saques de esquina que cobrará el equipo. Te ayuda a visualizar el volumen ofensivo a través de tiros de esquina esperados.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="explanation-text">Muestra las probabilidades del volumen de saques de esquina a favor que conseguirá el equipo durante el desarrollo del encuentro.</div>', unsafe_allow_html=True)
         conteo_corners = pd.Series(sim_corners).astype(int).value_counts().sort_index()
         df_corners_chart = pd.DataFrame({
             'Córners': conteo_corners.index,
@@ -289,7 +277,7 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         
         with col_left:
             st.markdown("#### 🏆 Top 5 Marcadores Más Probables")
-            st.markdown('<div class="explanation-text">Estos son los 5 resultados finales (Goles de tu equipo - Goles del rival) que más veces ocurrieron tras simular el partido 10,000 veces.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="explanation-text">Los 5 resultados finales más repetidos (Goles de tu equipo - Goles del rival) de acuerdo con los patrones analizados.</div>', unsafe_allow_html=True)
             tabla_data = []
             for res, freq in conteo.most_common(5):
                 prob = (freq / num_sim) * 100
@@ -298,7 +286,7 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
                 
         with col_right:
             st.markdown("#### 📈 Probabilidades de Líneas")
-            st.markdown('<div class="explanation-text">Porcentaje de probabilidad de superar las líneas estadísticas elegidas en la barra lateral (goles, tiros, córners y faltas).</div>', unsafe_allow_html=True)
+            st.markdown('<div class="explanation-text">Porcentaje de probabilidad de superar las líneas estadísticas configuradas en la barra lateral.</div>', unsafe_allow_html=True)
             st.metric(label=f"⚽ Más de {linea_goles} Goles", value=f"{(sim_goles_favor > linea_goles).mean() * 100:.1f}%")
             st.metric(label=f"👟 Más de {linea_tiros} Tiros Totales", value=f"{(sim_tiros > linea_tiros).mean() * 100:.1f}%")
             st.metric(label=f"🎯 Más de {linea_tiros_puerta} Tiros a Puerta", value=f"{(sim_tiros_puerta > linea_tiros_puerta).mean() * 100:.1f}%")
@@ -313,3 +301,5 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
             historial_display['Fecha'] = pd.to_datetime(historial_display['Fecha']).dt.strftime('%Y-%m-%d')
             columnas_disponibles = [col for col in ['Fecha', 'Equipo', 'Condición', 'Rival', 'Nivel Rival', 'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas'] if col in historial_display.columns]
             st.dataframe(historial_display[columnas_disponibles], hide_index=True, use_container_width=True)
+else:
+    st.info("👈 Configura los parámetros en la barra lateral y presiona **'Analizar'** para generar la simulación estadística.")
