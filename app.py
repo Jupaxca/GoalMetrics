@@ -10,10 +10,10 @@ st.set_page_config(
     layout="wide"
 )
 
-# ESTILOS CSS PROFESIONALES
+# ESTILOS CSS PROFESIONALES (Forzando modo oscuro estable)
 st.markdown("""
     <style>
-    .main {
+    .stApp {
         background-color: #090D16;
         color: #F3F4F6;
     }
@@ -43,6 +43,7 @@ st.markdown("""
         font-size: 22px;
         margin-bottom: 25px;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
     }
     .brand-title {
         font-size: 32px;
@@ -230,6 +231,11 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         st.markdown("---")
         st.info(f"💡 **Base del análisis:** {len(historial)} partidos analizados bajo el modo: **{fuente_datos}** (ponderados por fecha).")
         
-        # 🔍 APARTADO NUEVO: HISTORIAL DE PARTIDOS UTILIZADOS
-        with st.expander("📋 Ver detalle de los partidos utilizados en este análisis"):
-            st.dataframe(historial[['Fecha', 'Equipo', 'Condición', 'Nivel Rival', 'Goles', 'Goles Rival', 'Tiros', 'Corners', 'Faltas']], hide_index=True, use_container_width=True)
+        # 📋 DETALLE CON FECHA LIMPIA (SIN HORA)
+        with st.expander("📋 Ver detalle completo de los partidos utilizados (Rivales y Estadísticas)"):
+            historial_display = historial.copy()
+            # Convertimos la fecha a texto plano con formato año-mes-día para quitar la hora 00:00:00
+            historial_display['Fecha'] = pd.to_datetime(historial_display['Fecha']).dt.strftime('%Y-%m-%d')
+            
+            columnas_disponibles = [col for col in ['Fecha', 'Equipo', 'Condición', 'Rival', 'Nivel Rival', 'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas'] if col in historial_display.columns]
+            st.dataframe(historial_display[columnas_disponibles], hide_index=True, use_container_width=True)
