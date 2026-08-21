@@ -108,7 +108,7 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# --- FUNCIÓN DE ADN CON ALTAIR (Nativo y sin errores) ---
+# --- FUNCIÓN DE ADN CON ALTAIR ---
 def renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa):
     val_ataque = min(round(lam_f * 3.33, 1), 10.0)
     val_tiros = min(round(lam_t / 2.5, 1), 10.0)
@@ -128,14 +128,14 @@ def renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa):
         tooltip=['Métrica', 'Puntuación']
     ).properties(height=240)
 
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width='stretch')
 
 # --- PANEL PRINCIPAL ---
 col_btn1, col_btn2 = st.columns([1, 4])
 with col_btn1:
-    btn_analizar = st.button("⚡ Analizar", type="primary", use_container_width=True)
+    btn_analizar = st.button("⚡ Analizar", type="primary", width='stretch')
 with col_btn2:
-    if st.button("🧹 Limpiar", use_container_width=False):
+    if st.button("🧹 Limpiar", width='content'):
         st.rerun()
 
 if btn_analizar:
@@ -211,7 +211,7 @@ if btn_analizar:
 
     st.markdown(f'<div class="insight-box"><b>Veredicto GoalMetrics:</b> {veredicto}</div>', unsafe_allow_html=True)
 
-    # GRÁFICO DE ADN DEL EQUIPO CON ALTAIR
+    # ADN DEL EQUIPO
     st.subheader("🧬 ADN del Equipo")
     renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa)
 
@@ -226,6 +226,27 @@ if btn_analizar:
     c6.metric("🛡️ Doble Oportunidad (X2)", f"{doble_x2:.1f}%")
     c7.metric("⚖️ Apuesta sin Empate (DNB)", f"{dnb:.1f}%")
     
+    # --- SECCIÓN DE CUOTAS DE APUESTAS (FAIR ODDS) ---
+    st.markdown("---")
+    st.subheader("🎯 Cuotas Justas de Mercado (Fair Odds)")
+    
+    cuota_1 = round(100 / triunfos, 2) if triunfos > 0 else 0.0
+    cuota_x = round(100 / empates, 2) if empates > 0 else 0.0
+    cuota_2 = round(100 / derrotas, 2) if derrotas > 0 else 0.0
+    
+    prob_btts_no = 100 - ambos_anotan
+    cuota_btts_si = round(100 / ambos_anotan, 2) if ambos_anotan > 0 else 0.0
+    cuota_btts_no = round(100 / prob_btts_no, 2) if prob_btts_no > 0 else 0.0
+
+    qc1, qc2, qc3 = st.columns(3)
+    qc1.metric("Cuota Local (1)", f"{cuota_1}", delta=f"{triunfos:.1f}% prob")
+    qc2.metric("Cuota Empate (X)", f"{cuota_x}", delta=f"{empates:.1f}% prob")
+    qc3.metric("Cuota Visitante (2)", f"{cuota_2}", delta=f"{derrotas:.1f}% prob")
+
+    qc4, qc5 = st.columns(2)
+    qc4.metric("Cuota BTTS Sí", f"{cuota_btts_si}", delta=f"{ambos_anotan:.1f}% prob")
+    qc5.metric("Cuota BTTS No", f"{cuota_btts_no}", delta=f"{prob_btts_no:.1f}% prob")
+
     st.markdown("---")
     
     def crear_grafico(serie, titulo):
@@ -233,17 +254,17 @@ if btn_analizar:
         return alt.Chart(df_c).mark_bar(color=color_equipo).encode(x=alt.X(f"{titulo}:N", sort=None, labelAngle=0), y=alt.Y('Prob (%):Q', format='.1f')).properties(height=300)
 
     st.markdown("#### ⚽ Probabilidad de Goles a Favor")
-    st.altair_chart(crear_grafico(pd.Series(sg_fav), 'Goles'), use_container_width=True)
+    st.altair_chart(crear_grafico(pd.Series(sg_fav), 'Goles'), width='stretch')
 
     st.markdown("#### 🚩 Probabilidad de Córners")
-    st.altair_chart(crear_grafico(pd.Series(s_corn).astype(int), 'Córners'), use_container_width=True)
+    st.altair_chart(crear_grafico(pd.Series(s_corn).astype(int), 'Córners'), width='stretch')
     
     st.markdown("---")
     
     col_l, col_r = st.columns(2)
     with col_l:
         st.markdown("#### 🏆 Top 5 Marcadores")
-        st.dataframe(pd.DataFrame([{"Marcador": r, "Probabilidad": f"{(f/num_sim)*100:.1f}%"} for r, f in conteo.most_common(5)]), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame([{"Marcador": r, "Probabilidad": f"{(f/num_sim)*100:.1f}%"} for r, f in conteo.most_common(5)]), hide_index=True, width='stretch')
             
     with col_r:
         st.markdown("#### 📈 Probabilidades de Líneas")
@@ -260,5 +281,5 @@ if btn_analizar:
         h_disp = historial.copy()
         h_disp['Fecha'] = pd.to_datetime(h_disp['Fecha']).dt.strftime('%Y-%m-%d')
         cols = [c for c in ['Fecha', 'Equipo', 'Condición', 'Rival', 'Nivel Rival', 'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas'] if c in h_disp.columns]
-        st.dataframe(h_disp[cols], hide_index=True, use_container_width=True)
-        
+        st.dataframe(h_disp[cols], hide_index=True, width='stretch')
+    
