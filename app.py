@@ -11,30 +11,16 @@ st.set_page_config(
     layout="wide"
 )
 
-st.write("✅ La app está corriendo... cargando datos")
-
-# 1. CARGA DE DATOS (con diagnóstico)
+# 1. CARGA DE DATOS
 @st.cache_data(ttl=600)
 def cargar_datos():
     sheet_id = "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg"
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
-    
-    try:
-        df = pd.read_csv(url)
-    except Exception as e:
-        raise Exception(f"No se pudo leer el Google Sheet. Error: {e}")
+    df = pd.read_csv(url)
     
     df.columns = df.columns.astype(str).str.strip()
-    
-    columnas_necesarias = ['Equipo', 'Fecha', 'Condición', 'Nivel Rival']
-    faltantes = [c for c in columnas_necesarias if c not in df.columns]
-    if faltantes:
-        raise Exception(f"Faltan estas columnas en el Sheet: {faltantes}. Columnas encontradas: {list(df.columns)}")
-    
-    df = df.dropna(subset=columnas_necesarias)
-    df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce')
-    df = df.dropna(subset=['Fecha'])
-    
+    df = df.dropna(subset=['Equipo', 'Fecha', 'Condición', 'Nivel Rival'])
+    df['Fecha'] = pd.to_datetime(df['Fecha'])
     df['Equipo'] = df['Equipo'].astype(str).str.strip()
     df['Condición'] = df['Condición'].astype(str).str.strip().str.lower()
     df['Nivel Rival'] = df['Nivel Rival'].astype(str).str.strip()
@@ -42,7 +28,6 @@ def cargar_datos():
     for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-    
     return df
 
 # 2. MOTOR MATEMÁTICO
@@ -59,20 +44,11 @@ def simular_montecarlo(lam_fav, lam_con, lam_tir, lam_tpuerta, lam_corn, lam_fal
         rng.poisson(lam=lam_faltas, size=num_sim)
     )
 
-# ===== CARGA CON MENSAJE VISIBLE =====
-with st.spinner("Cargando datos del Google Sheet..."):
-    try:
-        df = cargar_datos()
-        st.success(f"✅ Datos cargados correctamente — {len(df)} filas")
-    except Exception as e:
-        st.error(f"⚠️ Error al cargar los datos:\n\n{e}")
-        st.info("""
-        **Posibles causas:**
-        1. El Google Sheet no es público (debe estar en "Cualquier persona con el enlace")
-        2. Problema de internet
-        3. Nombres de columnas diferentes
-        """)
-        st.stop()
+try:
+    df = cargar_datos()
+except Exception as e:
+    st.error(f"⚠️ Error al cargar los datos: {e}")
+    st.stop()
 
 # DICCIONARIO DE COLORES
 colores_equipos = {
@@ -188,8 +164,7 @@ if btn_analizar:
     historial = pd.DataFrame()
     fuente_datos = ""
     
-    # ===== LÓGICA PRINCIPAL =====
-    # Mínimo 2 → usa TODOS los que cumplan el filtro
+    # Mínimo 2 partidos → usa TODOS los que cumplan el filtro
     if len(df_exactos) >= 2:
         historial = df_exactos.copy()
         fuente_datos = f"Exacto ({condicion_label} vs {nivel_sel}) — {len(historial)} partidos"
@@ -214,14 +189,14 @@ if btn_analizar:
         st.error(f"❌ No hay datos suficientes para analizar a {equipo_sel}.")
         st.stop()
 
-    # ===== CABECERA =====
+    # CABECERA
     st.markdown(f"""
         <div style="background-color: {color_equipo}; padding: 18px; border-radius: 12px; color: white; text-align: center; font-weight: bold; font-size: 22px; margin-bottom: 25px;">
             🛡️ {equipo_sel.upper()} ({condicion_label.upper()} vs {nivel_sel.upper()})
         </div>
     """, unsafe_allow_html=True)
     
-    # ===== PESOS TEMPORALES =====
+    # PESOS TEMPORALES
     hoy = pd.Timestamp.today().normalize()
     historial['Dias_Pasados'] = (hoy - pd.to_datetime(historial['Fecha'])).dt.days.replace(0, 0.1)
     historial['Peso'] = 1 / (1 + (historial['Dias_Pasados'] / 30))
@@ -255,3 +230,147 @@ if btn_analizar:
     
     marcadores = [f"{f}-{c}" for f, c in zip(sg_fav, sg_con)]
     conteo = Counter(marcadores)
+    marcador_mas_comun = conteo.most_common(1)[0][0]
+    
+    if triunfos > 50:
+        veredicto = f"Tendencia Fuerte: Marcador proyectado {marcador_mas_comun}."
+    elif derrotas > 50:
+        veredicto = f"Alerta de Complicación: Marcador proyectado {marcador_mas_comun}."
+    else:
+        veredicto = f"Partido Muy Parejo: Marcador proyectado {marcador_mas_comun}."
+
+    st.markdown(f'<div class="insight-box"><b>Veredicto GoalMetrics:</b> {veredicto}</div>', unsafe_allow_html=True)
+
+    # ADN DEL EQUIPO
+    st.subheader("🧬 ADN del Equipo")
+    renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa)
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("🟢 Victoria (1)", f"{triunfos:.1f}%")
+    c2.metric("🟡 Empate (X)", f"{empates:.1f}%")
+    c3.metric("🔴 Derrota (2)", f"{derrotas:.1f}%")
+    c4.metric("⚽ Ambos Anotan (BTTS)", f"{ambos_anotan:.1f}%")
+    
+    c5, c6, c7 = st.columns(3)
+    c5.metric("🛡️ Doble Oportunidad (1X)", f"{doble_1x:.1f}%")
+    c6.metric("🛡️ Doble Oportunidad (X2)", f"{doble_x2:.1f}%")
+    c7.metric("⚖️ Apuesta sin Empate (DNB)", f"{dnb:.1f}%")
+    
+    # --- CUOTAS JUSTAS + VALUE BET ---
+    st.markdown("---")
+    st.subheader("🎯 Cuotas Justas + Value Bet")
+    
+    cuota_justa_1 = round(100 / triunfos, 2) if triunfos > 0 else 0.0
+    cuota_justa_x = round(100 / empates, 2) if empates > 0 else 0.0
+    cuota_justa_2 = round(100 / derrotas, 2) if derrotas > 0 else 0.0
+    
+    prob_btts_no = 100 - ambos_anotan
+    cuota_justa_btts_si = round(100 / ambos_anotan, 2) if ambos_anotan > 0 else 0.0
+    cuota_justa_btts_no = round(100 / prob_btts_no, 2) if prob_btts_no > 0 else 0.0
+
+    def calcular_ev(prob_porcentaje, cuota_casa):
+        if cuota_casa <= 1.0 or prob_porcentaje <= 0:
+            return 0.0
+        prob = prob_porcentaje / 100
+        return round((prob * cuota_casa) - 1, 4)
+
+    ev_1 = calcular_ev(triunfos, cuota_casa_1)
+    ev_x = calcular_ev(empates, cuota_casa_x)
+    ev_2 = calcular_ev(derrotas, cuota_casa_2)
+    ev_btts_si = calcular_ev(ambos_anotan, cuota_casa_btts_si)
+    ev_btts_no = calcular_ev(prob_btts_no, cuota_casa_btts_no)
+
+    qc1, qc2, qc3 = st.columns(3)
+    qc1.metric("Cuota Justa (1)", f"{cuota_justa_1}", delta=f"{triunfos:.1f}% prob")
+    qc2.metric("Cuota Justa (X)", f"{cuota_justa_x}", delta=f"{empates:.1f}% prob")
+    qc3.metric("Cuota Justa (2)", f"{cuota_justa_2}", delta=f"{derrotas:.1f}% prob")
+
+    qc4, qc5 = st.columns(2)
+    qc4.metric("Cuota Justa BTTS Sí", f"{cuota_justa_btts_si}", delta=f"{ambos_anotan:.1f}% prob")
+    qc5.metric("Cuota Justa BTTS No", f"{cuota_justa_btts_no}", delta=f"{prob_btts_no:.1f}% prob")
+
+    st.markdown("#### 💎 Análisis de Value Bet")
+    st.caption("Si el EV es positivo (+), la casa está pagando más de lo que proyectan tus 10.000 simulaciones → hay valor.")
+
+    def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob):
+        es_value = ev > 0
+        clase = "value-yes" if es_value else "value-no"
+        icono = "✅ VALUE BET" if es_value else "❌ Sin valor"
+        color_ev = "#10b981" if es_value else "#9ca3af"
+        
+        st.markdown(f"""
+            <div class="value-box {clase}">
+                <b>{nombre}</b><br>
+                Probabilidad modelo: <b>{prob:.1f}%</b> &nbsp;|&nbsp; 
+                Cuota justa: <b>{cuota_justa}</b> &nbsp;|&nbsp; 
+                Cuota casa: <b>{cuota_casa}</b><br>
+                <span style="color:{color_ev}; font-weight:bold; font-size:17px;">
+                    EV: {ev:+.2%} &nbsp;→&nbsp; {icono}
+                </span>
+            </div>
+        """, unsafe_allow_html=True)
+
+    mostrar_value("Victoria (1)", cuota_justa_1, cuota_casa_1, ev_1, triunfos)
+    mostrar_value("Empate (X)", cuota_justa_x, cuota_casa_x, ev_x, empates)
+    mostrar_value("Derrota (2)", cuota_justa_2, cuota_casa_2, ev_2, derrotas)
+    mostrar_value("BTTS Sí", cuota_justa_btts_si, cuota_casa_btts_si, ev_btts_si, ambos_anotan)
+    mostrar_value("BTTS No", cuota_justa_btts_no, cuota_casa_btts_no, ev_btts_no, prob_btts_no)
+
+    st.markdown("---")
+    
+    def crear_grafico(serie, titulo):
+        df_c = pd.DataFrame({
+            titulo: serie.value_counts().sort_index().index.astype(str), 
+            'Prob (%)': (serie.value_counts().sort_index() / num_sim) * 100
+        })
+        return alt.Chart(df_c).mark_bar(color=color_equipo).encode(
+            x=alt.X(f"{titulo}:N", sort=None, labelAngle=0), 
+            y=alt.Y('Prob (%):Q', format='.1f')
+        ).properties(height=300)
+
+    st.markdown("#### ⚽ Probabilidad de Goles a Favor")
+    st.altair_chart(crear_grafico(pd.Series(sg_fav), 'Goles'), use_container_width=True)
+
+    st.markdown("#### 🚩 Probabilidad de Córners")
+    st.altair_chart(crear_grafico(pd.Series(s_corn).astype(int), 'Córners'), use_container_width=True)
+    
+    st.markdown("---")
+    
+    col_l, col_r = st.columns(2)
+    with col_l:
+        st.markdown("#### 🏆 Top 5 Marcadores")
+        st.dataframe(
+            pd.DataFrame([
+                {"Marcador": r, "Probabilidad": f"{(f/num_sim)*100:.1f}%"} 
+                for r, f in conteo.most_common(5)
+            ]), 
+            hide_index=True, 
+            use_container_width=True
+        )
+            
+    with col_r:
+        st.markdown("#### 📈 Probabilidades de Líneas")
+        st.metric(label=f"⚽ Más de {linea_goles} Goles", value=f"{(sg_fav > linea_goles).mean() * 100:.1f}%")
+        st.metric(label=f"👟 Más de {linea_tiros} Tiros", value=f"{(s_tir > linea_tiros).mean() * 100:.1f}%")
+        st.metric(label=f"🎯 Más de {linea_tiros_puerta} a Puerta", value=f"{(s_tpuerta > linea_tiros_puerta).mean() * 100:.1f}%")
+        st.metric(label=f"🚩 Más de {linea_corners} Córners", value=f"{(s_corn > linea_corners).mean() * 100:.1f}%")
+        st.metric(label=f"🛑 Más de {linea_faltas} Faltas", value=f"{(s_faltas > linea_faltas).mean() * 100:.1f}%")
+
+    st.markdown("---")
+    st.info(f"💡 Base del análisis: **{len(historial)} partidos** analizados bajo el modo: {fuente_datos}")
+    
+    # HISTORIAL VISUAL (solo últimos 5)
+    with st.expander("📋 Ver detalle de los partidos utilizados (últimos 5 + resumen)"):
+        h_disp = historial.copy().sort_values(by='Fecha', ascending=False)
+        h_mostrar = h_disp.head(5).copy()
+        h_mostrar['Fecha'] = pd.to_datetime(h_mostrar['Fecha']).dt.strftime('%Y-%m-%d')
+        
+        cols = [c for c in ['Fecha', 'Equipo', 'Condición', 'Rival', 'Nivel Rival', 
+                           'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas', 'Peso'] 
+                if c in h_mostrar.columns]
+        
+        st.caption(f"Mostrando los 5 partidos más recientes de los {len(historial)} utilizados en el cálculo.")
+        st.dataframe(h_mostrar[cols], hide_index=True, use_container_width=True)
+        
+        if len(historial) > 5:
+            st.caption(f"ℹ️ Se analizaron {len(historial)} partidos en total. Los más antiguos también influyen, pero con menor peso.")
