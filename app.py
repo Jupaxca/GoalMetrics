@@ -10,77 +10,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# ESTILOS CSS PROFESIONALES (Forzando modo oscuro estable)
-st.markdown("""
-    <style>
-    .stApp {
-        background-color: #090D16;
-        color: #F3F4F6;
-    }
-    .stSidebar {
-        background-color: #111827;
-    }
-    .stButton>button {
-        width: 100%;
-        border-radius: 8px;
-        font-weight: bold;
-        background-color: #3B82F6;
-        color: white;
-        font-size: 16px;
-        padding: 12px;
-        border: none;
-        transition: 0.3s;
-    }
-    .stButton>button:hover {
-        background-color: #2563EB;
-    }
-    .team-header {
-        padding: 18px;
-        border-radius: 12px;
-        color: white;
-        text-align: center;
-        font-weight: bold;
-        font-size: 22px;
-        margin-bottom: 25px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
-    }
-    .brand-title {
-        font-size: 32px;
-        font-weight: 800;
-        color: #F3F4F6;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    .brand-subtitle {
-        color: #9CA3AF;
-        font-size: 15px;
-        margin-bottom: 5px;
-    }
-    .brand-author {
-        color: #3B82F6;
-        font-size: 14px;
-        font-weight: 600;
-        margin-bottom: 20px;
-    }
-    .insight-box {
-        padding: 15px;
-        border-radius: 10px;
-        background-color: #1F2937;
-        border-left: 5px solid #3B82F6;
-        margin-bottom: 20px;
-        font-size: 16px;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# ENCABEZADO DE MARCA CON TU FIRMA
-st.markdown('<div class="brand-title">📊 GoalMetrics <span style="color: #3B82F6; font-size: 20px;">FOOTBALL ANALYTICS</span></div>', unsafe_allow_html=True)
-st.markdown('<div class="brand-subtitle">Plataforma avanzada de simulación estadística y predicción de rendimiento deportivo.</div>', unsafe_allow_html=True)
-st.markdown('<div class="brand-author">By: Juan Camilo Barreto</div>', unsafe_allow_html=True)
-st.markdown("---")
-
 # 1. CARGAR DATOS DESDE GOOGLE SHEETS
 @st.cache_data
 def cargar_datos():
@@ -104,27 +33,27 @@ except Exception as e:
 
 # DICCIONARIO DE COLORES OFICIALES Y COMPLETOS
 colores_equipos = {
-    "Palmeiras": "#006400",          # Verde esmeralda
-    "Flamengo": "#C8102E",           # Rojo y negro
-    "Paranaense": "#CC0000",         # Rojo atlético
-    "Fluminense": "#8B0000",         # Granate tricolor
-    "Vasco": "#222222",              # Negro cruz de malta
-    "Arsenal": "#EF0107",            # Rojo Arsenal
-    "Aston villa": "#670E36",        # Vinotinto Aston Villa
-    "Barcelona": "#A50044",          # Azulgrana
-    "Bayern Munich": "#DC052D",      # Rojo Bayern
-    "Benfica": "#E30613",            # Rojo Benfica
-    "Como": "#002D62",               # Azul Como
-    "Freiburg": "#000000",           # Negro Freiburg
-    "Inter": "#010E80",              # Azul Inter de Milán
-    "Liverpool": "#C8102E",          # Rojo Liverpool
-    "Lyon": "#1D428A",               # Azul Lyon
-    "Manchester City": "#6CABDD",    # Celeste Manchester City
-    "Manchester United": "#DA291C",  # Rojo Manchester United
-    "Newcastle": "#241F20",          # Negro y blanco urracas
-    "Porto": "#003399",              # Azul Porto
-    "PSG": "#004170",                # Azul oscuro PSG
-    "Real Madrid": "#00529F"         # Azul Real Madrid
+    "Palmeiras": "#006400",
+    "Flamengo": "#C8102E",
+    "Paranaense": "#CC0000",
+    "Fluminense": "#8B0000",
+    "Vasco": "#333333",
+    "Arsenal": "#EF0107",
+    "Aston villa": "#670E36",
+    "Barcelona": "#A50044",
+    "Bayern Munich": "#DC052D",
+    "Benfica": "#E30613",
+    "Como": "#002D62",
+    "Freiburg": "#222222",
+    "Inter": "#010E80",
+    "Liverpool": "#C8102E",
+    "Lyon": "#1D428A",
+    "Manchester City": "#6CABDD",
+    "Manchester United": "#DA291C",
+    "Newcastle": "#241F20",
+    "Porto": "#003399",
+    "PSG": "#004170",
+    "Real Madrid": "#00529F"
 }
 
 # 2. PANEL LATERAL
@@ -157,7 +86,86 @@ linea_tiros_puerta = st.sidebar.slider("🎯 Línea Tiros a Puerta", 1.0, 10.0, 
 linea_corners = st.sidebar.slider("🚩 Línea de Córners", 1.0, 15.0, 5.5, 0.5)
 linea_faltas = st.sidebar.slider("🛑 Línea de Faltas", 5.0, 25.0, 10.5, 0.5)
 
-color_equipo = colores_equipos.get(equipo_seleccionado, "#1F2937")
+color_equipo = colores_equipos.get(equipo_seleccionado, "#3B82F6")
+
+# ESTILOS CSS DINÁMICOS (Sin afectar el diseño interno de las tablas)
+st.markdown(f"""
+    <style>
+    .stApp {{
+        background-color: #090D16;
+        color: #F3F4F6;
+    }}
+    .stSidebar {{
+        background-color: #111827;
+    }}
+    .stButton>button {{
+        width: 100%;
+        border-radius: 8px;
+        font-weight: bold;
+        background-color: {color_equipo};
+        color: white;
+        font-size: 16px;
+        padding: 12px;
+        border: none;
+        transition: 0.3s;
+    }}
+    .stButton>button:hover {{
+        opacity: 0.85;
+    }}
+    .team-header {{
+        padding: 18px;
+        border-radius: 12px;
+        color: white;
+        text-align: center;
+        font-weight: bold;
+        font-size: 22px;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+        background-color: {color_equipo};
+    }}
+    .brand-title {{
+        font-size: 32px;
+        font-weight: 800;
+        color: #F3F4F6;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }}
+    .brand-subtitle {{
+        color: #9CA3AF;
+        font-size: 15px;
+        margin-bottom: 5px;
+    }}
+    .brand-author {{
+        color: {color_equipo};
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 20px;
+    }}
+    .insight-box {{
+        padding: 15px;
+        border-radius: 10px;
+        background-color: #1F2937;
+        border-left: 5px solid {color_equipo};
+        margin-bottom: 20px;
+        font-size: 16px;
+        line-height: 1.5;
+    }}
+    .explanation-text {{
+        color: #9CA3AF;
+        font-size: 13px;
+        margin-top: 5px;
+        margin-bottom: 15px;
+    }}
+    </style>
+""", unsafe_allow_html=True)
+
+# ENCABEZADO DE MARCA CON TU FIRMA
+st.markdown('<div class="brand-title">📊 GoalMetrics <span style="color: #3B82F6; font-size: 20px;">FOOTBALL ANALYTICS</span></div>', unsafe_allow_html=True)
+st.markdown('<div class="brand-subtitle">Plataforma avanzada de simulación estadística y predicción de rendimiento deportivo.</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="brand-author">By: Juan Camilo Barreto</div>', unsafe_allow_html=True)
+st.markdown("---")
 
 # 3. PANEL PRINCIPAL
 st.markdown("### 🕹️ Centro de Simulación")
@@ -183,7 +191,7 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
             fuente_datos = f"Mixto con respaldo ({condicion_contraria} ajustado)"
     
     st.markdown(f"""
-        <div class="team-header" style="background-color: {color_equipo};">
+        <div class="team-header">
             🛡️ {equipo_seleccionado.upper()} ({condicion_seleccionada.upper()} vs {nivel_seleccionado.upper()})
         </div>
     """, unsafe_allow_html=True)
@@ -225,21 +233,21 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         conteo = Counter(marcadores)
         
         if num_exactos >= 4:
-            nivel_fiabilidad = "🟢 Alta (Basado en 4+ partidos exactos)"
+            nivel_fiabilidad = "Alta (Basado en 4+ partidos exactos)"
         elif num_exactos >= 2:
-            nivel_fiabilidad = "🟡 Media (Basado en registros justos)"
+            nivel_fiabilidad = "Media (Basado en registros justos)"
         else:
-            nivel_fiabilidad = "🟠 Moderada (Activado con respaldo inteligente)"
+            nivel_fiabilidad = "Moderada (Activado con respaldo inteligente)"
 
         marcador_mas_comun = conteo.most_common(1)[0][0]
         if triunfos > 50:
-            veredicto = f"🔥 **Tendencia Fuerte:** {equipo_seleccionado} muestra un dominio estadístico claro en esta condición. El marcador más repetido en las simulaciones es **{marcador_mas_comun}**."
+            veredicto = f"Tendencia Fuerte: {equipo_seleccionado} muestra un dominio estadístico claro en esta condición. El marcador más repetido en las 10,000 simulaciones es {marcador_mas_comun}."
         elif derrotas > 50:
-            veredicto = f"⚠️ **Alerta de Complicación:** Las métricas favorecen al rival en este escenario. El marcador más probable es **{marcador_mas_comun}**, sugiriendo cautela."
+            veredicto = f"Alerta de Complicación: Las métricas favorecen al rival en este escenario. El marcador más probable es {marcador_mas_comun}, sugiriendo cautela."
         else:
-            veredicto = f"⚖️ **Partido Muy Parejo:** Escenario sumamente equilibrado con alta probabilidad de empate o diferencia mínima. El resultado más común simulado fue **{marcador_mas_comun}**."
+            veredicto = f"Partido Muy Parejo: Escenario sumamente equilibrado con alta probabilidad de empate o diferencia mínima. El resultado más común simulado fue {marcador_mas_comun}."
 
-        st.markdown(f'<div class="insight-box">💡 <b>Veredicto GoalMetrics:</b> {veredicto}<br><br>📊 <b>Fiabilidad de los Datos:</b> {nivel_fiabilidad}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="insight-box"><b>Veredicto GoalMetrics:</b> {veredicto}<br><br><b>Fiabilidad de los Datos:</b> {nivel_fiabilidad}</div>', unsafe_allow_html=True)
 
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         col_m1.metric("🟢 Victoria (1)", f"{triunfos:.1f}%")
@@ -254,27 +262,23 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         
         st.markdown("---")
 
+        # GRÁFICO DE GOLES (Usa el color del equipo en las barras)
         st.markdown("#### ⚽ Distribución de Probabilidad de Goles a Favor")
         conteo_goles = pd.Series(sim_goles_favor).value_counts().sort_index()
         df_goles_chart = pd.DataFrame({
             'Goles': conteo_goles.index,
             'Probabilidad (%)': (conteo_goles / num_sim) * 100
         }).set_index('Goles')
-        st.bar_chart(df_goles_chart, color="#3B82F6")
+        st.bar_chart(df_goles_chart, color=color_equipo)
 
-        st.markdown("#### 📈 Comparativa de Goles Esperados (Tus Goles vs Goles del Rival)")
-        df_xg_chart = pd.DataFrame({
-            'Promedio Esperado': [lambda_favor, lambda_contra]
-        }, index=[f"{equipo_seleccionado} (Anotados)", "Rival (Concedidos)"])
-        st.bar_chart(df_xg_chart, color="#10B981")
-
+        # GRÁFICO DE CÓRNERS (Usa el color del equipo en las barras)
         st.markdown("#### 🚩 Distribución de Probabilidad de Córners")
         conteo_corners = pd.Series(sim_corners).astype(int).value_counts().sort_index()
         df_corners_chart = pd.DataFrame({
             'Córners': conteo_corners.index,
             'Probabilidad (%)': (conteo_corners / num_sim) * 100
         }).set_index('Córners')
-        st.bar_chart(df_corners_chart, color="#F59E0B")
+        st.bar_chart(df_corners_chart, color=color_equipo)
         
         st.markdown("---")
         
@@ -282,6 +286,7 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         
         with col_left:
             st.markdown("#### 🏆 Top 5 Marcadores Más Probables")
+            st.markdown('<div class="explanation-text">Estos son los 5 resultados finales (Goles de tu equipo - Goles del rival) que más veces ocurrieron tras simular el partido 10,000 veces.</div>', unsafe_allow_html=True)
             tabla_data = []
             for res, freq in conteo.most_common(5):
                 prob = (freq / num_sim) * 100
@@ -290,6 +295,7 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
                 
         with col_right:
             st.markdown("#### 📈 Probabilidades de Líneas")
+            st.markdown('<div class="explanation-text">Porcentaje de probabilidad de superar las líneas estadísticas elegidas en la barra lateral (goles, tiros, córners y faltas).</div>', unsafe_allow_html=True)
             st.metric(label=f"⚽ Más de {linea_goles} Goles", value=f"{(sim_goles_favor > linea_goles).mean() * 100:.1f}%")
             st.metric(label=f"👟 Más de {linea_tiros} Tiros Totales", value=f"{(sim_tiros > linea_tiros).mean() * 100:.1f}%")
             st.metric(label=f"🎯 Más de {linea_tiros_puerta} Tiros a Puerta", value=f"{(sim_tiros_puerta > linea_tiros_puerta).mean() * 100:.1f}%")
