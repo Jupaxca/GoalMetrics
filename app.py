@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import altair as alt
-import plotly.graph_objects as go
 from collections import Counter
 
 # CONFIGURACIÓN DE LA PÁGINA
@@ -31,7 +30,7 @@ def cargar_datos():
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
     return df
 
-# 2. MOTOR MATEMÁTICO SELLADO (Evita que los % cambien al dar clic)
+# 2. MOTOR MATEMÁTICO SELLADO
 @st.cache_data
 def simular_montecarlo(lam_fav, lam_con, lam_tir, lam_tpuerta, lam_corn, lam_faltas):
     rng = np.random.default_rng(42)
@@ -77,7 +76,6 @@ condicion_sel = condicion_label.lower()
 
 nivel_sel = st.sidebar.selectbox("⭐ Torneo / Nivel del Rival", lista_niveles)
 
-# Diagnóstico en el sidebar
 df_diagnostico = df_equipo.sort_values(by='Fecha', ascending=False)
 exactos_check = df_diagnostico[(df_diagnostico['Condición'] == condicion_sel) & 
                                (df_diagnostico['Nivel Rival'] == nivel_sel)]
@@ -110,35 +108,27 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# --- FUNCIÓN DE GRÁFICO DE RADAR ---
-def renderizar_radar(lam_f, lam_t, lam_tp, lam_co, lam_fa):
-    val_ataque = min((lam_f * 3.33), 10)
-    val_tiros = min((lam_t / 2.5), 10)
-    val_precis = min((lam_tp * 1.66), 10)
-    val_corners = min((lam_co / 1.5), 10)
-    val_discip = min(((25 - lam_fa) / 2.5), 10)
+# --- FUNCIÓN DE ADN CON ALTAIR (Nativo y sin errores) ---
+def renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa):
+    val_ataque = min(round(lam_f * 3.33, 1), 10.0)
+    val_tiros = min(round(lam_t / 2.5, 1), 10.0)
+    val_precis = min(round(lam_tp * 1.66, 1), 10.0)
+    val_corners = min(round(lam_co / 1.5, 1), 10.0)
+    val_discip = min(round((25 - lam_fa) / 2.5, 1), 10.0)
 
-    categories = ['Ataque', 'Volumen Tiros', 'Precisión', 'Córners', 'Disciplina']
-    values = [val_ataque, val_tiros, val_precis, val_corners, val_discip]
+    df_adn = pd.DataFrame({
+        'Métrica': ['Ataque', 'Volumen Tiros', 'Precisión', 'Córners', 'Disciplina'],
+        'Puntuación': [val_ataque, val_tiros, val_precis, val_corners, val_discip]
+    })
 
-    fig = go.Figure()
-    fig.add_trace(go.Scatterpolar(
-          r=values,
-          theta=categories,
-          fill='toself',
-          fillcolor=color_equipo,
-          line_color=color_equipo
-    ))
+    chart = alt.Chart(df_adn).mark_bar(cornerRadiusTopRight=6, cornerRadiusBottomRight=6).encode(
+        x=alt.X('Puntuación:Q', scale=alt.Scale(domain=[0, 10]), title='Escala de Rendimiento (0 - 10)'),
+        y=alt.Y('Métrica:N', sort='-x', title=None),
+        color=alt.value(color_equipo),
+        tooltip=['Métrica', 'Puntuación']
+    ).properties(height=240)
 
-    fig.update_layout(
-      polar=dict(radialaxis=dict(visible=True, range=[0, 10])),
-      showlegend=False,
-      paper_bgcolor='rgba(0,0,0,0)',
-      plot_bgcolor='rgba(0,0,0,0)',
-      font_color="white",
-      margin=dict(t=20, b=20, l=20, r=20)
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    st.altair_chart(chart, use_container_width=True)
 
 # --- PANEL PRINCIPAL ---
 col_btn1, col_btn2 = st.columns([1, 4])
@@ -221,9 +211,9 @@ if btn_analizar:
 
     st.markdown(f'<div class="insight-box"><b>Veredicto GoalMetrics:</b> {veredicto}</div>', unsafe_allow_html=True)
 
-    # GRÁFICO DE RADAR AÑADIDO
-    st.subheader("🧬 ADN del Equipo (Radar Stats)")
-    renderizar_radar(lam_f, lam_t, lam_tp, lam_co, lam_fa)
+    # GRÁFICO DE ADN DEL EQUIPO CON ALTAIR
+    st.subheader("🧬 ADN del Equipo")
+    renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa)
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("🟢 Victoria (1)", f"{triunfos:.1f}%")
@@ -271,4 +261,4 @@ if btn_analizar:
         h_disp['Fecha'] = pd.to_datetime(h_disp['Fecha']).dt.strftime('%Y-%m-%d')
         cols = [c for c in ['Fecha', 'Equipo', 'Condición', 'Rival', 'Nivel Rival', 'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas'] if c in h_disp.columns]
         st.dataframe(h_disp[cols], hide_index=True, use_container_width=True)
-                    
+        
