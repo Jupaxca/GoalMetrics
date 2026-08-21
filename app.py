@@ -232,13 +232,13 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         marcadores = [f"{f}-{c}" for f, c in zip(sim_goles_favor, sim_goles_contra)]
         conteo = Counter(marcadores)
         
-        # EXPLICACIÓN DETALLADA DE LA FIABILIDAD
+        # FIABILIDAD DIRECTA Y LIMPIA
         if num_exactos >= 4:
-            explicacion_fiabilidad = f"Alta. Se encontraron {num_exactos} partidos exactos cumpliendo con la condición y el nivel de rival seleccionados, lo que otorga una base estadística muy sólida."
+            nivel_fiabilidad = "🟢 Alta (Muestra robusta de partidos)"
         elif num_exactos >= 2:
-            explicacion_fiabilidad = f"Media. Se cuenta con {num_exactos} partidos exactos; es una muestra válida, aunque limitada, ponderada por la fecha de los encuentros."
+            nivel_fiabilidad = "🟡 Media (Muestra estándar de partidos)"
         else:
-            explicacion_fiabilidad = f"Moderada / Respaldo Activado. Había pocos partidos exactos ({num_exactos}), por lo que el sistema aplicó el respaldo inteligente usando la condición contraria con su respectivo ajuste matemático."
+            nivel_fiabilidad = "🟠 Moderada (Modo Respaldo Inteligente Activo)"
 
         marcador_mas_comun = conteo.most_common(1)[0][0]
         if triunfos > 50:
@@ -248,7 +248,7 @@ if st.button("⚡ Ejecutar Motor de Predicción", type="primary"):
         else:
             veredicto = f"Partido Muy Parejo: Escenario sumamente equilibrado con alta probabilidad de empate o diferencia mínima. El resultado más común simulado fue {marcador_mas_comun}."
 
-        st.markdown(f'<div class="insight-box"><b>Veredicto GoalMetrics:</b> {veredicto}<br><br><b>Fiabilidad de los Datos:</b> {explicacion_fiabilidad}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="insight-box"><b>Veredicto GoalMetrics:</b> {veredicto}<br><br><b>Nivel de Fiabilidad:</b> {nivel_fiabilidad}</div>', unsafe_allow_html=True)
 
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         col_m1.metric("🟢 Victoria (1)", f"{triunfos:.1f}%")
