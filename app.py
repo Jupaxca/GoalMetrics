@@ -69,15 +69,17 @@ lista_niveles_equipo = sorted([str(x) for x in df_equipo['Nivel Rival'].unique()
 condicion_seleccionada = st.sidebar.selectbox("📍 Condición", ["Local", "Visitante"])
 nivel_seleccionado = st.sidebar.selectbox("⭐ Torneo / Nivel del Rival", lista_niveles_equipo)
 
-historial_exacto = df[(df['Equipo'] == equipo_seleccionado) & 
-                       (df['Condición'] == condicion_seleccionada) & 
-                       (df['Nivel Rival'] == nivel_seleccionado)]
+# Validación preliminar ordenada por fecha para el aviso lateral
+df_ordenado_sidebar = df.sort_values(by='Fecha', ascending=False)
+historial_exacto_sidebar = df_ordenado_sidebar[(df_ordenado_sidebar['Equipo'] == equipo_seleccionado) & 
+                                               (df_ordenado_sidebar['Condición'] == condicion_seleccionada) & 
+                                               (df_ordenado_sidebar['Nivel Rival'] == nivel_seleccionado)]
 
 st.sidebar.markdown("---")
-if len(historial_exacto) >= 2:
-    st.sidebar.success(f"✅ Partidos exactos encontrados: **{len(historial_exacto)}**")
+if len(historial_exacto_sidebar) >= 2:
+    st.sidebar.success(f"✅ Partidos exactos encontrados: **{len(historial_exacto_sidebar)}**")
 else:
-    st.sidebar.warning(f"⚠️ Pocos partidos exactos ({len(historial_exacto)}). Se activará respaldo automático.")
+    st.sidebar.warning(f"⚠️ Pocos partidos exactos ({len(historial_exacto_sidebar)}). Se aplicará respaldo inteligente por fecha.")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🎯 Líneas de Estudio / Apuesta")
@@ -164,23 +166,28 @@ if 'ejecutar' not in st.session_state:
     st.session_state.ejecutar = False
 
 if st.session_state.ejecutar:
-    num_exactos = len(historial_exacto)
-    historial = historial_exacto.copy()
-    fuente_datos = "Exacto (Condición y Nivel)"
+    # Ordenar toda la base de datos por fecha descendente (lo más reciente primero)
+    df_ordenado = df.sort_values(by='Fecha', ascending=False)
     
+    # 1. Búsqueda estricta de partidos exactos (Condición y Nivel)
+    historial = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
+                            (df_ordenado['Condición'] == condicion_seleccionada) & 
+                            (df_ordenado['Nivel Rival'] == nivel_seleccionado)].copy()
+    
+    fuente_datos = f"Exacto ({condicion_seleccionada} vs Nivel {nivel_seleccionado})"
+    
+    # 2. Respaldo inteligente respetando la condición (si hay menos de 2 exactos)
     if len(historial) < 2:
-        condicion_contraria = "Visitante" if condicion_seleccionada == "Local" else "Local"
-        historial_respaldo = df[(df['Equipo'] == equipo_seleccionado) & 
-                                (df['Condición'] == condicion_contraria) & 
-                                (df['Nivel Rival'] == nivel_seleccionado)]
+        historial_condicion = df_ordenado[(df_ordenado['Equipo'] == equipo_seleccionado) & 
+                                          (df_ordenado['Condición'] == condicion_seleccionada)].copy()
         
-        if len(historial_respaldo) + len(historial) >= 2:
-            factor_ajuste = 0.85 if condicion_seleccionada == "Local" else 1.15
-            historial = historial_respaldo.copy()
-            for col in ['Goles', 'Tiros Prom', 'A Puerta Prom', 'Corners']:
-                if col in historial.columns:
-                    historial[col] = historial[col] * factor_ajuste
-            fuente_datos = f"Mixto con respaldo ({condicion_contraria} ajustado)"
+        if len(historial_condicion) >= 2:
+            historial = historial_condicion.head(5) # Tomamos hasta los últimos 5 más recientes de esa condición
+            fuente_datos = f"Global de {condicion_seleccionada} (Partidos más recientes)"
+        else:
+            # 3. Respaldo de emergencia global si la condición tiene pocos registros
+            historial = df_ordenado[df_ordenado['Equipo'] == equipo_seleccionado].head(5).copy()
+            fuente_datos = "Emergencia (Historial global mixto por escasez de datos)"
     
     # ENCABEZADO DEL EQUIPO
     st.markdown(f"""
