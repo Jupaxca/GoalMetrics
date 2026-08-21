@@ -151,49 +151,84 @@ st.markdown("### 🕹️ Centro de Simulación")
 
 if st.button("⚡ Ejecutar Análisis", type="primary", use_container_width=True):
     st.session_state.ejecutar = True
+    # Creamos una firma única con los parámetros actuales para reiniciar la simulación solo si cambian
+    firma_actual = f"{equipo_seleccionado}_{condicion_seleccionada}_{nivel_seleccionado}"
+    
+    if st.session_state.get("ultima_firma") != firma_actual:
+        st.session_state.ultima_firma = firma_actual
+        
+        # PROCESO DE SELECCIÓN DE PARTIDOS
+        df_eq = df[df['Equipo'] == equipo_seleccionado].sort_values(by='Fecha', ascending=False)
+        exactos = df_eq[(df_eq['Condición'] == condicion_seleccionada) & 
+                        (df_eq['Nivel Rival'] == str(nivel_seleccionado))].copy()
+        
+        if len(exactos) >= 2:
+            historial = exactos.head(2).copy()
+            fuente_datos = f"Exacto ({condicion_label} vs Nivel {nivel_seleccionado})"
+        elif len(exactos) == 1:
+            p_exacto = exactos.copy()
+            cond_contraria = "visitante" if condicion_seleccionada == "local" else "local"
+            contrarios = df_eq[df_eq['Condición'] == cond_contraria].copy()
+            
+            if len(contrarios) >= 1:
+                p_contrario = contrarios.head(1).copy()
+                factor = 0.88 if condicion_seleccionada == "visitante" else 1.12
+                for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
+                    if col in p_contrario.columns:
+                        p_contrario[col] = p_contrario[col] * factor
+                historial = pd.concat([p_exacto, p_contrario], ignore_index=True)
+                fuente_datos = f"Cruce Táctico (1 Exacto + 1 {cond_contraria.capitalize()} con Baremo)"
+            else:
+                historial = p_exacto.copy()
+                fuente_datos = "Solo 1 partido exacto disponible"
+        else:
+            historial = pd.DataFrame()
+            fuente_datos = "Sin registros suficientes"
+            
+        st.session_state.historial_cache = historial
+        st.session_state.fuente_cache = fuente_datos
+        
+        if len(historial) >= 1:
+            historial['Dias_Pasados'] = (pd.Timestamp.now() - historial['Fecha']).dt.days.replace(0, 0.1)
+            historial['Peso'] = 1 / (1 + (historial['Dias_Pasados'] / 30))
+            
+            def weighted_avg(col):
+                return np.average(historial[col], weights=historial['Peso'])
+            
+            lambda_favor = weighted_avg('Goles')
+            lambda_contra = weighted_avg('Goles Rival')
+            col_tiros = 'Tiros Prom' if 'Tiros Prom' in historial.columns else 'Tiros'
+            col_puerta = 'A Puerta Prom' if 'A Puerta Prom' in historial.columns else 'A Puerta'
+            
+            # Simulaciones estables con generador fijo
+            rng = np.random.default_rng(42)
+            num_sim = 10000
+            
+            sim_goles_favor = rng.poisson(lam=lambda_favor, size=num_sim)
+            sim_goles_contra = rng.poisson(lam=lambda_contra, size=num_sim)
+            sim_tiros = rng.poisson(lam=weighted_avg(col_tiros), size=num_sim)
+            sim_tiros_puerta = rng.poisson(lam=weighted_avg(col_puerta), size=num_sim)
+            sim_corners = rng.poisson(lam=weighted_avg('Corners'), size=num_sim)
+            sim_faltas = rng.poisson(lam=weighted_avg('Faltas'), size=num_sim)
+            
+            # Guardamos resultados en session_state para que nunca cambien al pulsar de nuevo
+            st.session_state.sim_data = {
+                "sim_goles_favor": sim_goles_favor,
+                "sim_goles_contra": sim_goles_contra,
+                "sim_tiros": sim_tiros,
+                "sim_tiros_puerta": sim_tiros_puerta,
+                "sim_corners": sim_corners,
+                "sim_faltas": sim_faltas,
+                "num_sim": num_sim
+            }
 
 if 'ejecutar' not in st.session_state:
     st.session_state.ejecutar = False
 
-if st.session_state.ejecutar:
-    # Filtramos el equipo y ordenamos por fecha de más reciente a más antiguo
-    df_eq = df[df['Equipo'] == equipo_seleccionado].sort_values(by='Fecha', ascending=False)
+if st.session_state.ejecutar and 'sim_data' in st.session_state:
+    historial = st.session_state.historial_cache
+    fuente_datos = st.session_state.fuente_cache
     
-    # Buscamos partidos exactos
-    exactos = df_eq[(df_eq['Condición'] == condicion_seleccionada) & 
-                    (df_eq['Nivel Rival'] == str(nivel_seleccionado))].copy()
-    
-    if len(exactos) >= 2:
-        # Caso 1: 2 o más partidos exactos (usamos los 2 más recientes)
-        historial = exactos.head(2).copy()
-        fuente_datos = f"Exacto ({condicion_label} vs Nivel {nivel_seleccionado})"
-        
-    elif len(exactos) == 1:
-        # Caso 2: Exactamente 1 partido exacto -> tomamos ese 1 + 1 partido más reciente de la otra condición
-        p_exacto = exactos.copy()
-        cond_contraria = "visitante" if condicion_seleccionada == "local" else "local"
-        
-        contrarios = df_eq[df_eq['Condición'] == cond_contraria].copy()
-        
-        if len(contrarios) >= 1:
-            p_contrario = contrarios.head(1).copy()
-            
-            # Aplicamos baremo táctico
-            factor = 0.88 if condicion_seleccionada == "visitante" else 1.12
-            for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
-                if col in p_contrario.columns:
-                    p_contrario[col] = p_contrario[col] * factor
-            
-            historial = pd.concat([p_exacto, p_contrario], ignore_index=True)
-            fuente_datos = f"Cruce Táctico (1 Exacto + 1 {cond_contraria.capitalize()} con Baremo)"
-        else:
-            historial = p_exacto.copy()
-            fuente_datos = "Solo 1 partido exacto disponible"
-    else:
-        # Caso 3: 0 partidos exactos
-        historial = pd.DataFrame()
-        fuente_datos = "Sin registros suficientes"
-
     # ENCABEZADO DEL EQUIPO
     st.markdown(f"""
         <div class="team-header">
@@ -204,28 +239,14 @@ if st.session_state.ejecutar:
     if len(historial) < 1:
         st.error(f"❌ No hay suficientes partidos registrados para {equipo_seleccionado} en esta condición y nivel. Se requiere al menos 1 partido.")
     else:
-        historial['Dias_Pasados'] = (pd.Timestamp.now() - historial['Fecha']).dt.days.replace(0, 0.1)
-        historial['Peso'] = 1 / (1 + (historial['Dias_Pasados'] / 30))
-        
-        def weighted_avg(col):
-            return np.average(historial[col], weights=historial['Peso'])
-        
-        lambda_favor = weighted_avg('Goles')
-        lambda_contra = weighted_avg('Goles Rival')
-        
-        col_tiros = 'Tiros Prom' if 'Tiros Prom' in historial.columns else 'Tiros'
-        col_puerta = 'A Puerta Prom' if 'A Puerta Prom' in historial.columns else 'A Puerta'
-        
-        # GENERADOR ESTABLE CON SEMILLA FIJA (Garantiza resultados 100% idénticos por clic)
-        rng = np.random.default_rng(42)
-        num_sim = 10000
-        
-        sim_goles_favor = rng.poisson(lam=lambda_favor, size=num_sim)
-        sim_goles_contra = rng.poisson(lam=lambda_contra, size=num_sim)
-        sim_tiros = rng.poisson(lam=weighted_avg(col_tiros), size=num_sim)
-        sim_tiros_puerta = rng.poisson(lam=weighted_avg(col_puerta), size=num_sim)
-        sim_corners = rng.poisson(lam=weighted_avg('Corners'), size=num_sim)
-        sim_faltas = rng.poisson(lam=weighted_avg('Faltas'), size=num_sim)
+        sims = st.session_state.sim_data
+        sim_goles_favor = sims["sim_goles_favor"]
+        sim_goles_contra = sims["sim_goles_contra"]
+        sim_tiros = sims["sim_tiros"]
+        sim_tiros_puerta = sims["sim_tiros_puerta"]
+        sim_corners = sims["sim_corners"]
+        sim_faltas = sims["sim_faltas"]
+        num_sim = sims["num_sim"]
         
         triunfos = (sim_goles_favor > sim_goles_contra).mean() * 100
         empates = (sim_goles_favor == sim_goles_contra).mean() * 100
