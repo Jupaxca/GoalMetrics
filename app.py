@@ -8,16 +8,16 @@ st.set_page_config(page_title="Simulador de Fútbol", page_icon="⚽", layout="c
 st.title("⚽ Simulador de Predicciones de Fútbol")
 st.markdown("---")
 
-# 1. CARGAR DATOS DESDE TU GOOGLE SHEETS (Método Directo por ID)
+# 1. CARGAR DATOS DESDE TU GOOGLE SHEETS
 @st.cache_data
 def cargar_datos():
-    # ID extraída de tu enlace de Google Sheets
     sheet_id = "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg"
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
     df = pd.read_csv(url)
     
-    # Limpieza de columnas
+    # Limpieza de columnas y filas vacías
     df.columns = df.columns.astype(str).str.strip()
+    df = df.dropna(subset=['Equipo', 'Fecha', 'Condición', 'Nivel Rival'])
     df['Fecha'] = pd.to_datetime(df['Fecha'])
     df['Equipo'] = df['Equipo'].astype(str).str.strip()
     df['Condición'] = df['Condición'].astype(str).str.strip()
@@ -27,15 +27,19 @@ def cargar_datos():
 try:
     df = cargar_datos()
 except Exception as e:
-    st.error(f"⚠️ Error al cargar los datos del Google Sheets. Asegúrate de que el acceso esté como 'Cualquier persona con el enlace'. Detalle: {e}")
+    st.error(f"⚠️ Error al cargar los datos del Google Sheets. Detalle: {e}")
     st.stop()
 
 # 2. PANEL DE CONTROL LATERAL (MENÚS VISUALES)
 st.sidebar.header("⚙️ Panel de Control")
 
-equipo_seleccionado = st.sidebar.selectbox("Selecciona el Equipo", sorted(df['Equipo'].unique()))
+# Limpiar lista de equipos y niveles para evitar nulos
+lista_equipos = sorted([str(x) for x in df['Equipo'].unique() if pd.notna(x)])
+lista_niveles = sorted([str(x) for x in df['Nivel Rival'].unique() if pd.notna(x)])
+
+equipo_seleccionado = st.sidebar.selectbox("Selecciona el Equipo", lista_equipos)
 condicion_seleccionada = st.sidebar.selectbox("Condición", ["Local", "Visitante"])
-nivel_seleccionado = st.sidebar.selectbox("Nivel del Rival", sorted(df['Nivel Rival'].unique()))
+nivel_seleccionado = st.sidebar.selectbox("Nivel del Rival", lista_niveles)
 
 st.sidebar.subheader("Líneas de Análisis")
 linea_goles = st.sidebar.slider("Línea de Goles", 0.5, 3.5, 1.5, 0.5)
@@ -47,7 +51,6 @@ linea_faltas = st.sidebar.slider("Línea de Faltas", 5.0, 25.0, 10.5, 0.5)
 # 3. BOTÓN DE EJECUCIÓN
 if st.button("🚀 Ejecutar Simulación", type="primary"):
     
-    # Filtrar historial
     historial = df[(df['Equipo'] == equipo_seleccionado) & 
                    (df['Condición'] == condicion_seleccionada) & 
                    (df['Nivel Rival'] == nivel_seleccionado)]
@@ -57,7 +60,6 @@ if st.button("🚀 Ejecutar Simulación", type="primary"):
     if len(historial) < 2:
         st.warning(f"⚠️ Tienes solo {len(historial)} partido(s) registrado(s) para este escenario. Se necesitan al menos 2.")
     else:
-        # Cálculo Ponderado por Recencia
         historial['Dias_Pasados'] = (pd.Timestamp.now() - historial['Fecha']).dt.days.replace(0, 0.1)
         historial['Peso'] = 1 / (1 + (historial['Dias_Pasados'] / 30))
         
@@ -67,7 +69,6 @@ if st.button("🚀 Ejecutar Simulación", type="primary"):
         lambda_favor = weighted_avg('Goles')
         lambda_contra = weighted_avg('Goles Rival')
         
-        # Columnas de tiros adaptables
         col_tiros = 'Tiros Prom' if 'Tiros Prom' in historial.columns else 'Tiros'
         col_puerta = 'A Puerta Prom' if 'A Puerta Prom' in historial.columns else 'A Puerta'
         
@@ -79,7 +80,6 @@ if st.button("🚀 Ejecutar Simulación", type="primary"):
         sim_corners = np.random.poisson(lam=weighted_avg('Corners'), size=num_sim)
         sim_faltas = np.random.poisson(lam=weighted_avg('Faltas'), size=num_sim)
         
-        # Marcadores Top 5
         marcadores = [f"{f}-{c}" for f, c in zip(sim_goles_favor, sim_goles_contra)]
         conteo = Counter(marcadores)
         
