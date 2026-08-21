@@ -12,6 +12,7 @@ st.set_page_config(
 )
 
 # 1. CARGAR DATOS DESDE GOOGLE SHEETS
+@st.cache_data
 def cargar_datos():
     sheet_id = "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg"
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
@@ -155,20 +156,19 @@ if 'ejecutar' not in st.session_state:
     st.session_state.ejecutar = False
 
 if st.session_state.ejecutar:
-    # Filtramos el equipo y ordenamos por fecha de más reciente a más antiguo
+    # FIJAMOS LA SEMILLA ALEATORIA PARA RESULTADOS 100% ESTABLES Y DETERMINISTAS
+    np.random.seed(42)
+    
     df_eq = df[df['Equipo'] == equipo_seleccionado].sort_values(by='Fecha', ascending=False)
     
-    # Buscamos partidos exactos
     exactos = df_eq[(df_eq['Condición'] == condicion_seleccionada) & 
                     (df_eq['Nivel Rival'] == str(nivel_seleccionado))].copy()
     
     if len(exactos) >= 2:
-        # Si hay 2 o más exactos, tomamos los 2 más recientes
         historial = exactos.head(2).copy()
         fuente_datos = f"Exacto ({condicion_label} vs Nivel {nivel_seleccionado})"
         
     elif len(exactos) == 1:
-        # Si hay exactamente 1 exacto: tomamos ese 1 + el 1 más reciente de la otra condición
         p_exacto = exactos.copy()
         cond_contraria = "visitante" if condicion_seleccionada == "local" else "local"
         
@@ -177,13 +177,11 @@ if st.session_state.ejecutar:
         if len(contrarios) >= 1:
             p_contrario = contrarios.head(1).copy()
             
-            # Aplicamos baremo táctico
             factor = 0.88 if condicion_seleccionada == "visitante" else 1.12
             for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
                 if col in p_contrario.columns:
                     p_contrario[col] = p_contrario[col] * factor
             
-            # Unimos ambos dataframes asegurando que no se pierdan filas
             historial = pd.concat([p_exacto, p_contrario], ignore_index=True)
             fuente_datos = f"Cruce Táctico (1 Exacto + 1 {cond_contraria.capitalize()} con Baremo)"
         else:
