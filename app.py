@@ -11,14 +11,13 @@ st.set_page_config(
     layout="wide"
 )
 
-# 1. CARGAR DATOS DESDE GOOGLE SHEETS
-@st.cache_data(ttl=600) # Se refresca cada 10 mins automáticamente
+# 1. CARGA DE DATOS
+@st.cache_data(ttl=600)
 def cargar_datos():
     sheet_id = "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg"
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
     df = pd.read_csv(url)
     
-    # Limpieza estricta de columnas y textos
     df.columns = df.columns.astype(str).str.strip()
     df = df.dropna(subset=['Equipo', 'Fecha', 'Condición', 'Nivel Rival'])
     df['Fecha'] = pd.to_datetime(df['Fecha'])
@@ -26,18 +25,30 @@ def cargar_datos():
     df['Condición'] = df['Condición'].astype(str).str.strip().str.lower()
     df['Nivel Rival'] = df['Nivel Rival'].astype(str).str.strip()
     
-    # GARANTÍA NUMÉRICA: Evita que un error de tipeo en Sheets rompa la suma
-    columnas_stats = ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']
-    for col in columnas_stats:
+    # Forzar numéricos para evitar que textos ocultos rompan el código
+    for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-            
     return df
+
+# 2. MOTOR MATEMÁTICO SELLADO (Esto evita que los % cambien al dar clic)
+@st.cache_data
+def simular_montecarlo(lam_fav, lam_con, lam_tir, lam_tpuerta, lam_corn, lam_faltas):
+    rng = np.random.default_rng(42) # Semilla inamovible
+    num_sim = 10000
+    return (
+        rng.poisson(lam=lam_fav, size=num_sim),
+        rng.poisson(lam=lam_con, size=num_sim),
+        rng.poisson(lam=lam_tir, size=num_sim),
+        rng.poisson(lam=lam_tpuerta, size=num_sim),
+        rng.poisson(lam=lam_corn, size=num_sim),
+        rng.poisson(lam=lam_faltas, size=num_sim)
+    )
 
 try:
     df = cargar_datos()
 except Exception as e:
-    st.error(f"⚠️ Error al cargar los datos del Google Sheets. Detalle: {e}")
+    st.error(f"⚠️ Error al cargar los datos: {e}")
     st.stop()
 
 # DICCIONARIO DE COLORES
@@ -52,19 +63,33 @@ colores_equipos = {
     "Real Madrid": "#00529F"
 }
 
-# 2. PANEL LATERAL
+# --- PANEL LATERAL ---
 st.sidebar.header("⚙️ Configuración de Análisis")
 
 lista_equipos = sorted([str(x) for x in df['Equipo'].unique() if pd.notna(x)])
-equipo_seleccionado = st.sidebar.selectbox("🏟️ Selecciona el Equipo", lista_equipos)
+equipo_sel = st.sidebar.selectbox("🏟️ Selecciona el Equipo", lista_equipos)
 
-df_equipo = df[df['Equipo'] == equipo_seleccionado]
-lista_niveles_equipo = sorted([str(x) for x in df_equipo['Nivel Rival'].unique() if pd.notna(x)])
+df_equipo = df[df['Equipo'] == equipo_sel]
+lista_niveles = sorted([str(x) for x in df_equipo['Nivel Rival'].unique() if pd.notna(x)])
 
 condicion_label = st.sidebar.selectbox("📍 Condición", ["Local", "Visitante"])
-condicion_seleccionada = condicion_label.lower()
+condicion_sel = condicion_label.lower()
 
-nivel_seleccionado = st.sidebar.selectbox("⭐ Torneo / Nivel del Rival", lista_niveles_equipo)
+nivel_sel = st.sidebar.selectbox("⭐ Torneo / Nivel del Rival", lista_niveles)
+
+# Diagnóstico visual del sidebar
+df_diagnostico = df_equipo.sort_values(by='Fecha', ascending=False)
+exactos_check = df_diagnostico[(df_diagnostico['Condición'] == condicion_sel) & 
+                               (df_diagnostico['Nivel Rival'] == nivel_sel)]
+num_exactos = len(exactos_check)
+
+st.sidebar.markdown("---")
+if num_exactos >= 2:
+    st.sidebar.success(f"✅ Partidos exactos encontrados: {num_exactos}")
+elif num_exactos == 1:
+    st.sidebar.warning(f"⚠️ Pocos partidos exactos (1). Se activará respaldo.")
+else:
+    st.sidebar.error("❌ 0 partidos exactos encontrados.")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🎯 Líneas de Estudio / Apuesta")
@@ -74,197 +99,157 @@ linea_tiros_puerta = st.sidebar.slider("🎯 Línea Tiros a Puerta", 1.0, 10.0, 
 linea_corners = st.sidebar.slider("🚩 Línea de Córners", 1.0, 15.0, 5.5, 0.5)
 linea_faltas = st.sidebar.slider("🛑 Línea de Faltas", 5.0, 25.0, 10.5, 0.5)
 
-color_equipo = colores_equipos.get(equipo_seleccionado, "#3B82F6")
+color_equipo = colores_equipos.get(equipo_sel, "#3B82F6")
 
-# ESTILOS CSS
+# --- ESTILOS CSS ---
 st.markdown(f"""
     <style>
     .stApp {{ background-color: #090D16; color: #F3F4F6; }}
     .stSidebar {{ background-color: #111827; }}
-    .team-header {{ padding: 18px; border-radius: 12px; color: white; text-align: center; font-weight: bold; font-size: 22px; margin-bottom: 25px; background-color: {color_equipo}; }}
-    .brand-title {{ font-size: 32px; font-weight: 800; color: #F3F4F6; display: flex; align-items: center; gap: 10px; }}
-    .brand-subtitle {{ color: #9CA3AF; font-size: 15px; margin-bottom: 5px; }}
-    .brand-author {{ color: {color_equipo}; font-size: 14px; font-weight: 600; margin-bottom: 20px; }}
     .insight-box {{ padding: 15px; border-radius: 10px; background-color: #1F2937; border-left: 5px solid {color_equipo}; margin-bottom: 20px; font-size: 16px; line-height: 1.5; }}
-    .explanation-text {{ color: #9CA3AF; font-size: 13px; margin-top: 5px; margin-bottom: 15px; }}
     </style>
 """, unsafe_allow_html=True)
 
-# ENCABEZADO
-st.markdown('<div class="brand-title">📊 GoalMetrics <span style="color: #3B82F6; font-size: 20px;">FOOTBALL ANALYTICS</span></div>', unsafe_allow_html=True)
-st.markdown('<div class="brand-subtitle">Plataforma avanzada de simulación estadística y predicción de rendimiento deportivo.</div>', unsafe_allow_html=True)
-st.markdown(f'<div class="brand-author">By: Juan Camilo Barreto</div>', unsafe_allow_html=True)
-st.markdown("---")
+# --- PANEL PRINCIPAL ---
+col_btn1, col_btn2 = st.columns([1, 4])
+with col_btn1:
+    btn_analizar = st.button("⚡ Analizar", type="primary", use_container_width=True)
+with col_btn2:
+    if st.button("🧹 Limpiar", use_container_width=False):
+        st.rerun()
 
-# 3. PANEL PRINCIPAL
-st.markdown("### 🕹️ Centro de Simulación")
-
-if st.button("⚡ Ejecutar Análisis Definitivo", type="primary", use_container_width=True):
-    st.session_state.ejecutar_final = True
-
-if 'ejecutar_final' not in st.session_state:
-    st.session_state.ejecutar_final = False
-
-if st.session_state.ejecutar_final:
+if btn_analizar:
+    # 1. ORDENAR DATOS PRINCIPALES
+    df_base = df[df['Equipo'] == equipo_sel].sort_values(by='Fecha', ascending=False)
     
-    # ORDENAMIENTO BLINDADO: Ordenamos por Fecha y Rival para que el orden jamás sea aleatorio.
-    df_eq = df[df['Equipo'] == equipo_seleccionado].sort_values(by=['Fecha', 'Rival'], ascending=[False, True])
+    # 2. SELECCIÓN BLINDADA DE PARTIDOS
+    df_exactos = df_base[(df_base['Condición'] == condicion_sel) & (df_base['Nivel Rival'] == nivel_sel)]
     
-    exactos = df_eq[(df_eq['Condición'] == condicion_seleccionada) & 
-                    (df_eq['Nivel Rival'] == str(nivel_seleccionado))].copy()
+    historial = pd.DataFrame()
+    fuente_datos = ""
     
-    if len(exactos) >= 2:
-        historial = exactos.head(2).copy()
-        fuente_datos = f"Análisis basado en los 2 partidos exactos más recientes."
+    if len(df_exactos) >= 2:
+        # TOMA LOS DOS MÁS RECIENTES EXACTOS
+        historial = df_exactos.head(2).copy()
+        fuente_datos = f"Exacto ({condicion_label} vs {nivel_sel})"
         
-    elif len(exactos) == 1:
-        p_exacto = exactos.copy()
-        cond_contraria = "visitante" if condicion_seleccionada == "local" else "local"
+    elif len(df_exactos) == 1:
+        # TOMA EL ÚNICO EXACTO
+        partido_1 = df_exactos.head(1).copy()
         
-        # Buscamos el partido contrario
-        contrarios = df_eq[df_eq['Condición'] == cond_contraria].copy()
+        # BUSCA ESTRICTAMENTE EL CONTRARIO
+        cond_opuesta = "visitante" if condicion_sel == "local" else "local"
+        df_opuestos = df_base[df_base['Condición'] == cond_opuesta]
         
-        if len(contrarios) > 0:
-            # Seleccionamos estrictamente 1 fila usando iloc
-            p_contrario = contrarios.iloc[[0]].copy() 
+        if len(df_opuestos) >= 1:
+            partido_2 = df_opuestos.head(1).copy()
             
-            # Aplicamos baremo
-            factor = 0.88 if condicion_seleccionada == "visitante" else 1.12
+            # APLICA BAREMO SOLO AL PARTIDO 2 (CONTRARIO)
+            factor = 0.88 if condicion_sel == "visitante" else 1.12
             for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
-                if col in p_contrario.columns:
-                    p_contrario[col] = (p_contrario[col] * factor).round(2)
+                if col in partido_2.columns:
+                    partido_2[col] = (partido_2[col] * factor).round(2)
             
-            # Fusión 100% garantizada
-            historial = pd.concat([p_exacto, p_contrario], axis=0, ignore_index=True)
-            fuente_datos = f"Cruce: 1 Exacto + 1 {cond_contraria.capitalize()} (con baremo {factor}x aplicado)."
+            # FUSIÓN FORZADA (Garantiza que salgan los dos en la tabla)
+            historial = pd.concat([partido_1, partido_2], ignore_index=True)
+            fuente_datos = f"Mixto con respaldo ({cond_opuesta.capitalize()} ajustado)"
         else:
-            historial = p_exacto.copy()
-            fuente_datos = f"Solo existe 1 partido exacto (No hay partidos de {cond_contraria} para cruzar)."
+            historial = partido_1.copy()
+            fuente_datos = "Solo 1 partido exacto disponible"
     else:
-        historial = pd.DataFrame()
-        fuente_datos = "Sin registros suficientes"
+        st.error(f"❌ No hay datos suficientes para analizar a {equipo_sel}.")
+        st.stop()
 
-    # ENCABEZADO DEL EQUIPO
+    # BANNER DEL EQUIPO
     st.markdown(f"""
-        <div class="team-header">
-            🛡️ {equipo_seleccionado.upper()} ({condicion_label.upper()} vs {nivel_seleccionado.upper()})
+        <div style="background-color: {color_equipo}; padding: 18px; border-radius: 12px; color: white; text-align: center; font-weight: bold; font-size: 22px; margin-bottom: 25px;">
+            🛡️ {equipo_sel.upper()} ({condicion_label.upper()} vs {nivel_sel.upper()})
         </div>
     """, unsafe_allow_html=True)
     
-    if len(historial) < 1:
-        st.error(f"❌ No hay partidos exactos registrados para {equipo_seleccionado} en esta condición y nivel.")
-    else:
-        # CONGELAMIENTO DEL TIEMPO: Se usa la fecha base del día de hoy exacto
-        hoy = pd.Timestamp.today().normalize()
-        historial['Dias_Pasados'] = (hoy - pd.to_datetime(historial['Fecha'])).dt.days
-        historial['Dias_Pasados'] = historial['Dias_Pasados'].replace(0, 0.1)
-        historial['Peso'] = 1 / (1 + (historial['Dias_Pasados'] / 30))
-        
-        def safe_weighted_avg(col):
-            if col in historial.columns:
-                val = np.average(historial[col], weights=historial['Peso'])
-                return round(float(val), 4) # Redondeo a 4 decimales para fijar el número exacto
-            return 0.0
-        
-        lambda_favor = safe_weighted_avg('Goles')
-        lambda_contra = safe_weighted_avg('Goles Rival')
-        col_tiros = 'Tiros Prom' if 'Tiros Prom' in historial.columns else 'Tiros'
-        col_puerta = 'A Puerta Prom' if 'A Puerta Prom' in historial.columns else 'A Puerta'
-        
-        lambda_tir = safe_weighted_avg(col_tiros)
-        lambda_tpuerta = safe_weighted_avg(col_puerta)
-        lambda_corn = safe_weighted_avg('Corners')
-        lambda_faltas = safe_weighted_avg('Faltas')
-        
-        # SEMILLA MATEMÁTICA DOBLE: Congela el motor de Numpy de forma absoluta
-        np.random.seed(42)
-        rng = np.random.RandomState(42)
-        num_sim = 10000
-        
-        sim_goles_favor = rng.poisson(lam=lambda_favor, size=num_sim)
-        sim_goles_contra = rng.poisson(lam=lambda_contra, size=num_sim)
-        sim_tiros = rng.poisson(lam=lambda_tir, size=num_sim)
-        sim_tiros_puerta = rng.poisson(lam=lambda_tpuerta, size=num_sim)
-        sim_corners = rng.poisson(lam=lambda_corn, size=num_sim)
-        sim_faltas = rng.poisson(lam=lambda_faltas, size=num_sim)
-        
-        triunfos = (sim_goles_favor > sim_goles_contra).mean() * 100
-        empates = (sim_goles_favor == sim_goles_contra).mean() * 100
-        derrotas = (sim_goles_favor < sim_goles_contra).mean() * 100
-        ambos_anotan = ((sim_goles_favor > 0) & (sim_goles_contra > 0)).mean() * 100
-        
-        doble_oportunidad_1x = triunfos + empates
-        doble_oportunidad_x2 = derrotas + empates
-        total_sin_empate = triunfos + derrotas
-        dnb_favor = (triunfos / total_sin_empate * 100) if total_sin_empate > 0 else 50.0
-        
-        marcadores = [f"{f}-{c}" for f, c in zip(sim_goles_favor, sim_goles_contra)]
-        conteo = Counter(marcadores)
-        marcador_mas_comun = conteo.most_common(1)[0][0]
-        
-        if triunfos > 50:
-            veredicto = f"Tendencia Fuerte: {equipo_seleccionado} muestra un dominio estadístico claro. Marcador más probable: {marcador_mas_comun}."
-        elif derrotas > 50:
-            veredicto = f"Alerta de Complicación: Las métricas favorecen al rival en este escenario. Marcador más probable: {marcador_mas_comun}."
-        else:
-            veredicto = f"Partido Muy Parejo: Escenario sumamente equilibrado. Resultado más probable: {marcador_mas_comun}."
+    # CÁLCULO DE PROMEDIOS PONDERADOS
+    hoy = pd.Timestamp.today().normalize()
+    historial['Dias_Pasados'] = (hoy - pd.to_datetime(historial['Fecha'])).dt.days.replace(0, 0.1)
+    historial['Peso'] = 1 / (1 + (historial['Dias_Pasados'] / 30))
+    
+    def prom(col):
+        return round(float(np.average(historial[col], weights=historial['Peso'])), 4) if col in historial.columns else 0.0
 
-        st.markdown(f'<div class="insight-box"><b>Veredicto GoalMetrics:</b> {veredicto}</div>', unsafe_allow_html=True)
+    lam_f = prom('Goles')
+    lam_c = prom('Goles Rival')
+    lam_t = prom('Tiros' if 'Tiros' in historial.columns else 'Tiros Prom')
+    lam_tp = prom('A Puerta' if 'A Puerta' in historial.columns else 'A Puerta Prom')
+    lam_co = prom('Corners')
+    lam_fa = prom('Faltas')
+    
+    # EJECUTAR SIMULACIÓN (LLama a la función bloqueada)
+    sg_fav, sg_con, s_tir, s_tpuerta, s_corn, s_faltas = simular_montecarlo(lam_f, lam_c, lam_t, lam_tp, lam_co, lam_fa)
+    
+    # PROBABILIDADES
+    num_sim = 10000
+    triunfos = (sg_fav > sg_con).mean() * 100
+    empates = (sg_fav == sg_con).mean() * 100
+    derrotas = (sg_fav < sg_con).mean() * 100
+    ambos_anotan = ((sg_fav > 0) & (sg_con > 0)).mean() * 100
+    
+    doble_1x = triunfos + empates
+    doble_x2 = derrotas + empates
+    tot_sin_emp = triunfos + derrotas
+    dnb = (triunfos / tot_sin_emp * 100) if tot_sin_emp > 0 else 50.0
+    
+    marcadores = [f"{f}-{c}" for f, c in zip(sg_fav, sg_con)]
+    conteo = Counter(marcadores)
+    marcador_mas_comun = conteo.most_common(1)[0][0]
+    
+    if triunfos > 50: veredicto = f"Tendencia Fuerte: Marcador proyectado {marcador_mas_comun}."
+    elif derrotas > 50: veredicto = f"Alerta de Complicación: Marcador proyectado {marcador_mas_comun}."
+    else: veredicto = f"Partido Muy Parejo: Marcador proyectado {marcador_mas_comun}."
 
-        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-        col_m1.metric("🟢 Victoria (1)", f"{triunfos:.1f}%")
-        col_m2.metric("🟡 Empate (X)", f"{empates:.1f}%")
-        col_m3.metric("🔴 Derrota (2)", f"{derrotas:.1f}%")
-        col_m4.metric("⚽ Ambos Anotan (BTTS)", f"{ambos_anotan:.1f}%")
-        
-        col_n1, col_n2, col_n3 = st.columns(3)
-        col_n1.metric("🛡️ Doble Oportunidad (1X)", f"{doble_oportunidad_1x:.1f}%")
-        col_n2.metric("🛡️ Doble Oportunidad (X2)", f"{doble_oportunidad_x2:.1f}%")
-        col_n3.metric("⚖️ Apuesta sin Empate (DNB)", f"{dnb_favor:.1f}%")
-        
-        st.markdown("---")
+    st.markdown(f'<div class="insight-box"><b>Veredicto GoalMetrics:</b> {veredicto}</div>', unsafe_allow_html=True)
 
-        def crear_grafico_porcentaje(serie_datos, titulo_x):
-            conteo_vals = serie_datos.value_counts().sort_index()
-            df_chart = pd.DataFrame({
-                str(titulo_x): conteo_vals.index.astype(str),
-                'Probabilidad (%)': (conteo_vals / num_sim) * 100
-            })
-            chart = alt.Chart(df_chart).mark_bar(color=color_equipo).encode(
-                x=alt.X(f"{titulo_x}:N", sort=None, title=str(titulo_x), axis=alt.Axis(labelAngle=0)),
-                y=alt.Y('Probabilidad (%):Q', title='Probabilidad (%)', axis=alt.Axis(format='.1f'))
-            ).properties(height=300).interactive()
-            return chart
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("🟢 Victoria (1)", f"{triunfos:.1f}%")
+    c2.metric("🟡 Empate (X)", f"{empates:.1f}%")
+    c3.metric("🔴 Derrota (2)", f"{derrotas:.1f}%")
+    c4.metric("⚽ Ambos Anotan (BTTS)", f"{ambos_anotan:.1f}%")
+    
+    c5, c6, c7 = st.columns(3)
+    c5.metric("🛡️ Doble Oportunidad (1X)", f"{doble_1x:.1f}%")
+    c6.metric("🛡️ Doble Oportunidad (X2)", f"{doble_x2:.1f}%")
+    c7.metric("⚖️ Apuesta sin Empate (DNB)", f"{dnb:.1f}%")
+    
+    st.markdown("---")
+    
+    def crear_grafico(serie, titulo):
+        df_c = pd.DataFrame({titulo: serie.value_counts().sort_index().index.astype(str), 'Prob (%)': (serie.value_counts().sort_index() / num_sim) * 100})
+        return alt.Chart(df_c).mark_bar(color=color_equipo).encode(x=alt.X(f"{titulo}:N", sort=None, labelAngle=0), y=alt.Y('Prob (%):Q', format='.1f')).properties(height=300)
 
-        st.markdown("#### ⚽ Distribución de Probabilidad de Goles a Favor")
-        st.altair_chart(crear_grafico_porcentaje(pd.Series(sim_goles_favor), 'Goles'), use_container_width=True)
+    st.markdown("#### ⚽ Probabilidad de Goles a Favor")
+    st.altair_chart(crear_grafico(pd.Series(sg_fav), 'Goles'), use_container_width=True)
 
-        st.markdown("#### 🚩 Distribución de Probabilidad de Córners")
-        st.altair_chart(crear_grafico_porcentaje(pd.Series(sim_corners).astype(int), 'Córners'), use_container_width=True)
-        
-        st.markdown("---")
-        
-        col_left, col_right = st.columns(2)
-        with col_left:
-            st.markdown("#### 🏆 Top 5 Marcadores Más Probables")
-            tabla_data = [{"Marcador (Favor - Contra)": res, "Probabilidad (%)": f"{(freq / num_sim) * 100:.1f}%"} for res, freq in conteo.most_common(5)]
-            st.dataframe(pd.DataFrame(tabla_data), hide_index=True, use_container_width=True)
-                
-        with col_right:
-            st.markdown("#### 📈 Probabilidades de Líneas")
-            st.metric(label=f"⚽ Más de {linea_goles} Goles", value=f"{(sim_goles_favor > linea_goles).mean() * 100:.1f}%")
-            st.metric(label=f"👟 Más de {linea_tiros} Tiros Totales", value=f"{(sim_tiros > linea_tiros).mean() * 100:.1f}%")
-            st.metric(label=f"🎯 Más de {linea_tiros_puerta} Tiros a Puerta", value=f"{(sim_tiros_puerta > linea_tiros_puerta).mean() * 100:.1f}%")
-            st.metric(label=f"🚩 Más de {linea_corners} Córners", value=f"{(sim_corners > linea_corners).mean() * 100:.1f}%")
-            st.metric(label=f"🛑 Más de {linea_faltas} Faltas", value=f"{(sim_faltas > linea_faltas).mean() * 100:.1f}%")
+    st.markdown("#### 🚩 Probabilidad de Córners")
+    st.altair_chart(crear_grafico(pd.Series(s_corn).astype(int), 'Córners'), use_container_width=True)
+    
+    st.markdown("---")
+    
+    col_l, col_r = st.columns(2)
+    with col_l:
+        st.markdown("#### 🏆 Top 5 Marcadores")
+        st.dataframe(pd.DataFrame([{"Marcador": r, "Probabilidad": f"{(f/num_sim)*100:.1f}%"} for r, f in conteo.most_common(5)]), hide_index=True, use_container_width=True)
+            
+    with col_r:
+        st.markdown("#### 📈 Probabilidades de Líneas")
+        st.metric(label=f"⚽ Más de {linea_goles} Goles", value=f"{(sg_fav > linea_goles).mean() * 100:.1f}%")
+        st.metric(label=f"👟 Más de {linea_tiros} Tiros", value=f"{(s_tir > linea_tiros).mean() * 100:.1f}%")
+        st.metric(label=f"🎯 Más de {linea_tiros_puerta} a Puerta", value=f"{(s_tpuerta > linea_tiros_puerta).mean() * 100:.1f}%")
+        st.metric(label=f"🚩 Más de {linea_corners} Córners", value=f"{(s_corn > linea_corners).mean() * 100:.1f}%")
+        st.metric(label=f"🛑 Más de {linea_faltas} Faltas", value=f"{(s_faltas > linea_faltas).mean() * 100:.1f}%")
 
-        st.markdown("---")
-        st.info(f"💡 **Base del análisis:** {len(historial)} partido(s). Modo: **{fuente_datos}**")
-        
-        with st.expander("📋 Ver detalle completo de los partidos utilizados (Rivales y Estadísticas)"):
-            historial_display = historial.copy()
-            historial_display['Fecha'] = pd.to_datetime(historial_display['Fecha']).dt.strftime('%Y-%m-%d')
-            columnas_disponibles = [col for col in ['Fecha', 'Equipo', 'Condición', 'Rival', 'Nivel Rival', 'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas'] if col in historial_display.columns]
-            st.dataframe(historial_display[columnas_disponibles], hide_index=True, use_container_width=True)
-else:
-    st.info("👈 Configura los parámetros en la barra lateral y presiona **'Ejecutar Análisis Definitivo'**.")
+    st.markdown("---")
+    st.info(f"💡 Base del análisis: {len(historial)} partidos analizados bajo el modo: {fuente_datos}")
+    
+    with st.expander("📋 Ver detalle completo de los partidos utilizados (Rivales y Estadísticas)"):
+        h_disp = historial.copy()
+        h_disp['Fecha'] = pd.to_datetime(h_disp['Fecha']).dt.strftime('%Y-%m-%d')
+        cols = [c for c in ['Fecha', 'Equipo', 'Condición', 'Rival', 'Nivel Rival', 'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas'] if c in h_disp.columns]
+        st.dataframe(h_disp[cols], hide_index=True, use_container_width=True)
