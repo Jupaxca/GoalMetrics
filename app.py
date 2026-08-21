@@ -60,15 +60,28 @@ except Exception as e:
     st.error(f"⚠️ Error al cargar los datos del Google Sheets. Detalle: {e}")
     st.stop()
 
-# Diccionario amplio de colores por equipo (puedes ir añadiendo más)
+# DICCIONARIO COMPLETO DE COLORES OFICIALES POR EQUIPO
 colores_equipos = {
-    "Flamengo": "#C8102E",
-    "Fluminense": "#8B0000",
-    "Palmeiras": "#006400",
-    "Vasco": "#222222",
-    "Benfica": "#E30613",
-    "Real Madrid": "#00529F",
-    "Barcelona": "#A50044"
+    "Palmeiras": "#006400",       # Verde esmeralda
+    "Flamengo": "#C8102E",        # Rojo rubro-negro
+    "Paranaense": "#CC0000",      # Rojo atlético
+    "Fluminense": "#8B0000",      # Granate / tricolor
+    "Vasco": "#222222",           # Negro y blanco
+    "Arsenal": "#EF0107",         # Rojo Arsenal
+    "Aston villa": "#670E36",     # Vinotinto Aston Villa
+    "Barcelona": "#A50044",       # Azulgrana
+    "Bayern Mı": "#DC052D",       # Rojo Bayern
+    "Benfica": "#E30613",         # Rojo Benfica
+    "Como": "#002D62",            # Azul Como
+    "Freiburg": "#000000",        # Negro Freiburg
+    "Inter": "#010E80",           # Azul Inter de Milán
+    "Liverpool": "#C8102E",       # Rojo Liverpool
+    "Lyon": "#1D428A",            # Azul Lyon
+    "Manchest": "#DA291C",        # Rojo Manchester United / City
+    "Newcastle": "#241F20",       # Negro Urracas
+    "Porto": "#003399",           # Azul Porto
+    "PSG": "#004170",             # Azul PSG
+    "Real Madr": "#00529F"        # Blanco / Azul Real Madrid
 }
 
 # 2. PANEL DE CONTROL LATERAL
@@ -81,7 +94,7 @@ equipo_seleccionado = st.sidebar.selectbox("🏟️ Selecciona el Equipo", lista
 condicion_seleccionada = st.sidebar.selectbox("📍 Condición", ["Local", "Visitante"])
 nivel_seleccionado = st.sidebar.selectbox("⭐ Torneo / Nivel del Rival", lista_niveles)
 
-# 💡 CONTADOR EN TIEMPO REAL DE PARTIDOS DISPONIBLES
+# CONTADOR EN TIEMPO REAL DE PARTIDOS DISPONIBLES
 historial_exacto = df[(df['Equipo'] == equipo_seleccionado) & 
                        (df['Condición'] == condicion_seleccionada) & 
                        (df['Nivel Rival'] == nivel_seleccionado)]
@@ -107,11 +120,9 @@ st.markdown("### 🕹️ Panel de Simulación")
 
 if st.button("🎯 Realizar Predicción", type="primary"):
     
-    # LÓGICA INTELIGENTE DE FILTRADO (CON FALLBACK)
     historial = historial_exacto.copy()
     fuente_datos = "Exacto (Condición y Nivel)"
     
-    # Si hay menos de 2 partidos exactos, buscamos en la condición contraria contra el mismo nivel
     if len(historial) < 2:
         condicion_contraria = "Visitante" if condicion_seleccionada == "Local" else "Local"
         historial_respaldo = df[(df['Equipo'] == equipo_seleccionado) & 
@@ -119,12 +130,8 @@ if st.button("🎯 Realizar Predicción", type="primary"):
                                 (df['Nivel Rival'] == nivel_seleccionado)]
         
         if len(historial_respaldo) + len(historial) >= 2:
-            # Usamos los de respaldo y aplicamos un factor de ajuste de localía/visita
-            factor_ajuste = 0.85 if condicion_seleccionada == "Local" else 1.15 # Penaliza si buscábamos local y metemos visitante, o viceversa
-            
-            # Combinamos o usamos el respaldo ajustado
+            factor_ajuste = 0.85 if condicion_seleccionada == "Local" else 1.15
             historial = historial_respaldo.copy()
-            # Ajustamos levemente las métricas ofensivas según el cambio de condición
             for col in ['Goles', 'Tiros Prom', 'A Puerta Prom', 'Corners']:
                 if col in historial.columns:
                     historial[col] = historial[col] * factor_ajuste
@@ -137,9 +144,8 @@ if st.button("🎯 Realizar Predicción", type="primary"):
     """, unsafe_allow_html=True)
     
     if len(historial) < 2:
-        st.error(f"❌ No hay suficiente información en el registro (incluso con respaldo) para analizar a {equipo_seleccionado} contra {nivel_rival if 'nivel_rival' in locals() else 'este torneo'}. Necesitas al menos 2 partidos.")
+        st.error(f"❌ No hay suficiente información en el registro (incluso con respaldo) para analizar a {equipo_seleccionado}. Necesitas al menos 2 partidos.")
     else:
-        # Cálculo Ponderado por Recencia
         historial['Dias_Pasados'] = (pd.Timestamp.now() - historial['Fecha']).dt.days.replace(0, 0.1)
         historial['Peso'] = 1 / (1 + (historial['Dias_Pasados'] / 30))
         
@@ -163,7 +169,6 @@ if st.button("🎯 Realizar Predicción", type="primary"):
         marcadores = [f"{f}-{c}" for f, c in zip(sim_goles_favor, sim_goles_contra)]
         conteo = Counter(marcadores)
         
-        # DISTRIBUCIÓN EN DOS COLUMNAS
         col_left, col_right = st.columns(2)
         
         with col_left:
