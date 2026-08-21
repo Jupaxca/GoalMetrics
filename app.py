@@ -11,8 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 1. CARGAR DATOS DESDE GOOGLE SHEETS
-@st.cache_data
+# 1. CARGAR DATOS DESDE GOOGLE SHEETS (SIN CACHÉ)
 def cargar_datos():
     sheet_id = "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg"
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
@@ -32,7 +31,7 @@ except Exception as e:
     st.error(f"⚠️ Error al cargar los datos del Google Sheets. Detalle: {e}")
     st.stop()
 
-# DICCIONARIO DE COLORES OFICIALES Y COMPLETOS
+# DICCIONARIO DE COLORES OFICIALES
 colores_equipos = {
     "Palmeiras": "#006400",
     "Flamengo": "#C8102E",
@@ -81,66 +80,21 @@ linea_faltas = st.sidebar.slider("🛑 Línea de Faltas", 5.0, 25.0, 10.5, 0.5)
 
 color_equipo = colores_equipos.get(equipo_seleccionado, "#3B82F6")
 
-# ESTILOS CSS DINÁMICOS
+# ESTILOS CSS
 st.markdown(f"""
     <style>
-    .stApp {{
-        background-color: #090D16;
-        color: #F3F4F6;
-    }}
-    .stSidebar {{
-        background-color: #111827;
-    }}
-    .team-header {{
-        padding: 18px;
-        border-radius: 12px;
-        color: white;
-        text-align: center;
-        font-weight: bold;
-        font-size: 22px;
-        margin-bottom: 25px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
-        background-color: {color_equipo};
-    }}
-    .brand-title {{
-        font-size: 32px;
-        font-weight: 800;
-        color: #F3F4F6;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }}
-    .brand-subtitle {{
-        color: #9CA3AF;
-        font-size: 15px;
-        margin-bottom: 5px;
-    }}
-    .brand-author {{
-        color: {color_equipo};
-        font-size: 14px;
-        font-weight: 600;
-        margin-bottom: 20px;
-    }}
-    .insight-box {{
-        padding: 15px;
-        border-radius: 10px;
-        background-color: #1F2937;
-        border-left: 5px solid {color_equipo};
-        margin-bottom: 20px;
-        font-size: 16px;
-        line-height: 1.5;
-    }}
-    .explanation-text {{
-        color: #9CA3AF;
-        font-size: 13px;
-        margin-top: 5px;
-        margin-bottom: 15px;
-    }}
+    .stApp {{ background-color: #090D16; color: #F3F4F6; }}
+    .stSidebar {{ background-color: #111827; }}
+    .team-header {{ padding: 18px; border-radius: 12px; color: white; text-align: center; font-weight: bold; font-size: 22px; margin-bottom: 25px; background-color: {color_equipo}; }}
+    .brand-title {{ font-size: 32px; font-weight: 800; color: #F3F4F6; display: flex; align-items: center; gap: 10px; }}
+    .brand-subtitle {{ color: #9CA3AF; font-size: 15px; margin-bottom: 5px; }}
+    .brand-author {{ color: {color_equipo}; font-size: 14px; font-weight: 600; margin-bottom: 20px; }}
+    .insight-box {{ padding: 15px; border-radius: 10px; background-color: #1F2937; border-left: 5px solid {color_equipo}; margin-bottom: 20px; font-size: 16px; line-height: 1.5; }}
+    .explanation-text {{ color: #9CA3AF; font-size: 13px; margin-top: 5px; margin-bottom: 15px; }}
     </style>
 """, unsafe_allow_html=True)
 
-# ENCABEZADO DE MARCA CON TU FIRMA
+# ENCABEZADO DE MARCA
 st.markdown('<div class="brand-title">📊 GoalMetrics <span style="color: #3B82F6; font-size: 20px;">FOOTBALL ANALYTICS</span></div>', unsafe_allow_html=True)
 st.markdown('<div class="brand-subtitle">Plataforma avanzada de simulación estadística y predicción de rendimiento deportivo.</div>', unsafe_allow_html=True)
 st.markdown(f'<div class="brand-author">By: Juan Camilo Barreto</div>', unsafe_allow_html=True)
@@ -149,86 +103,42 @@ st.markdown("---")
 # 3. PANEL PRINCIPAL
 st.markdown("### 🕹️ Centro de Simulación")
 
-if st.button("⚡ Ejecutar Análisis", type="primary", use_container_width=True):
-    st.session_state.ejecutar = True
-    # Creamos una firma única con los parámetros actuales para reiniciar la simulación solo si cambian
-    firma_actual = f"{equipo_seleccionado}_{condicion_seleccionada}_{nivel_seleccionado}"
+if st.button("⚡ Ejecutar Análisis Definitivo", type="primary", use_container_width=True):
+    st.session_state.ejecutar_def = True
+
+if 'ejecutar_def' not in st.session_state:
+    st.session_state.ejecutar_def = False
+
+if st.session_state.ejecutar_def:
+    df_eq = df[df['Equipo'] == equipo_seleccionado].sort_values(by='Fecha', ascending=False)
     
-    if st.session_state.get("ultima_firma") != firma_actual:
-        st.session_state.ultima_firma = firma_actual
+    exactos = df_eq[(df_eq['Condición'] == condicion_seleccionada) & 
+                    (df_eq['Nivel Rival'] == str(nivel_seleccionado))].copy()
+    
+    if len(exactos) >= 2:
+        historial = exactos.head(2).copy()
+        fuente_datos = f"Exacto ({condicion_label} vs Nivel {nivel_seleccionado})"
         
-        # PROCESO DE SELECCIÓN DE PARTIDOS
-        df_eq = df[df['Equipo'] == equipo_seleccionado].sort_values(by='Fecha', ascending=False)
-        exactos = df_eq[(df_eq['Condición'] == condicion_seleccionada) & 
-                        (df_eq['Nivel Rival'] == str(nivel_seleccionado))].copy()
+    elif len(exactos) == 1:
+        p_exacto = exactos.copy()
+        cond_contraria = "visitante" if condicion_seleccionada == "local" else "local"
+        contrarios = df_eq[df_eq['Condición'] == cond_contraria].copy()
         
-        if len(exactos) >= 2:
-            historial = exactos.head(2).copy()
-            fuente_datos = f"Exacto ({condicion_label} vs Nivel {nivel_seleccionado})"
-        elif len(exactos) == 1:
-            p_exacto = exactos.copy()
-            cond_contraria = "visitante" if condicion_seleccionada == "local" else "local"
-            contrarios = df_eq[df_eq['Condición'] == cond_contraria].copy()
-            
-            if len(contrarios) >= 1:
-                p_contrario = contrarios.head(1).copy()
-                factor = 0.88 if condicion_seleccionada == "visitante" else 1.12
-                for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
-                    if col in p_contrario.columns:
-                        p_contrario[col] = p_contrario[col] * factor
-                historial = pd.concat([p_exacto, p_contrario], ignore_index=True)
-                fuente_datos = f"Cruce Táctico (1 Exacto + 1 {cond_contraria.capitalize()} con Baremo)"
-            else:
-                historial = p_exacto.copy()
-                fuente_datos = "Solo 1 partido exacto disponible"
+        if len(contrarios) >= 1:
+            p_contrario = contrarios.head(1).copy()
+            factor = 0.88 if condicion_seleccionada == "visitante" else 1.12
+            for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
+                if col in p_contrario.columns:
+                    p_contrario[col] = p_contrario[col] * factor
+            historial = pd.concat([p_exacto, p_contrario], ignore_index=True)
+            fuente_datos = f"Cruce Táctico (1 Exacto + 1 {cond_contraria.capitalize()} con Baremo)"
         else:
-            historial = pd.DataFrame()
-            fuente_datos = "Sin registros suficientes"
-            
-        st.session_state.historial_cache = historial
-        st.session_state.fuente_cache = fuente_datos
-        
-        if len(historial) >= 1:
-            historial['Dias_Pasados'] = (pd.Timestamp.now() - historial['Fecha']).dt.days.replace(0, 0.1)
-            historial['Peso'] = 1 / (1 + (historial['Dias_Pasados'] / 30))
-            
-            def weighted_avg(col):
-                return np.average(historial[col], weights=historial['Peso'])
-            
-            lambda_favor = weighted_avg('Goles')
-            lambda_contra = weighted_avg('Goles Rival')
-            col_tiros = 'Tiros Prom' if 'Tiros Prom' in historial.columns else 'Tiros'
-            col_puerta = 'A Puerta Prom' if 'A Puerta Prom' in historial.columns else 'A Puerta'
-            
-            # Simulaciones estables con generador fijo
-            rng = np.random.default_rng(42)
-            num_sim = 10000
-            
-            sim_goles_favor = rng.poisson(lam=lambda_favor, size=num_sim)
-            sim_goles_contra = rng.poisson(lam=lambda_contra, size=num_sim)
-            sim_tiros = rng.poisson(lam=weighted_avg(col_tiros), size=num_sim)
-            sim_tiros_puerta = rng.poisson(lam=weighted_avg(col_puerta), size=num_sim)
-            sim_corners = rng.poisson(lam=weighted_avg('Corners'), size=num_sim)
-            sim_faltas = rng.poisson(lam=weighted_avg('Faltas'), size=num_sim)
-            
-            # Guardamos resultados en session_state para que nunca cambien al pulsar de nuevo
-            st.session_state.sim_data = {
-                "sim_goles_favor": sim_goles_favor,
-                "sim_goles_contra": sim_goles_contra,
-                "sim_tiros": sim_tiros,
-                "sim_tiros_puerta": sim_tiros_puerta,
-                "sim_corners": sim_corners,
-                "sim_faltas": sim_faltas,
-                "num_sim": num_sim
-            }
+            historial = p_exacto.copy()
+            fuente_datos = "Solo 1 partido exacto disponible"
+    else:
+        historial = pd.DataFrame()
+        fuente_datos = "Sin registros suficientes"
 
-if 'ejecutar' not in st.session_state:
-    st.session_state.ejecutar = False
-
-if st.session_state.ejecutar and 'sim_data' in st.session_state:
-    historial = st.session_state.historial_cache
-    fuente_datos = st.session_state.fuente_cache
-    
     # ENCABEZADO DEL EQUIPO
     st.markdown(f"""
         <div class="team-header">
@@ -237,16 +147,32 @@ if st.session_state.ejecutar and 'sim_data' in st.session_state:
     """, unsafe_allow_html=True)
     
     if len(historial) < 1:
-        st.error(f"❌ No hay suficientes partidos registrados para {equipo_seleccionado} en esta condición y nivel. Se requiere al menos 1 partido.")
+        st.error(f"❌ No hay suficientes partidos registrados para {equipo_seleccionado} en esta condición y nivel. Se requiere al menos 1 partido exacto para iniciar.")
     else:
-        sims = st.session_state.sim_data
-        sim_goles_favor = sims["sim_goles_favor"]
-        sim_goles_contra = sims["sim_goles_contra"]
-        sim_tiros = sims["sim_tiros"]
-        sim_tiros_puerta = sims["sim_tiros_puerta"]
-        sim_corners = sims["sim_corners"]
-        sim_faltas = sims["sim_faltas"]
-        num_sim = sims["num_sim"]
+        # CORRECCIÓN DE TIEMPO: Usar solo el día base, sin los segundos, para congelar el peso matemático
+        hoy = pd.Timestamp.today().normalize()
+        historial['Dias_Pasados'] = (hoy - pd.to_datetime(historial['Fecha'])).dt.days
+        historial['Dias_Pasados'] = historial['Dias_Pasados'].replace(0, 0.1)
+        historial['Peso'] = 1 / (1 + (historial['Dias_Pasados'] / 30))
+        
+        def weighted_avg(col):
+            return np.average(historial[col], weights=historial['Peso'])
+        
+        lambda_favor = weighted_avg('Goles')
+        lambda_contra = weighted_avg('Goles Rival')
+        col_tiros = 'Tiros Prom' if 'Tiros Prom' in historial.columns else 'Tiros'
+        col_puerta = 'A Puerta Prom' if 'A Puerta Prom' in historial.columns else 'A Puerta'
+        
+        # BLOQUEO DE SEMILLA 100% FIJO ANTES DE LA GENERACIÓN
+        np.random.seed(42)
+        num_sim = 10000
+        
+        sim_goles_favor = np.random.poisson(lam=lambda_favor, size=num_sim)
+        sim_goles_contra = np.random.poisson(lam=lambda_contra, size=num_sim)
+        sim_tiros = np.random.poisson(lam=weighted_avg(col_tiros), size=num_sim)
+        sim_tiros_puerta = np.random.poisson(lam=weighted_avg(col_puerta), size=num_sim)
+        sim_corners = np.random.poisson(lam=weighted_avg('Corners'), size=num_sim)
+        sim_faltas = np.random.poisson(lam=weighted_avg('Faltas'), size=num_sim)
         
         triunfos = (sim_goles_favor > sim_goles_contra).mean() * 100
         empates = (sim_goles_favor == sim_goles_contra).mean() * 100
@@ -341,4 +267,4 @@ if st.session_state.ejecutar and 'sim_data' in st.session_state:
             columnas_disponibles = [col for col in ['Fecha', 'Equipo', 'Condición', 'Rival', 'Nivel Rival', 'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas'] if col in historial_display.columns]
             st.dataframe(historial_display[columnas_disponibles], hide_index=True, use_container_width=True)
 else:
-    st.info("👈 Configura los parámetros en la barra lateral y presiona **'Ejecutar Análisis'** para generar la simulación estadística.")
+    st.info("👈 Configura los parámetros en la barra lateral y presiona **'Ejecutar Análisis Definitivo'** para generar la simulación estadística.")
