@@ -4,9 +4,11 @@ import numpy as np
 import altair as alt
 from collections import Counter
 
-st.set_page_config(page_title="GoalMetrics | Football Analytics",
+st.set_page_config(
+    page_title="GoalMetrics | Football Analytics",
     page_icon="📊",
-    layout="wide")
+    layout="wide"
+)
 
 # ====================== CARGA DE DATOS ======================
 @st.cache_data(ttl=600)
@@ -146,6 +148,11 @@ def renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa):
 
     st.altair_chart(chart, use_container_width=True)
 
+# ====================== TÍTULO PRINCIPAL DE LA APP ======================
+st.title("📊 GoalMetrics | Panel de Análisis Táctico")
+st.markdown("Simulación de Monte Carlo, cuotas justas y detección de Value Bets.")
+st.markdown("---")
+
 # ====================== BOTONES ======================
 col_btn1, col_btn2 = st.columns([1, 4])
 with col_btn1:
@@ -264,7 +271,7 @@ if btn_analizar:
     c6.metric("🛡️ Doble Oportunidad (X2)", f"{doble_x2:.1f}%")
     c7.metric("⚖️ Apuesta sin Empate (DNB)", f"{dnb:.1f}%")
     
-    # --- CUOTAS JUSTAS + VALUE BET AMPLIADO (1X2, BTTS, DNB, 1X, X2) ---
+    # --- CUOTAS JUSTAS + VALUE BET AMPLIADO ---
     st.markdown("---")
     st.subheader("🎯 Cuotas Justas + Value Bet Pro")
     
