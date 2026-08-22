@@ -4,11 +4,11 @@ import numpy as np
 import altair as alt
 from collections import Counter
 
-st.set_page_config(
-    page_title="GoalMetrics | Football Analytics",
+st.set_page_config(page_title="GoalMetrics | Football Analytics",
     page_icon="📊",
     layout="wide"
-)
+
+    )
 
 # ====================== CARGA DE DATOS ======================
 @st.cache_data(ttl=600)
