@@ -4,6 +4,12 @@ import numpy as np
 import altair as alt
 from collections import Counter
 
+st.set_page_config(
+    page_title="GoalMetrics | Football Analytics",
+    page_icon="📊",
+    layout="wide"
+)
+
 # ====================== CARGA DE DATOS ======================
 @st.cache_data(ttl=600)
 def cargar_datos():
@@ -13,8 +19,11 @@ def cargar_datos():
     
     df.columns = df.columns.astype(str).str.strip()
     df = df.dropna(subset=['Equipo', 'Fecha', 'Condición', 'Nivel Rival'])
-    df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce')
+    
+    # Formato día/mes/año
+    df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True, errors='coerce')
     df = df.dropna(subset=['Fecha'])
+    
     df['Equipo'] = df['Equipo'].astype(str).str.strip()
     df['Condición'] = df['Condición'].astype(str).str.strip().str.lower()
     df['Nivel Rival'] = df['Nivel Rival'].astype(str).str.strip()
@@ -94,12 +103,13 @@ linea_faltas = st.sidebar.slider("🛑 Línea de Faltas", 5.0, 25.0, 10.5, 0.5)
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("💰 Cuotas de la Casa (Value Bet)")
-st.sidebar.caption("Escribe las cuotas principales que ves en la casa")
+st.sidebar.caption("Escribe las cuotas que ves en la casa de apuestas")
 
 cuota_casa_1 = st.sidebar.number_input("Cuota Real Victoria (1)", min_value=1.01, max_value=50.0, value=1.80, step=0.01, format="%.2f")
 cuota_casa_x = st.sidebar.number_input("Cuota Real Empate (X)", min_value=1.01, max_value=50.0, value=3.40, step=0.01, format="%.2f")
 cuota_casa_2 = st.sidebar.number_input("Cuota Real Derrota (2)", min_value=1.01, max_value=50.0, value=4.20, step=0.01, format="%.2f")
 cuota_casa_btts_si = st.sidebar.number_input("Cuota Real BTTS Sí", min_value=1.01, max_value=50.0, value=1.75, step=0.01, format="%.2f")
+cuota_casa_btts_no = st.sidebar.number_input("Cuota Real BTTS No", min_value=1.01, max_value=50.0, value=2.05, step=0.01, format="%.2f")
 cuota_casa_dnb = st.sidebar.number_input("Cuota Real DNB (Sin Empate)", min_value=1.01, max_value=50.0, value=1.35, step=0.01, format="%.2f")
 
 color_equipo = colores_equipos.get(equipo_sel, "#3B82F6")
@@ -269,6 +279,7 @@ if btn_analizar:
     cuota_justa_2 = round(100 / derrotas, 2) if derrotas > 0 else 99.0
     prob_btts_no = 100 - ambos_anotan
     cuota_justa_btts_si = round(100 / ambos_anotan, 2) if ambos_anotan > 0 else 99.0
+    cuota_justa_btts_no = round(100 / prob_btts_no, 2) if prob_btts_no > 0 else 99.0
     cuota_justa_dnb = round(100 / dnb, 2) if dnb > 0 else 99.0
     cuota_justa_1x = round(100 / doble_1x, 2) if doble_1x > 0 else 99.0
 
@@ -281,6 +292,7 @@ if btn_analizar:
     ev_x = calcular_ev(empates, cuota_casa_x)
     ev_2 = calcular_ev(derrotas, cuota_casa_2)
     ev_btts_si = calcular_ev(ambos_anotan, cuota_casa_btts_si)
+    ev_btts_no = calcular_ev(prob_btts_no, cuota_casa_btts_no)
     ev_dnb = calcular_ev(dnb, cuota_casa_dnb)
 
     qc1, qc2, qc3 = st.columns(3)
@@ -290,8 +302,8 @@ if btn_analizar:
 
     qc4, qc5, qc6 = st.columns(3)
     qc4.metric("Cuota Justa BTTS Sí", f"{cuota_justa_btts_si}", delta=f"{ambos_anotan:.1f}%")
-    qc5.metric("Cuota Justa DNB", f"{cuota_justa_dnb}", delta=f"{dnb:.1f}%")
-    qc6.metric("Cuota Justa 1X", f"{cuota_justa_1x}", delta=f"{doble_1x:.1f}%")
+    qc5.metric("Cuota Justa BTTS No", f"{cuota_justa_btts_no}", delta=f"{prob_btts_no:.1f}%")
+    qc6.metric("Cuota Justa DNB", f"{cuota_justa_dnb}", delta=f"{dnb:.1f}%")
 
     st.markdown("#### 💎 Análisis de Value Bet")
     st.caption("EV positivo = la casa paga más de lo que proyecta el modelo estadístico.")
@@ -314,6 +326,8 @@ if btn_analizar:
     mostrar_value("Victoria (1)", cuota_justa_1, cuota_casa_1, ev_1, triunfos)
     mostrar_value("Empate (X)", cuota_justa_x, cuota_casa_x, ev_x, empates)
     mostrar_value("Derrota (2)", cuota_justa_2, cuota_casa_2, ev_2, derrotas)
+    mostrar_value("BTTS Sí", cuota_justa_btts_si, cuota_casa_btts_si, ev_btts_si, ambos_anotan)
+    mostrar_value("BTTS No", cuota_justa_btts_no, cuota_casa_btts_no, ev_btts_no, prob_btts_no)
     mostrar_value("Apuesta sin Empate (DNB)", cuota_justa_dnb, cuota_casa_dnb, ev_dnb, dnb)
 
     st.markdown("---")
