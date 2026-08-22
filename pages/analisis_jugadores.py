@@ -60,7 +60,7 @@ else:
     nivel_sel = st.sidebar.selectbox("⭐ Nivel del Rival", ["DESCENSO"])
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("📊 Spiders de Líneas a Evaluar")
+st.sidebar.subheader("📊 Líneas a Evaluar")
 
 linea_goles = st.sidebar.slider("⚽ Línea de Goles", 0.0, 3.0, 0.5, 0.5)
 linea_tiros = st.sidebar.slider("🎯 Línea de Tiros Totales", 0.0, 10.0, 2.5, 0.5)
@@ -79,7 +79,6 @@ with col_b2:
 if datos_ok and not df.empty and 'Jugador' in df.columns:
     df_jugador = df[df['Jugador'] == jugador_sel].copy()
     
-    # Ordenamos por fecha (más antiguo → más reciente)
     if 'Fecha' in df_jugador.columns:
         df_jugador = df_jugador.sort_values('Fecha')
     
@@ -121,7 +120,7 @@ if analizar:
     st.markdown("---")
     st.subheader("📊 Simulación Monte Carlo (Ponderación de Forma Reciente)")
 
-    # ===== MÍNIMO 2 PARTIDOS (igual que equipos) =====
+    # ===== MÍNIMO 2 PARTIDOS =====
     historial = pd.DataFrame()
     fuente = ""
 
@@ -149,22 +148,36 @@ if analizar:
     if len(historial) >= 1:
         n_rows = len(historial)
         
-        # Pesos temporales (más peso a los más recientes)
+        # Pesos temporales
         if 'Fecha' in historial.columns:
             hoy = pd.Timestamp.today()
             dias = (hoy - historial['Fecha']).dt.days.clip(lower=0.1)
             pesos = 1 / (1 + dias / 30)
         else:
             pesos = np.linspace(1.0, 3.0, n_rows)
-        
         pesos = pesos / pesos.sum()
 
         n_simulaciones = 5000
-        sim_goles = np.random.choice(historial['Goles'].values, size=n_simulaciones, replace=True, p=pesos)
-        sim_tiros = np.random.choice(historial['Tiros'].values, size=n_simulaciones, replace=True, p=pesos)
-        sim_puerta = np.random.choice(historial['A Puerta'].values, size=n_simulaciones, replace=True, p=pesos)
-        sim_asist = np.random.choice(historial['Asistencias'].values, size=n_simulaciones, replace=True, p=pesos)
-        sim_faltas = np.random.choice(historial['Faltas'].values, size=n_simulaciones, replace=True, p=pesos)
+
+        # ===== CORRECCIÓN: Poisson cuando hay pocos partidos =====
+        if n_rows <= 3:
+            lam_goles = np.average(historial['Goles'], weights=pesos)
+            lam_tiros = np.average(historial['Tiros'], weights=pesos)
+            lam_puerta = np.average(historial['A Puerta'], weights=pesos)
+            lam_asist = np.average(historial['Asistencias'], weights=pesos)
+            lam_faltas = np.average(historial['Faltas'], weights=pesos)
+
+            sim_goles = np.random.poisson(lam=max(lam_goles, 0.05), size=n_simulaciones)
+            sim_tiros = np.random.poisson(lam=max(lam_tiros, 0.05), size=n_simulaciones)
+            sim_puerta = np.random.poisson(lam=max(lam_puerta, 0.05), size=n_simulaciones)
+            sim_asist = np.random.poisson(lam=max(lam_asist, 0.05), size=n_simulaciones)
+            sim_faltas = np.random.poisson(lam=max(lam_faltas, 0.05), size=n_simulaciones)
+        else:
+            sim_goles = np.random.choice(historial['Goles'].values, size=n_simulaciones, replace=True, p=pesos)
+            sim_tiros = np.random.choice(historial['Tiros'].values, size=n_simulaciones, replace=True, p=pesos)
+            sim_puerta = np.random.choice(historial['A Puerta'].values, size=n_simulaciones, replace=True, p=pesos)
+            sim_asist = np.random.choice(historial['Asistencias'].values, size=n_simulaciones, replace=True, p=pesos)
+            sim_faltas = np.random.choice(historial['Faltas'].values, size=n_simulaciones, replace=True, p=pesos)
 
         # Probabilidades Monte Carlo
         prob_goles = (sim_goles > linea_goles).mean() * 100
@@ -198,17 +211,17 @@ if analizar:
             st.markdown(f"⚠️ **Más de {linea_faltas} Faltas**")
             st.markdown(f"### `{prob_faltas:.1f}%`  \n*(Acierto real: {real_faltas:.0f}%)*")
 
-        # ===== ARMADOR DE COMBINADAS =====
+        # ===== ARMADOR DE COMBINADAS (CORREGIDO) =====
         st.markdown("---")
         st.subheader("🎟️ Armador de Combinadas (Ticket de Estudio)")
         st.markdown("Selecciona las líneas que deseas combinar:")
 
         c_t1, c_t2, c_t3, c_t4, c_t5 = st.columns(5)
-        sel_g = c_t1.checkbox("Goles")
-        sel_t = c_t2.checkbox("Tiros")
-        sel_p = c_t3.checkbox("A Puerta")
-        sel_a = c_t4.checkbox("Asistencias")
-        sel_f = c_t5.checkbox("Faltas")
+        sel_g = c_t1.checkbox("Goles", key="ticket_goles")
+        sel_t = c_t2.checkbox("Tiros", key="ticket_tiros")
+        sel_p = c_t3.checkbox("A Puerta", key="ticket_puerta")
+        sel_a = c_t4.checkbox("Asistencias", key="ticket_asist")
+        sel_f = c_t5.checkbox("Faltas", key="ticket_faltas")
 
         prob_combinada = 1.0
         activas = 0
