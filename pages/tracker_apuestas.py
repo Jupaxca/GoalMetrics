@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import datetime
 from supabase import create_client, Client
 
 st.set_page_config(page_title="Tracker Pro | GoalMetrics", page_icon="📈", layout="wide")
@@ -28,7 +29,6 @@ with st.sidebar:
     with st.form("nueva_apuesta", clear_on_submit=True):
         evento = st.text_input("Evento / Partido")
         
-        # --- NUEVO SELECTBOX DE MERCADOS ---
         opciones_mercado = [
             "Ganador (1X2)", 
             "Doble Oportunidad", 
@@ -58,7 +58,8 @@ with st.sidebar:
                         "cuota": float(cuota),
                         "stake": float(stake),
                         "estado": "Pendiente",
-                        "pnl": 0.0
+                        "pnl": 0.0,
+                        "fecha": str(datetime.date.today())  # <--- AQUÍ ENVIAMOS LA FECHA ACTUAL
                     }
                     supabase.table("apuestas").insert(data).execute()
                     st.success("¡Apuesta registrada!")
@@ -111,7 +112,6 @@ if not df.empty:
         col1, col2 = st.columns(2)
         col1.metric("💰 Balance Total (PnL)", f"{df_cerradas['pnl'].astype(float).sum():,.2f} $")
         
-        # Winrate seguro para evitar division por cero
         total_cerradas = len(df_cerradas)
         ganadas = len(df_cerradas[df_cerradas['estado']=='Ganada'])
         winrate = (ganadas / total_cerradas) * 100 if total_cerradas > 0 else 0
