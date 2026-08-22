@@ -1,92 +1,91 @@
 import streamlit as st
 import pandas as pd
-import altair as alt
 from datetime import datetime
 
-# ====================== CONFIGURACIÓN DE SESIÓN ======================
+# ====================== CONFIGURACIÓN ======================
 if 'bankroll_inicial' not in st.session_state: st.session_state.bankroll_inicial = 1000.0
 if 'moneda_sel' not in st.session_state: st.session_state.moneda_sel = "$"
+
 if 'historial_apuestas' not in st.session_state:
     st.session_state.historial_apuestas = pd.DataFrame(columns=[
-        'ID', 'Fecha', 'Selección', 'Mercado', 'Cuota', 'Stake', 'Estado', 'Ganancia/Pérdida'
+        'Fecha', 'Selección', 'Mercado', 'Cuota', 'Stake', 'Estado', 'Ganancia/Pérdida'
     ])
 
-# Función para calcular P&L
-def calcular_pnl(df):
-    df = df.copy()
-    # Si cambia el estado, recalculamos el P&L
-    for i, row in df.iterrows():
-        if row['Estado'] == 'Ganada':
-            df.at[i, 'Ganancia/Pérdida'] = round(float(row['Stake']) * (float(row['Cuota']) - 1), 2)
-        elif row['Estado'] == 'Perdida':
-            df.at[i, 'Ganancia/Pérdida'] = round(-float(row['Stake']), 2)
-        else:
-            df.at[i, 'Ganancia/Pérdida'] = 0.0
-    return df
-
 # ====================== SIDEBAR ======================
-st.sidebar.header("⚙️ Configuración Personal")
-simbolos_moneda = {"USD ($)": "$", "EUR (€)": "€", "COP ($)": "COP $", "MXN ($)": "MXN $"}
-moneda_key = st.sidebar.selectbox("💱 Moneda", list(simbolos_moneda.keys()))
-st.session_state.moneda_sel = simbolos_moneda[moneda_key]
-st.session_state.bankroll_inicial = st.sidebar.number_input(f"Capital Inicial ({st.session_state.moneda_sel})", value=float(st.session_state.bankroll_inicial))
+st.sidebar.header("⚙️ Configuración")
+simbolos = {"USD ($)": "$", "EUR (€)": "€", "COP ($)": "COP $", "MXN ($)": "MXN $"}
+st.session_state.moneda_sel = simbolos[st.sidebar.selectbox("💱 Moneda", list(simbolos.keys()))]
+st.session_state.bankroll_inicial = st.sidebar.number_input("Capital Total (Bankroll)", value=float(st.session_state.bankroll_inicial))
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("📝 Registrar Nueva Apuesta")
-with st.sidebar.form("form_apuesta", clear_on_submit=True):
-    evento_sel = st.text_input("Selección / Evento")
-    mercado_sel = st.selectbox("Mercado", ["Victoria (1)", "Empate (X)", "Derrota (2)", "BTTS", "DNB", "Over Línea"])
-    cuota_sel = st.number_input("Cuota", min_value=1.01, value=1.85, step=0.01)
-    stake_sel = st.number_input("Stake", min_value=1.0, value=20.0, step=5.0)
-    submitted = st.form_submit_button("💾 Guardar Apuesta")
+st.sidebar.subheader("📝 Registrar Apuesta")
+
+with st.sidebar.form("nueva_apuesta", clear_on_submit=True):
+    evento = st.text_input("Evento (Ej: Real Madrid vs Barcelona)")
+    mercado = st.selectbox("Mercado", ["Victoria (1)", "Empate (X)", "BTTS", "Over Línea"])
+    cuota = st.number_input("Cuota Decimal", value=1.33, step=0.01)
     
-    if submitted:
-        nueva_fila = pd.DataFrame([{
-            'ID': len(st.session_state.historial_apuestas) + 1,
+    # Texto aclaratorio para evitar confusiones
+    stake = st.number_input("Dinero que arriesgas en esta apuesta (Stake)", value=100.0, step=10.0)
+    
+    if st.form_submit_button("💾 Guardar Apuesta"):
+        nueva = pd.DataFrame([{
             'Fecha': datetime.today().strftime('%Y-%m-%d'),
-            'Selección': evento_sel, 'Mercado': mercado_sel,
-            'Cuota': cuota_sel, 'Stake': stake_sel,
+            'Selección': evento, 'Mercado': mercado,
+            'Cuota': float(cuota), 'Stake': float(stake),
             'Estado': 'Pendiente', 'Ganancia/Pérdida': 0.0
         }])
-        st.session_state.historial_apuestas = pd.concat([st.session_state.historial_apuestas, nueva_fila], ignore_index=True)
+        st.session_state.historial_apuestas = pd.concat([st.session_state.historial_apuestas, nueva], ignore_index=True)
         st.rerun()
 
 # ====================== PANTALLA PRINCIPAL ======================
 st.markdown("### 📈 Tracker de Apuestas")
 st.caption("Haz clic en la columna 'Estado' para cambiar de 'Pendiente' a 'Ganada' o 'Perdida'.")
 
-# Editor interactivo
 if not st.session_state.historial_apuestas.empty:
+    df = st.session_state.historial_apuestas.astype({
+        'Estado': 'str', 'Selección': 'str', 'Mercado': 'str',
+        'Cuota': 'float', 'Stake': 'float', 'Ganancia/Pérdida': 'float'
+    })
+
     edited_df = st.data_editor(
-        st.session_state.historial_apuestas,
+        df,
         column_config={
             "Estado": st.column_config.SelectboxColumn(
                 "Estado",
                 options=["Pendiente", "Ganada", "Perdida", "Anulada"],
                 required=True,
             ),
-            "ID": None # Ocultar ID
+            "Cuota": st.column_config.NumberColumn(format="%.2f"),
+            "Stake": st.column_config.NumberColumn(format="%.2f"),
+            "Ganancia/Pérdida": st.column_config.NumberColumn(format="%.2f", disabled=True),
         },
         hide_index=True,
-        use_container_width=True
+        use_container_width=True,
+        key="editor_apuestas"
     )
 
-    # Si hubo cambios, actualizamos el estado y recalculamos
-    if not edited_df.equals(st.session_state.historial_apuestas):
-        st.session_state.historial_apuestas = calcular_pnl(edited_df)
+    if not edited_df.equals(df):
+        for i, row in edited_df.iterrows():
+            if row['Estado'] == 'Ganada':
+                edited_df.at[i, 'Ganancia/Pérdida'] = round(float(row['Stake']) * (float(row['Cuota']) - 1), 2)
+            elif row['Estado'] == 'Perdida':
+                edited_df.at[i, 'Ganancia/Pérdida'] = round(-float(row['Stake']), 2)
+            else:
+                edited_df.at[i, 'Ganancia/Pérdida'] = 0.0
+        
+        st.session_state.historial_apuestas = edited_df
         st.rerun()
 
-    # Cálculos para métricas
     df_cerradas = st.session_state.historial_apuestas[st.session_state.historial_apuestas['Estado'].isin(['Ganada', 'Perdida'])]
     beneficio = df_cerradas['Ganancia/Pérdida'].sum()
     
-    col1, col2, col3 = st.columns(3)
-    col1.metric("💰 Bankroll", f"{st.session_state.moneda_sel} {st.session_state.bankroll_inicial + beneficio:,.2f}")
+    col1, col2 = st.columns(2)
+    col1.metric("💰 Bankroll Total Actual", f"{st.session_state.moneda_sel} {st.session_state.bankroll_inicial + beneficio:,.2f}")
     col2.metric("📊 P&L Neto", f"{st.session_state.moneda_sel} {beneficio:,.2f}")
-    col3.metric("🎯 Winrate", f"{(len(df_cerradas[df_cerradas['Estado']=='Ganada'])/len(df_cerradas)*100 if len(df_cerradas)>0 else 0):.1f}%")
 
-    if st.button("🗑️ Borrar Historial"):
-        st.session_state.historial_apuestas = pd.DataFrame(columns=['ID', 'Fecha', 'Selección', 'Mercado', 'Cuota', 'Stake', 'Estado', 'Ganancia/Pérdida'])
+    if st.button("🗑️ Borrar Todo el Historial"):
+        st.session_state.historial_apuestas = pd.DataFrame(columns=['Fecha', 'Selección', 'Mercado', 'Cuota', 'Stake', 'Estado', 'Ganancia/Pérdida'])
         st.rerun()
 else:
-    st.info("No hay apuestas registradas.")
+    st.info("No hay apuestas registradas. Usa el formulario de la barra lateral.")
