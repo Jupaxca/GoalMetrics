@@ -11,7 +11,14 @@ def init_supabase() -> Client:
     return create_client(url, key)
 
 supabase = init_supabase()
+
+# ESCUDO DE SEGURIDAD
+if 'user' not in st.session_state or st.session_state.user is None:
+    st.warning("Sesión no detectada. Por favor regresa a la página principal e inicia sesión.")
+    st.stop()
+
 user = st.session_state.user
+user_id = user.id
 
 st.markdown("## 📈 Tracker de Apuestas & Análisis Pro")
 
@@ -19,21 +26,38 @@ st.markdown("## 📈 Tracker de Apuestas & Análisis Pro")
 with st.sidebar:
     st.header("➕ Nueva Apuesta")
     with st.form("nueva_apuesta", clear_on_submit=True):
-        evento = st.text_input("Evento")
-        mercado = st.text_input("Mercado")
+        evento = st.text_input("Evento / Partido")
+        mercado = st.text_input("Mercado (ej: Over 2.5, Victoria)")
         cuota = st.number_input("Cuota", min_value=1.00, step=0.01)
         stake = st.number_input("Stake ($)", min_value=1.0, step=0.5)
-        if st.form_submit_button("Guardar"):
-            supabase.table("apuestas").insert({
-                "user_id": user.id, "evento": evento, "mercado": mercado,
-                "cuota": float(cuota), "stake": float(stake), "estado": "Pendiente", "pnl": 0.0
-            }).execute()
-            st.rerun()
+        
+        if st.form_submit_button("Guardar Apuesta"):
+            if not evento or not mercado:
+                st.error("El evento y el mercado son obligatorios.")
+            else:
+                try:
+                    data = {
+                        "user_id": user_id,
+                        "evento": evento,
+                        "mercado": mercado,
+                        "cuota": float(cuota),
+                        "stake": float(stake),
+                        "estado": "Pendiente",
+                        "pnl": 0.0
+                    }
+                    supabase.table("apuestas").insert(data).execute()
+                    st.success("¡Apuesta registrada!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al guardar: {e}")
 
 # --- PANEL DE RESULTADOS (CERRAR APUESTAS) ---
 st.subheader("🏁 Cerrar Apuesta")
-response = supabase.table("apuestas").select("*").eq("user_id", user.id).eq("estado", "Pendiente").execute()
-pendientes = response.data
+try:
+    response = supabase.table("apuestas").select("*").eq("user_id", user_id).eq("estado", "Pendiente").execute()
+    pendientes = response.data if response.data else []
+except Exception:
+    pendientes = []
 
 if pendientes:
     df_pendientes = pd.DataFrame(pendientes)
@@ -43,40 +67,43 @@ if pendientes:
     with cols[1]:
         resultado = st.selectbox("Resultado", ["Ganada", "Perdida"])
     
-    if st.button("Actualizar Resultado"):
-        apuesta = df_pendientes[df_pendientes['id'] == apuesta_id].iloc[0]
-        pnl = (apuesta['stake'] * (apuesta['cuota'] - 1)) if resultado == "Ganada" else -apuesta['stake']
-        supabase.table("apuestas").update({"estado": resultado, "pnl": pnl}).eq("id", apuesta_id).execute()
-        st.rerun()
+    with cols[2]:
+        st.write("")
+        st.write("")
+        if st.button("Actualizar Resultado", use_container_width=True):
+            apuesta = df_pendientes[df_pendientes['id'] == apuesta_id].iloc[0]
+            pnl = (apuesta['stake'] * (apuesta['cuota'] - 1)) if resultado == "Ganada" else -apuesta['stake']
+            supabase.table("apuestas").update({"estado": resultado, "pnl": pnl}).eq("id", apuesta_id).execute()
+            st.success("¡Apuesta actualizada!")
+            st.rerun()
 else:
     st.info("No tienes apuestas pendientes por cerrar.")
 
 # --- DASHBOARD DE MÉTRICAS Y GRÁFICO ---
 st.markdown("---")
-res = supabase.table("apuestas").select("*").eq("user_id", user.id).order("id", asc=True).execute()
-df = pd.DataFrame(res.data)
+try:
+    res = supabase.table("apuestas").select("*").eq("user_id", user_id).order("id", asc=True).execute()
+    df = pd.DataFrame(res.data) if res.data else pd.DataFrame()
+except Exception:
+    df = pd.DataFrame()
 
 if not df.empty:
-    # Filtramos solo las cerradas para el gráfico
     df_cerradas = df[df['estado'].isin(['Ganada', 'Perdida'])].copy()
     
     if not df_cerradas.empty:
-        # Calcular el PnL acumulado
-        df_cerradas['acumulado'] = df_cerradas['pnl'].cumsum()
+        df_cerradas['acumulado'] = df_cerradas['pnl'].astype(float).cumsum()
         
-        # Métricas principales
         col1, col2 = st.columns(2)
-        col1.metric("💰 Balance Total (PnL)", f"{df_cerradas['pnl'].sum():,.2f} $")
-        col2.metric("🎯 Winrate", f"{(len(df_cerradas[df_cerradas['estado']=='Ganada'])/len(df_cerradas))*100:.1f}%")
+        col1.metric("💰 Balance Total (PnL)", f"{df_cerradas['pnl'].astype(float).sum():,.2f} $")
+        winrate = (len(df_cerradas[df_cerradas['estado']=='Ganada']) / len(df_cerradas)) * 100
+        col2.metric("🎯 Winrate", f"{winrate:.1f}%")
         
-        # Gráfico de progresión
         st.subheader("📊 Curva de Rendimiento")
         st.line_chart(df_cerradas['acumulado'])
     else:
-        st.info("Cierra tu primera apuesta para ver la curva de rendimiento.")
+        st.info("Cierra tu primera apuesta para ver la curva de rendimiento y las métricas.")
 
-    # Tabla histórica
     st.subheader("Historial Completo")
     st.dataframe(df.sort_values(by="id", ascending=False), use_container_width=True, hide_index=True)
 else:
-    st.write("Aún no tienes historial.")
+    st.write("Aún no tienes historial de apuestas.")
