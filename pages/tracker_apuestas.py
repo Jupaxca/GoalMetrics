@@ -27,13 +27,28 @@ with st.sidebar:
     st.header("➕ Nueva Apuesta")
     with st.form("nueva_apuesta", clear_on_submit=True):
         evento = st.text_input("Evento / Partido")
-        mercado = st.text_input("Mercado (ej: Over 2.5, Victoria)")
+        
+        # --- NUEVO SELECTBOX DE MERCADOS ---
+        opciones_mercado = [
+            "Ganador (1X2)", 
+            "Doble Oportunidad", 
+            "Ambos Marcan (BTTS)", 
+            "Over/Under Goles", 
+            "Over/Under Córners", 
+            "Hándicap Asiático", 
+            "Hándicap Europeo", 
+            "Tarjetas", 
+            "Resultado Exacto", 
+            "Otro"
+        ]
+        mercado = st.selectbox("Mercado", opciones_mercado)
+        
         cuota = st.number_input("Cuota", min_value=1.00, step=0.01)
         stake = st.number_input("Stake ($)", min_value=1.0, step=0.5)
         
         if st.form_submit_button("Guardar Apuesta"):
-            if not evento or not mercado:
-                st.error("El evento y el mercado son obligatorios.")
+            if not evento:
+                st.error("El evento es obligatorio.")
             else:
                 try:
                     data = {
@@ -63,7 +78,7 @@ if pendientes:
     df_pendientes = pd.DataFrame(pendientes)
     cols = st.columns([2, 1, 1])
     with cols[0]:
-        apuesta_id = st.selectbox("Selecciona la apuesta a cerrar:", df_pendientes['id'].tolist(), format_func=lambda x: df_pendientes[df_pendientes['id']==x]['evento'].values[0])
+        apuesta_id = st.selectbox("Selecciona la apuesta a cerrar:", df_pendientes['id'].tolist(), format_func=lambda x: f"{df_pendientes[df_pendientes['id']==x]['evento'].values[0]} ({df_pendientes[df_pendientes['id']==x]['mercado'].values[0]})")
     with cols[1]:
         resultado = st.selectbox("Resultado", ["Ganada", "Perdida"])
     
@@ -95,7 +110,11 @@ if not df.empty:
         
         col1, col2 = st.columns(2)
         col1.metric("💰 Balance Total (PnL)", f"{df_cerradas['pnl'].astype(float).sum():,.2f} $")
-        winrate = (len(df_cerradas[df_cerradas['estado']=='Ganada']) / len(df_cerradas)) * 100
+        
+        # Winrate seguro para evitar division por cero
+        total_cerradas = len(df_cerradas)
+        ganadas = len(df_cerradas[df_cerradas['estado']=='Ganada'])
+        winrate = (ganadas / total_cerradas) * 100 if total_cerradas > 0 else 0
         col2.metric("🎯 Winrate", f"{winrate:.1f}%")
         
         st.subheader("📊 Curva de Rendimiento")
