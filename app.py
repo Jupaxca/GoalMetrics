@@ -8,7 +8,7 @@ st.set_page_config(
 
 # Definimos las páginas con los nombres exactos para la barra lateral
 analisis_equipos = st.Page(
-    "pages/panel_principal.py", 
+    "pages/Analisis_equipos.py", 
     title="Analisis equipos", 
     icon="📊", 
     default=True
