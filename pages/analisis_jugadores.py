@@ -6,44 +6,62 @@ import plotly.express as px
 st.set_page_config(page_title="GoalMetrics - Jugadores", layout="wide")
 
 st.title("🎯 Centro de Análisis Individual de Jugadores")
-st.markdown("Evaluación estadística de rendimiento personal, rachas y simulación de líneas.")
+st.markdown("Evaluación estadística con ponderación de forma reciente, tasas de acierto y simulador de combinadas.")
 st.markdown("---")
 
-@st.cache_data
+@st.cache_data(ttl=600)
 def cargar_datos_jugadores():
     url = "https://docs.google.com/spreadsheets/d/1q98g-IxYaO8g3ksDb0vyZ9V7IrhPjDcVUtChZI8SNT4/export?format=csv"
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip()
+    
+    # Si la columna se llama Equipo, la renombramos a Jugador
+    if 'Jugador' not in df.columns and 'Equipo' in df.columns:
+        df = df.rename(columns={'Equipo': 'Jugador'})
+    
+    # Fecha en formato día/mes/año
+    if 'Fecha' in df.columns:
+        df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True, errors='coerce')
+    
+    for col in ['Goles', 'Asistencias', 'Tiros', 'A Puerta', 'Faltas', 'Amarillas', 'Rojas']:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    
+    if 'Condición' in df.columns:
+        df['Condición'] = df['Condición'].astype(str).str.strip().str.lower()
+    
     return df
 
 try:
     df = cargar_datos_jugadores()
     datos_ok = True
-except:
+except Exception as e:
+    st.error(f"Error cargando datos: {e}")
     datos_ok = False
     df = pd.DataFrame()
 
-# Sidebar - Líneas de Estudio / Apuesta y Filtros
+# ====================== SIDEBAR ======================
 st.sidebar.header("🎯 Líneas de Estudio / Jugador")
 
-if datos_ok and not df.empty:
-    jugadores = df['Equipo'].unique().tolist()
+if datos_ok and not df.empty and 'Jugador' in df.columns:
+    jugadores = sorted(df['Jugador'].dropna().unique().tolist())
     jugador_sel = st.sidebar.selectbox("👤 Selecciona al Jugador", jugadores)
     
-    condiciones = df['Condición'].unique().tolist() if 'Condición' in df.columns else ["Local", "Visitante"]
-    condicion_sel = st.sidebar.selectbox("📍 Condición", condiciones)
+    condiciones = sorted(df['Condición'].dropna().unique().tolist()) if 'Condición' in df.columns else ["local", "visitante"]
+    condicion_sel = st.sidebar.selectbox("📍 Condición", [c.capitalize() for c in condiciones])
+    condicion_sel_lower = condicion_sel.lower()
     
-    niveles = df['Nivel Rival'].unique().tolist() if 'Nivel Rival' in df.columns else ["TOP", "CHAMPIONS", "MEDIA TABLA", "DESCENSO"]
+    niveles = sorted(df['Nivel Rival'].dropna().unique().tolist()) if 'Nivel Rival' in df.columns else ["TOP", "CHAMPIONS", "MEDIA TABLA", "DESCENSO"]
     nivel_sel = st.sidebar.selectbox("⭐ Nivel del Rival", niveles)
 else:
-    jugador_sel = st.sidebar.selectbox("👤 Selecciona al Jugador", ["Tzolis", "Odegard"])
+    jugador_sel = st.sidebar.selectbox("👤 Selecciona al Jugador", ["Sin datos"])
     condicion_sel = st.sidebar.selectbox("📍 Condición", ["Local", "Visitante"])
+    condicion_sel_lower = condicion_sel.lower()
     nivel_sel = st.sidebar.selectbox("⭐ Nivel del Rival", ["DESCENSO"])
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("📊 Sliders de Líneas a Evaluar")
+st.sidebar.subheader("📊 Spiders de Líneas a Evaluar")
 
-# Sliders interactivos de líneas
 linea_goles = st.sidebar.slider("⚽ Línea de Goles", 0.0, 3.0, 0.5, 0.5)
 linea_tiros = st.sidebar.slider("🎯 Línea de Tiros Totales", 0.0, 10.0, 2.5, 0.5)
 linea_puerta = st.sidebar.slider("🥅 Línea de Tiros a Puerta", 0.0, 5.0, 1.5, 0.5)
@@ -53,84 +71,171 @@ linea_faltas = st.sidebar.slider("⚠️ Línea de Faltas", 0.0, 5.0, 1.0, 0.5)
 st.sidebar.markdown("---")
 col_b1, col_b2 = st.sidebar.columns(2)
 with col_b1:
-    analizar = st.button("⚡ Analizar", type="primary")
+    analizar = st.button("⚡ Analizar", type="primary", use_container_width=True)
 with col_b2:
-    limpiar = st.button("🧹 Limpiar")
+    limpiar = st.button("🧹 Limpiar", use_container_width=True)
 
-# Filtrar datos del jugador seleccionado en el Google Sheet
-if datos_ok and not df.empty:
-    df_jugador = df[df['Equipo'] == jugador_sel]
-    df_filtrado = df_jugador[
-        (df_jugador['Condición'] == condicion_sel) & 
+# ====================== FILTRADO ======================
+if datos_ok and not df.empty and 'Jugador' in df.columns:
+    df_jugador = df[df['Jugador'] == jugador_sel].copy()
+    
+    # Ordenamos por fecha (más antiguo → más reciente)
+    if 'Fecha' in df_jugador.columns:
+        df_jugador = df_jugador.sort_values('Fecha')
+    
+    df_exactos = df_jugador[
+        (df_jugador['Condición'] == condicion_sel_lower) & 
         (df_jugador['Nivel Rival'] == nivel_sel)
-    ]
+    ].copy()
 else:
     df_jugador = pd.DataFrame()
-    df_filtrado = pd.DataFrame()
+    df_exactos = pd.DataFrame()
 
-# Lógica al presionar Analizar
+# ====================== LÓGICA PRINCIPAL ======================
 if analizar:
     st.markdown("---")
-    st.subheader(f"📈 Análisis Estadístico Individual: {jugador_sel} ({condicion_sel}) vs {nivel_sel}")
+    st.subheader(f"📈 Análisis Individual: **{jugador_sel}** ({condicion_sel} vs {nivel_sel})")
     
+    # KPIs generales
     total_partidos = len(df_jugador)
-    goles_tot = df_jugador['Goles'].sum() if not df_jugador.empty and 'Goles' in df_jugador.columns else 0
-    asist_tot = df_jugador['Asistencias'].sum() if not df_jugador.empty and 'Asistencias' in df_jugador.columns else 0
-    tiros_prom = df_jugador['Tiros'].mean() if not df_jugador.empty and 'Tiros' in df_jugador.columns else 0
-    puerta_prom = df_jugador['A Puerta'].mean() if not df_jugador.empty and 'A Puerta' in df_jugador.columns else 0
-    faltas_prom = df_jugador['Faltas'].mean() if not df_jugador.empty and 'Faltas' in df_jugador.columns else 0
-    amarillas_tot = df_jugador['Amarillas'].sum() if not df_jugador.empty and 'Amarillas' in df_jugador.columns else 0
-    rojas_tot = df_jugador['Rojas'].sum() if not df_jugador.empty and 'Rojas' in df_jugador.columns else 0
+    goles_tot = df_jugador['Goles'].sum() if 'Goles' in df_jugador.columns else 0
+    asist_tot = df_jugador['Asistencias'].sum() if 'Asistencias' in df_jugador.columns else 0
+    tiros_prom = df_jugador['Tiros'].mean() if 'Tiros' in df_jugador.columns else 0
+    puerta_prom = df_jugador['A Puerta'].mean() if 'A Puerta' in df_jugador.columns else 0
+    faltas_prom = df_jugador['Faltas'].mean() if 'Faltas' in df_jugador.columns else 0
+    amarillas_tot = df_jugador['Amarillas'].sum() if 'Amarillas' in df_jugador.columns else 0
+    rojas_tot = df_jugador['Rojas'].sum() if 'Rojas' in df_jugador.columns else 0
 
-    # Tarjetas de Estadísticas Individuales (KPIs)
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Goles Totales", int(goles_tot))
     k2.metric("Asistencias", int(asist_tot))
-    k3.metric("Promedio de Tiros", f"{tiros_prom:.1f}")
+    k3.metric("Promedio Tiros", f"{tiros_prom:.1f}")
     k4.metric("Tiros a Puerta Prom.", f"{puerta_prom:.1f}")
 
     k5, k6, k7, k8 = st.columns(4)
-    k5.metric("Promedio de Faltas", f"{faltas_prom:.1f}")
+    k5.metric("Promedio Faltas", f"{faltas_prom:.1f}")
     k6.metric("Amarillas", int(amarillas_tot))
     k7.metric("Rojas", int(rojas_tot))
     k8.metric("Partidos Registrados", total_partidos)
 
-    # --- SIMULACIÓN DE MONTE CARLO PARA LÍNEAS ---
     st.markdown("---")
-    st.subheader("📊 Probabilidades de Líneas (Simulación Monte Carlo)")
+    st.subheader("📊 Simulación Monte Carlo (Ponderación de Forma Reciente)")
 
-    if not df_filtrado.empty and len(df_filtrado) > 0:
-        # Ejecutar simulaciones basadas en la distribución histórica del jugador para este filtro
+    # ===== MÍNIMO 2 PARTIDOS (igual que equipos) =====
+    historial = pd.DataFrame()
+    fuente = ""
+
+    if len(df_exactos) >= 2:
+        historial = df_exactos.copy()
+        fuente = f"Exacto ({condicion_sel} vs {nivel_sel}) — {len(historial)} partidos"
+    elif len(df_exactos) == 1:
+        historial = df_exactos.copy()
+        if len(df_jugador) > 1:
+            extra = df_jugador[df_jugador.index != df_exactos.index[0]].tail(1)
+            historial = pd.concat([historial, extra])
+            fuente = "1 partido exacto + 1 de respaldo (más reciente)"
+        else:
+            fuente = "Solo 1 partido exacto disponible"
+    else:
+        if len(df_jugador) >= 2:
+            historial = df_jugador.tail(5).copy()
+            fuente = f"Sin partidos exactos → usando últimos {len(historial)} partidos del jugador"
+        else:
+            st.warning("⚠️ No hay suficientes registros para este jugador.")
+            st.stop()
+
+    st.info(f"💡 Base del análisis: **{len(historial)} partidos** | Modo: {fuente}")
+
+    if len(historial) >= 1:
+        n_rows = len(historial)
+        
+        # Pesos temporales (más peso a los más recientes)
+        if 'Fecha' in historial.columns:
+            hoy = pd.Timestamp.today()
+            dias = (hoy - historial['Fecha']).dt.days.clip(lower=0.1)
+            pesos = 1 / (1 + dias / 30)
+        else:
+            pesos = np.linspace(1.0, 3.0, n_rows)
+        
+        pesos = pesos / pesos.sum()
+
         n_simulaciones = 5000
-        sim_goles = np.random.choice(df_filtrado['Goles'].values, size=n_simulaciones, replace=True)
-        sim_tiros = np.random.choice(df_filtrado['Tiros'].values, size=n_simulaciones, replace=True)
-        sim_puerta = np.random.choice(df_filtrado['A Puerta'].values, size=n_simulaciones, replace=True)
-        sim_asist = np.random.choice(df_filtrado['Asistencias'].values, size=n_simulaciones, replace=True)
-        sim_faltas = np.random.choice(df_filtrado['Faltas'].values, size=n_simulaciones, replace=True)
+        sim_goles = np.random.choice(historial['Goles'].values, size=n_simulaciones, replace=True, p=pesos)
+        sim_tiros = np.random.choice(historial['Tiros'].values, size=n_simulaciones, replace=True, p=pesos)
+        sim_puerta = np.random.choice(historial['A Puerta'].values, size=n_simulaciones, replace=True, p=pesos)
+        sim_asist = np.random.choice(historial['Asistencias'].values, size=n_simulaciones, replace=True, p=pesos)
+        sim_faltas = np.random.choice(historial['Faltas'].values, size=n_simulaciones, replace=True, p=pesos)
 
+        # Probabilidades Monte Carlo
         prob_goles = (sim_goles > linea_goles).mean() * 100
         prob_tiros = (sim_tiros > linea_tiros).mean() * 100
         prob_puerta = (sim_puerta > linea_puerta).mean() * 100
         prob_asist = (sim_asist > linea_asist).mean() * 100
         prob_faltas = (sim_faltas > linea_faltas).mean() * 100
 
+        # Acierto real histórico
+        real_goles = (historial['Goles'] > linea_goles).mean() * 100
+        real_tiros = (historial['Tiros'] > linea_tiros).mean() * 100
+        real_puerta = (historial['A Puerta'] > linea_puerta).mean() * 100
+        real_asist = (historial['Asistencias'] > linea_asist).mean() * 100
+        real_faltas = (historial['Faltas'] > linea_faltas).mean() * 100
+
         col_p1, col_p2 = st.columns(2)
         with col_p1:
             st.markdown(f"⚽ **Más de {linea_goles} Goles**")
-            st.markdown(f"### `{prob_goles:.1f}%`")
+            st.markdown(f"### `{prob_goles:.1f}%`  \n*(Acierto real: {real_goles:.0f}%)*")
+            
             st.markdown(f"🎯 **Más de {linea_tiros} Tiros Totales**")
-            st.markdown(f"### `{prob_tiros:.1f}%`")
+            st.markdown(f"### `{prob_tiros:.1f}%`  \n*(Acierto real: {real_tiros:.0f}%)*")
+            
             st.markdown(f"🥅 **Más de {linea_puerta} Tiros a Puerta**")
-            st.markdown(f"### `{prob_puerta:.1f}%`")
+            st.markdown(f"### `{prob_puerta:.1f}%`  \n*(Acierto real: {real_puerta:.0f}%)*")
+            
         with col_p2:
             st.markdown(f"👟 **Más de {linea_asist} Asistencias**")
-            st.markdown(f"### `{prob_asist:.1f}%`")
+            st.markdown(f"### `{prob_asist:.1f}%`  \n*(Acierto real: {real_asist:.0f}%)*")
+            
             st.markdown(f"⚠️ **Más de {linea_faltas} Faltas**")
-            st.markdown(f"### `{prob_faltas:.1f}%`")
-    else:
-        st.warning("⚠️ No hay suficientes registros en este filtro exacto para correr la simulación de Monte Carlo.")
+            st.markdown(f"### `{prob_faltas:.1f}%`  \n*(Acierto real: {real_faltas:.0f}%)*")
 
-    # Motor de Racha y Probabilidad para el siguiente partido
+        # ===== ARMADOR DE COMBINADAS =====
+        st.markdown("---")
+        st.subheader("🎟️ Armador de Combinadas (Ticket de Estudio)")
+        st.markdown("Selecciona las líneas que deseas combinar:")
+
+        c_t1, c_t2, c_t3, c_t4, c_t5 = st.columns(5)
+        sel_g = c_t1.checkbox("Goles")
+        sel_t = c_t2.checkbox("Tiros")
+        sel_p = c_t3.checkbox("A Puerta")
+        sel_a = c_t4.checkbox("Asistencias")
+        sel_f = c_t5.checkbox("Faltas")
+
+        prob_combinada = 1.0
+        activas = 0
+        if sel_g: 
+            prob_combinada *= (prob_goles / 100)
+            activas += 1
+        if sel_t: 
+            prob_combinada *= (prob_tiros / 100)
+            activas += 1
+        if sel_p: 
+            prob_combinada *= (prob_puerta / 100)
+            activas += 1
+        if sel_a: 
+            prob_combinada *= (prob_asist / 100)
+            activas += 1
+        if sel_f: 
+            prob_combinada *= (prob_faltas / 100)
+            activas += 1
+
+        if activas > 0:
+            pct_combinado = prob_combinada * 100
+            st.success(f"🔥 **Probabilidad Conjunta del Ticket ({activas} selecciones):** `{pct_combinado:.2f}%`")
+            st.caption("Nota: se asume independencia entre las líneas (aproximación).")
+        else:
+            st.info("ℹ️ Selecciona al menos una casilla para armar tu combinada.")
+
+    # ===== RACHA =====
     st.markdown("---")
     st.subheader("⚡ Estado de Racha para el Siguiente Partido")
     
@@ -138,32 +243,34 @@ if analizar:
     ratio_contribucion = total_partidos / contribuciones if contribuciones > 0 else 99
     
     racha_seca = 0
-    if not df_jugador.empty:
-        for _, row in reversed(list(df_jugador.iterrows())):
+    if not df_jugador.empty and 'Goles' in df_jugador.columns and 'Asistencias' in df_jugador.columns:
+        for _, row in df_jugador.iloc[::-1].iterrows():
             if row['Goles'] == 0 and row['Asistencias'] == 0:
                 racha_seca += 1
             else:
                 break
 
     if racha_seca >= ratio_contribucion:
-        st.success(f"🔥 **ALTA PROBABILIDAD DE APORTE:** El jugador acumula **{racha_seca} partidos** sin sumar gol ni asistencia, superando su media histórica de una contribución cada **{ratio_contribucion:.1f} partidos**.")
+        st.success(f"🔥 **ALTA PROBABILIDAD DE APORTE:** Lleva **{racha_seca} partidos** sin gol ni asistencia, superando su media de 1 contribución cada **{ratio_contribucion:.1f} partidos**.")
     else:
         st.info(f"ℹ️ **ESTADO NORMAL:** Lleva **{racha_seca} partidos** sin sumar. Su promedio indica una contribución cada **{ratio_contribucion:.1f} partidos**.")
 
-    # Gráfica de rendimiento individual
+    # ===== GRÁFICO =====
     if not df_jugador.empty:
         st.markdown("---")
-        fig = px.bar(
-            df_jugador,
-            x='Nivel Rival',
-            y=['Goles', 'Tiros', 'A Puerta', 'Asistencias'],
-            barmode='group',
-            title=f"Historial de Rendimiento Personal - {jugador_sel}",
-            color_discrete_sequence=['#FF4B4B', '#00CC96', '#636EFA', '#FFA15A']
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        cols_graf = [c for c in ['Goles', 'Tiros', 'A Puerta', 'Asistencias'] if c in df_jugador.columns]
+        if cols_graf and 'Nivel Rival' in df_jugador.columns:
+            fig = px.bar(
+                df_jugador,
+                x='Nivel Rival',
+                y=cols_graf,
+                barmode='group',
+                title=f"Historial de Rendimiento - {jugador_sel}",
+                color_discrete_sequence=['#FF4B4B', '#00CC96', '#636EFA', '#FFA15A']
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
 elif limpiar:
-    st.info("🧹 Los filtros y líneas han sido restablecidos.")
+    st.info("🧹 Filtros restablecidos. Vuelve a configurar y pulsa Analizar.")
 else:
-    st.info("👈 Configura las líneas de estudio en la barra lateral y presiona **Analizar** para ejecutar la Simulación de Monte Carlo.")
+    st.info("👈 Configura las líneas en la barra lateral y pulsa **Analizar**.")
