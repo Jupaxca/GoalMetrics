@@ -1,11 +1,12 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
 
 st.set_page_config(page_title="GoalMetrics - Jugadores", layout="wide")
 
 st.title("🎯 Centro de Análisis Individual de Jugadores")
-st.markdown("Evaluación estadística de rendimiento personal, rachas y líneas de estudio.")
+st.markdown("Evaluación estadística de rendimiento personal, rachas y simulación de líneas.")
 st.markdown("---")
 
 @st.cache_data
@@ -22,7 +23,7 @@ except:
     datos_ok = False
     df = pd.DataFrame()
 
-# Sidebar - Líneas de Estudio / Apuesta y Filtros Individuales
+# Sidebar - Líneas de Estudio / Apuesta y Filtros
 st.sidebar.header("🎯 Líneas de Estudio / Jugador")
 
 if datos_ok and not df.empty:
@@ -42,7 +43,7 @@ else:
 st.sidebar.markdown("---")
 st.sidebar.subheader("📊 Sliders de Líneas a Evaluar")
 
-# Sliders idénticos al estilo de líneas de apuesta/estudio
+# Sliders interactivos de líneas
 linea_goles = st.sidebar.slider("⚽ Línea de Goles", 0.0, 3.0, 0.5, 0.5)
 linea_tiros = st.sidebar.slider("🎯 Línea de Tiros Totales", 0.0, 10.0, 2.5, 0.5)
 linea_puerta = st.sidebar.slider("🥅 Línea de Tiros a Puerta", 0.0, 5.0, 1.5, 0.5)
@@ -72,7 +73,6 @@ if analizar:
     st.markdown("---")
     st.subheader(f"📈 Análisis Estadístico Individual: {jugador_sel} ({condicion_sel}) vs {nivel_sel}")
     
-    # Métricas puramente personales
     total_partidos = len(df_jugador)
     goles_tot = df_jugador['Goles'].sum() if not df_jugador.empty and 'Goles' in df_jugador.columns else 0
     asist_tot = df_jugador['Asistencias'].sum() if not df_jugador.empty and 'Asistencias' in df_jugador.columns else 0
@@ -95,14 +95,48 @@ if analizar:
     k7.metric("Rojas", int(rojas_tot))
     k8.metric("Partidos Registrados", total_partidos)
 
+    # --- SIMULACIÓN DE MONTE CARLO PARA LÍNEAS ---
+    st.markdown("---")
+    st.subheader("📊 Probabilidades de Líneas (Simulación Monte Carlo)")
+
+    if not df_filtrado.empty and len(df_filtrado) > 0:
+        # Ejecutar simulaciones basadas en la distribución histórica del jugador para este filtro
+        n_simulaciones = 5000
+        sim_goles = np.random.choice(df_filtrado['Goles'].values, size=n_simulaciones, replace=True)
+        sim_tiros = np.random.choice(df_filtrado['Tiros'].values, size=n_simulaciones, replace=True)
+        sim_puerta = np.random.choice(df_filtrado['A Puerta'].values, size=n_simulaciones, replace=True)
+        sim_asist = np.random.choice(df_filtrado['Asistencias'].values, size=n_simulaciones, replace=True)
+        sim_faltas = np.random.choice(df_filtrado['Faltas'].values, size=n_simulaciones, replace=True)
+
+        prob_goles = (sim_goles > linea_goles).mean() * 100
+        prob_tiros = (sim_tiros > linea_tiros).mean() * 100
+        prob_puerta = (sim_puerta > linea_puerta).mean() * 100
+        prob_asist = (sim_asist > linea_asist).mean() * 100
+        prob_faltas = (sim_faltas > linea_faltas).mean() * 100
+
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            st.markdown(f"⚽ **Más de {linea_goles} Goles**")
+            st.markdown(f"### `{prob_goles:.1f}%`")
+            st.markdown(f"🎯 **Más de {linea_tiros} Tiros Totales**")
+            st.markdown(f"### `{prob_tiros:.1f}%`")
+            st.markdown(f"🥅 **Más de {linea_puerta} Tiros a Puerta**")
+            st.markdown(f"### `{prob_puerta:.1f}%`")
+        with col_p2:
+            st.markdown(f"👟 **Más de {linea_asist} Asistencias**")
+            st.markdown(f"### `{prob_asist:.1f}%`")
+            st.markdown(f"⚠️ **Más de {linea_faltas} Faltas**")
+            st.markdown(f"### `{prob_faltas:.1f}%`")
+    else:
+        st.warning("⚠️ No hay suficientes registros en este filtro exacto para correr la simulación de Monte Carlo.")
+
     # Motor de Racha y Probabilidad para el siguiente partido
     st.markdown("---")
-    st.subheader("⚡ Probabilidad y Análisis de Racha para el Siguiente Partido")
+    st.subheader("⚡ Estado de Racha para el Siguiente Partido")
     
     contribuciones = goles_tot + asist_tot
     ratio_contribucion = total_partidos / contribuciones if contribuciones > 0 else 99
     
-    # Conteo de partidos consecutivos sin marcar ni asistir
     racha_seca = 0
     if not df_jugador.empty:
         for _, row in reversed(list(df_jugador.iterrows())):
@@ -111,13 +145,12 @@ if analizar:
             else:
                 break
 
-    # Definir si la probabilidad es alta por acumulación de partidos sin sumar
     if racha_seca >= ratio_contribucion:
         st.success(f"🔥 **ALTA PROBABILIDAD DE APORTE:** El jugador acumula **{racha_seca} partidos** sin sumar gol ni asistencia, superando su media histórica de una contribución cada **{ratio_contribucion:.1f} partidos**.")
     else:
         st.info(f"ℹ️ **ESTADO NORMAL:** Lleva **{racha_seca} partidos** sin sumar. Su promedio indica una contribución cada **{ratio_contribucion:.1f} partidos**.")
 
-    # Gráfica de rendimiento individual por nivel de rival
+    # Gráfica de rendimiento individual
     if not df_jugador.empty:
         st.markdown("---")
         fig = px.bar(
@@ -133,4 +166,4 @@ if analizar:
 elif limpiar:
     st.info("🧹 Los filtros y líneas han sido restablecidos.")
 else:
-    st.info("👈 Configura las líneas de estudio en la barra lateral y presiona **Analizar** para evaluar las estadísticas individuales.")
+    st.info("👈 Configura las líneas de estudio en la barra lateral y presiona **Analizar** para ejecutar la Simulación de Monte Carlo.")
