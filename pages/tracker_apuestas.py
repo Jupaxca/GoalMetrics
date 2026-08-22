@@ -95,11 +95,10 @@ if pendientes:
                 apuesta = df_pendientes[df_pendientes['id'] == apuesta_id].iloc[0]
                 pnl = (float(apuesta['stake']) * (float(apuesta['cuota']) - 1)) if resultado == "Ganada" else -float(apuesta['stake'])
                 
-                # Ejecutamos el Update
                 supabase.table("apuestas").update({
                     "estado": resultado, 
                     "pnl": float(pnl)
-                }).eq("id", int(apuesta_id)).execute()
+                }).eq("id", int(apuesta_id)).eq("user_id", user_id).execute()
                 
                 st.success("¡Apuesta actualizada con éxito!")
                 st.rerun()
@@ -113,12 +112,7 @@ st.markdown("---")
 
 if todas_las_apuestas:
     df = pd.DataFrame(todas_las_apuestas)
-    
-    # Diagnóstico visual para salir de dudas
-    with st.expander("🔍 Ver datos en bruto (Diagnóstico)"):
-        st.write(df)
 
-    # Filtramos cerradas (ignorando mayúsculas/minúsculas por seguridad)
     df_cerradas = df[df['estado'].str.capitalize().isin(['Ganada', 'Perdida'])].copy()
     
     total_pnl = df_cerradas['pnl'].astype(float).sum() if not df_cerradas.empty else 0.0
@@ -142,5 +136,20 @@ if todas_las_apuestas:
 
     st.subheader("Historial Completo")
     st.dataframe(df.sort_values(by="id", ascending=False), use_container_width=True, hide_index=True)
+    
+    # --- GESTIÓN / BORRADO DE HISTORIAL ---
+    with st.expander("🗑️ Gestionar o Borrar Apuestas del Historial"):
+        apuesta_a_borrar = st.selectbox(
+            "Selecciona la apuesta que deseas eliminar:", 
+            df['id'].tolist(), 
+            format_func=lambda x: f"ID {x} - {df[df['id']==x]['evento'].values[0]} ({df[df['id']==x]['seleccion'].values[0]})"
+        )
+        if st.button("🗑️ Eliminar Apuesta Seleccionada", type="primary"):
+            try:
+                supabase.table("apuestas").delete().eq("id", int(apuesta_a_borrar)).eq("user_id", user_id).execute()
+                st.success("¡Apuesta eliminada correctamente!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error al eliminar (recuerda configurar la política DELETE en Supabase): {e}")
 else:
     st.write("Aún no tienes historial de apuestas registrado.")
