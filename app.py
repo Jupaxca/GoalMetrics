@@ -3,7 +3,7 @@ from supabase import create_client, Client
 
 st.set_page_config(
     page_title="GoalMetrics | Football Analytics",
-    page_icon="📊",
+    page_icon="icon.png",
     layout="wide"
 )
 
@@ -64,7 +64,7 @@ if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
     st.session_state.user = None
     st.rerun()
 
-# Definir las páginas oficiales (Incluyendo el nuevo Coach IA)
+# Definir las páginas oficiales
 analisis_equipos = st.Page("pages/Analisis_equipos.py", title="Analisis equipos", icon="📊", default=True)
 analisis_jugadores = st.Page("pages/analisis_jugadores.py", title="Analisis jugadores", icon="👥")
 tracker_apuestas = st.Page("pages/tracker_apuestas.py", title="Tracker de Apuestas", icon="📈")
