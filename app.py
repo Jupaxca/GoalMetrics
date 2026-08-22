@@ -15,8 +15,15 @@ def init_supabase() -> Client:
 
 supabase = init_supabase()
 
+# LÓGICA DE PERSISTENCIA DE SESIÓN (AUTO-LOGIN)
 if 'user' not in st.session_state:
     st.session_state.user = None
+    try:
+        session = supabase.auth.get_session()
+        if session and session.session:
+            st.session_state.user = session.user
+    except Exception:
+        pass
 
 if st.session_state.user is None:
     st.markdown("## 🔐 GoalMetrics · Acceso de Usuarios")
@@ -65,7 +72,7 @@ if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
     st.rerun()
 
 # Definir las páginas oficiales
-analisis_equipos = st.Page("pages/Analisis_equipos.py", title="Analisis equipos", icon="📊", default=True)
+analisis_equipos = st.Page("pages/Analisi_equipos.py", title="Analisis equipos", icon="📊", default=True)
 analisis_jugadores = st.Page("pages/analisis_jugadores.py", title="Analisis jugadores", icon="👥")
 tracker_apuestas = st.Page("pages/tracker_apuestas.py", title="Tracker de Apuestas", icon="📈")
 coach_ia = st.Page("pages/coach_ia.py", title="Coach IA", icon="🤖")
