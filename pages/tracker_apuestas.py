@@ -58,7 +58,7 @@ with st.sidebar.form("nueva_apuesta", clear_on_submit=True):
                 st.error(f"Error: {e}")
 
 # ====================== PANTALLA PRINCIPAL ======================
-st.markdown("### 📈 Tracker de Apuestas")
+st.markdown("### 📈 Tracker de Apuestas & Análisis Pro")
 
 df_bets = st.session_state.historial_apuestas
 
@@ -78,7 +78,6 @@ if not df_bets.empty:
     if not edited_df.equals(df):
         with st.spinner("Actualizando datos..."):
             for i, row in edited_df.iterrows():
-                # Calcular nuevo PNL
                 if row['estado'] == 'Ganada': nuevo_pnl = round(float(row['stake']) * (float(row['cuota']) - 1), 2)
                 elif row['estado'] == 'Perdida': nuevo_pnl = round(-float(row['stake']), 2)
                 else: nuevo_pnl = 0.0
@@ -91,14 +90,42 @@ if not df_bets.empty:
             st.toast("🔄 Datos sincronizados")
             st.rerun()
 
-    # Métricas rápidas
+    # ====================== MÉTRICAS PRO (PASO 3) ======================
     df_cerradas = st.session_state.historial_apuestas[st.session_state.historial_apuestas['estado'].isin(['Ganada', 'Perdida'])]
     beneficio = df_cerradas['pnl'].sum()
+    total_apostado = df_cerradas['stake'].sum()
     
-    col1, col2 = st.columns(2)
+    # Cálculos avanzados
+    yield_pct = (beneficio / total_apostado * 100) if total_apostado > 0 else 0.0
+    winrate = (len(df_cerradas[df_cerradas['estado']=='Ganada']) / len(df_cerradas) * 100) if len(df_cerradas) > 0 else 0.0
+    
+    st.markdown("---")
+    st.subheader("📊 Rendimiento Financiero")
+    
+    col1, col2, col3, col4 = st.columns(4)
     col1.metric("💰 Bankroll", f"{st.session_state.moneda_sel} {st.session_state.bankroll_inicial + beneficio:,.2f}")
-    col2.metric("📊 P&L Neto", f"{st.session_state.moneda_sel} {beneficio:,.2f}")
+    col2.metric("📈 P&L Neto", f"{st.session_state.moneda_sel} {beneficio:,.2f}")
+    col3.metric("🎯 Yield / ROI", f"{yield_pct:+.2f}%")
+    col4.metric("🔥 Winrate", f"{winrate:.1f}%")
 
+    st.markdown("---")
+    st.subheader("📉 Evolución del Capital")
+
+    if not df_cerradas.empty:
+        df_chart = df_cerradas.sort_values('fecha').copy()
+        df_chart['Bankroll Acumulado'] = st.session_state.bankroll_inicial + df_chart['pnl'].cumsum()
+        
+        chart = alt.Chart(df_chart).mark_line(color='#10B981', strokeWidth=3, point=True).encode(
+            x=alt.X('fecha:T', title='Fecha'),
+            y=alt.Y('Bankroll Acumulado:Q', title=f'Capital ({st.session_state.moneda_sel})', scale=alt.Scale(zero=False)),
+            tooltip=['fecha:T', 'seleccion:N', 'Bankroll Acumulado:Q', 'pnl:Q']
+        ).properties(height=300)
+        
+        st.altair_chart(chart, use_container_width=True)
+    else:
+        st.info("Cierra al menos una apuesta para ver el gráfico de evolución.")
+
+    st.markdown("---")
     if st.button("🗑️ Limpiar Historial"):
         supabase.table("apuestas").delete().eq("user_id", user_id).execute()
         st.session_state.historial_apuestas = cargar_apuestas()
