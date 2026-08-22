@@ -70,10 +70,14 @@ with st.sidebar:
 # --- PANEL DE RESULTADOS (CERRAR APUESTAS) ---
 st.subheader("🏁 Cerrar Apuesta")
 try:
-    response = supabase.table("apuestas").select("*").eq("user_id", user_id).eq("estado", "Pendiente").execute()
-    pendientes = response.data if response.data else []
-except Exception:
-    pendientes = []
+    response = supabase.table("apuestas").select("*").eq("user_id", user_id).execute()
+    todas_las_apuestas = response.data if response.data else []
+except Exception as e:
+    todas_las_apuestas = []
+    st.error(f"Error al conectar con la base de datos: {e}")
+
+# Filtramos solo las pendientes para el selector de arriba
+pendientes = [a for a in todas_las_apuestas if a.get('estado') == "Pendiente"]
 
 if pendientes:
     df_pendientes = pd.DataFrame(pendientes)
@@ -87,30 +91,35 @@ if pendientes:
         st.write("")
         st.write("")
         if st.button("Actualizar Resultado", use_container_width=True):
-            apuesta = df_pendientes[df_pendientes['id'] == apuesta_id].iloc[0]
-            pnl = (apuesta['stake'] * (apuesta['cuota'] - 1)) if resultado == "Ganada" else -apuesta['stake']
-            
-            # --- CORRECCIÓN: Actualizamos solo el estado y el PnL sin tocar el user_id ---
-            supabase.table("apuestas").update({
-                "estado": resultado, 
-                "pnl": pnl
-            }).eq("id", apuesta_id).execute()
-            
-            st.success("¡Apuesta actualizada con éxito!")
-            st.rerun()
+            try:
+                apuesta = df_pendientes[df_pendientes['id'] == apuesta_id].iloc[0]
+                pnl = (float(apuesta['stake']) * (float(apuesta['cuota']) - 1)) if resultado == "Ganada" else -float(apuesta['stake'])
+                
+                # Ejecutamos el Update
+                supabase.table("apuestas").update({
+                    "estado": resultado, 
+                    "pnl": float(pnl)
+                }).eq("id", int(apuesta_id)).execute()
+                
+                st.success("¡Apuesta actualizada con éxito!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error al actualizar: {e}")
 else:
     st.info("No tienes apuestas pendientes por cerrar.")
 
 # --- DASHBOARD DE MÉTRICAS Y GRÁFICO ---
 st.markdown("---")
-try:
-    res = supabase.table("apuestas").select("*").eq("user_id", user_id).order("id", asc=True).execute()
-    df = pd.DataFrame(res.data) if res.data else pd.DataFrame()
-except Exception:
-    df = pd.DataFrame()
 
-if not df.empty:
-    df_cerradas = df[df['estado'].isin(['Ganada', 'Perdida'])].copy()
+if todas_las_apuestas:
+    df = pd.DataFrame(todas_las_apuestas)
+    
+    # Diagnóstico visual para salir de dudas
+    with st.expander("🔍 Ver datos en bruto (Diagnóstico)"):
+        st.write(df)
+
+    # Filtramos cerradas (ignorando mayúsculas/minúsculas por seguridad)
+    df_cerradas = df[df['estado'].str.capitalize().isin(['Ganada', 'Perdida'])].copy()
     
     total_pnl = df_cerradas['pnl'].astype(float).sum() if not df_cerradas.empty else 0.0
     bank_actual = bank_inicial + total_pnl
@@ -120,7 +129,7 @@ if not df.empty:
     col2.metric("💰 Beneficio PnL", f"{total_pnl:,.2f} $")
     
     total_cerradas = len(df_cerradas)
-    ganadas = len(df_cerradas[df_cerradas['estado']=='Ganada'])
+    ganadas = len(df_cerradas[df_cerradas['estado'].str.capitalize() == 'Ganada'])
     winrate = (ganadas / total_cerradas) * 100 if total_cerradas > 0 else 0
     col3.metric("🎯 Winrate", f"{winrate:.1f}%")
     
@@ -134,4 +143,4 @@ if not df.empty:
     st.subheader("Historial Completo")
     st.dataframe(df.sort_values(by="id", ascending=False), use_container_width=True, hide_index=True)
 else:
-    st.write("Aún no tienes historial de apuestas.")
+    st.write("Aún no tienes historial de apuestas registrado.")
