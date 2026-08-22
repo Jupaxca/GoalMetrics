@@ -2,85 +2,135 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# Configuración de la página principal
-st.set_page_config(page_title="GoalMetrics - Equipos", layout="wide")
+st.set_page_config(page_title="GoalMetrics - Jugadores", layout="wide")
 
-# Título y encabezado principal
-st.title("⚽ GoalMetrics FOOTBALL ANALYTICS")
-st.markdown("Plataforma avanzada de simulación estadística y predicción de rendimiento deportivo.")
+st.title("🎯 Centro de Análisis Individual de Jugadores")
+st.markdown("Evaluación estadística de rendimiento personal, rachas y líneas de estudio.")
 st.markdown("---")
 
-# Carga automática de datos desde tu Google Sheet (puedes ajustar el link si es otra hoja o la misma)
 @st.cache_data
-def cargar_datos_equipos():
+def cargar_datos_jugadores():
     url = "https://docs.google.com/spreadsheets/d/1q98g-IxYaO8g3ksDb0vyZ9V7IrhPjDcVUtChZI8SNT4/export?format=csv"
-    return pd.read_csv(url)
+    df = pd.read_csv(url)
+    df.columns = df.columns.str.strip()
+    return df
 
-# Intentar cargar los datos para alimentar los selectores de la barra lateral
 try:
-    df_equipos = cargar_datos_equipos()
-    df_equipos.columns = df_equipos.columns.str.strip()
-    datos_cargados = True
-except Exception as e:
-    datos_cargados = False
+    df = cargar_datos_jugadores()
+    datos_ok = True
+except:
+    datos_ok = False
+    df = pd.DataFrame()
 
-# Sidebar - Configuración de Análisis
-st.sidebar.header("⚙️ Configuración de Análisis")
+# Sidebar - Líneas de Estudio / Apuesta y Filtros Individuales
+st.sidebar.header("🎯 Líneas de Estudio / Jugador")
 
-if datos_cargados and not df_equipos.empty:
-    # Poblar los selectores dinámicamente con los datos reales de tu archivo
-    equipos_lista = df_equipos['Equipo'].unique().tolist()
-    equipo_seleccionado = st.sidebar.selectbox("🏟️ Selecciona el Equipo", equipos_lista)
-
-    condiciones_lista = df_equipos['Condición'].unique().tolist() if 'Condición' in df_equipos.columns else ["Local", "Visitante"]
-    condicion = st.sidebar.selectbox("📍 Condición", condiciones_lista)
-
-    niveles_lista = df_equipos['Nivel Rival'].unique().tolist() if 'Nivel Rival' in df_equipos.columns else ["TOP", "CHAMPIONS", "MEDIA TABLA", "DESCENSO"]
-    nivel_rival = st.sidebar.selectbox("⭐ Torneo / Nivel del Rival", niveles_lista)
+if datos_ok and not df.empty:
+    jugadores = df['Equipo'].unique().tolist()
+    jugador_sel = st.sidebar.selectbox("👤 Selecciona al Jugador", jugadores)
+    
+    condiciones = df['Condición'].unique().tolist() if 'Condición' in df.columns else ["Local", "Visitante"]
+    condicion_sel = st.sidebar.selectbox("📍 Condición", condiciones)
+    
+    niveles = df['Nivel Rival'].unique().tolist() if 'Nivel Rival' in df.columns else ["TOP", "CHAMPIONS", "MEDIA TABLA", "DESCENSO"]
+    nivel_sel = st.sidebar.selectbox("⭐ Nivel del Rival", niveles)
 else:
-    # Opciones por defecto si ocurre algún error de lectura
-    equipo_seleccionado = st.sidebar.selectbox("🏟️ Selecciona el Equipo", ["Arsenal", "Benfica"])
-    condicion = st.sidebar.selectbox("📍 Condición", ["Local", "Visitante"])
-    nivel_rival = st.sidebar.selectbox("⭐ Torneo / Nivel del Rival", ["TOP", "CHAMPIONS", "MEDIA TABLA", "DESCENSO"])
+    jugador_sel = st.sidebar.selectbox("👤 Selecciona al Jugador", ["Tzolis", "Odegard"])
+    condicion_sel = st.sidebar.selectbox("📍 Condición", ["Local", "Visitante"])
+    nivel_sel = st.sidebar.selectbox("⭐ Nivel del Rival", ["DESCENSO"])
 
 st.sidebar.markdown("---")
+st.sidebar.subheader("📊 Sliders de Líneas a Evaluar")
 
-# Botones de acción principales en la interfaz
-col_btn1, col_btn2, col3 = st.columns([1, 1, 2])
-with col_btn1:
+# Sliders idénticos al estilo de líneas de apuesta/estudio
+linea_goles = st.sidebar.slider("⚽ Línea de Goles", 0.0, 3.0, 0.5, 0.5)
+linea_tiros = st.sidebar.slider("🎯 Línea de Tiros Totales", 0.0, 10.0, 2.5, 0.5)
+linea_puerta = st.sidebar.slider("🥅 Línea de Tiros a Puerta", 0.0, 5.0, 1.5, 0.5)
+linea_asist = st.sidebar.slider("👟 Línea de Asistencias", 0.0, 2.0, 0.5, 0.5)
+linea_faltas = st.sidebar.slider("⚠️ Línea de Faltas", 0.0, 5.0, 1.0, 0.5)
+
+st.sidebar.markdown("---")
+col_b1, col_b2 = st.sidebar.columns(2)
+with col_b1:
     analizar = st.button("⚡ Analizar", type="primary")
-with col_btn2:
+with col_b2:
     limpiar = st.button("🧹 Limpiar")
+
+# Filtrar datos del jugador seleccionado en el Google Sheet
+if datos_ok and not df.empty:
+    df_jugador = df[df['Equipo'] == jugador_sel]
+    df_filtrado = df_jugador[
+        (df_jugador['Condición'] == condicion_sel) & 
+        (df_jugador['Nivel Rival'] == nivel_sel)
+    ]
+else:
+    df_jugador = pd.DataFrame()
+    df_filtrado = pd.DataFrame()
 
 # Lógica al presionar Analizar
 if analizar:
     st.markdown("---")
-    st.subheader(f"📊 Resultados de Simulación: {equipo_seleccionado} ({condicion}) vs Nivel {nivel_rival}")
+    st.subheader(f"📈 Análisis Estadístico Individual: {jugador_sel} ({condicion_sel}) vs {nivel_sel}")
     
-    # Métricas de rendimiento
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Probabilidad de Victoria", "68.5%")
-    m2.metric("Goles Esperados (xG)", "1.92")
-    m3.metric("Tiros a Puerta Promedio", "6.4")
-    m4.metric("Nivel de Confianza", "94%")
+    # Métricas puramente personales
+    total_partidos = len(df_jugador)
+    goles_tot = df_jugador['Goles'].sum() if not df_jugador.empty and 'Goles' in df_jugador.columns else 0
+    asist_tot = df_jugador['Asistencias'].sum() if not df_jugador.empty and 'Asistencias' in df_jugador.columns else 0
+    tiros_prom = df_jugador['Tiros'].mean() if not df_jugador.empty and 'Tiros' in df_jugador.columns else 0
+    puerta_prom = df_jugador['A Puerta'].mean() if not df_jugador.empty and 'A Puerta' in df_jugador.columns else 0
+    faltas_prom = df_jugador['Faltas'].mean() if not df_jugador.empty and 'Faltas' in df_jugador.columns else 0
+    amarillas_tot = df_jugador['Amarillas'].sum() if not df_jugador.empty and 'Amarillas' in df_jugador.columns else 0
+    rojas_tot = df_jugador['Rojas'].sum() if not df_jugador.empty and 'Rojas' in df_jugador.columns else 0
+
+    # Tarjetas de Estadísticas Individuales (KPIs)
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Goles Totales", int(goles_tot))
+    k2.metric("Asistencias", int(asist_tot))
+    k3.metric("Promedio de Tiros", f"{tiros_prom:.1f}")
+    k4.metric("Tiros a Puerta Prom.", f"{puerta_prom:.1f}")
+
+    k5, k6, k7, k8 = st.columns(4)
+    k5.metric("Promedio de Faltas", f"{faltas_prom:.1f}")
+    k6.metric("Amarillas", int(amarillas_tot))
+    k7.metric("Rojas", int(rojas_tot))
+    k8.metric("Partidos Registrados", total_partidos)
+
+    # Motor de Racha y Probabilidad para el siguiente partido
+    st.markdown("---")
+    st.subheader("⚡ Probabilidad y Análisis de Racha para el Siguiente Partido")
     
-    # Gráfica de simulación interactiva
-    data_ejemplo = pd.DataFrame({
-        "Indicador": ["Efectividad de Tiros", "Control de Partido", "Presión Alta", "Conversión"],
-        "Porcentaje (%)": [72, 65, 80, 55]
-    })
+    contribuciones = goles_tot + asist_tot
+    ratio_contribucion = total_partidos / contribuciones if contribuciones > 0 else 99
     
-    fig = px.bar(
-        data_ejemplo, 
-        x="Indicador", 
-        y="Porcentaje (%)", 
-        title="Desempeño Proyectado por el Motor Estadístico",
-        color="Indicador",
-        color_discrete_sequence=['#FF4B4B', '#00CC96', '#636EFA', '#FFA15A']
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    # Conteo de partidos consecutivos sin marcar ni asistir
+    racha_seca = 0
+    if not df_jugador.empty:
+        for _, row in reversed(list(df_jugador.iterrows())):
+            if row['Goles'] == 0 and row['Asistencias'] == 0:
+                racha_seca += 1
+            else:
+                break
+
+    # Definir si la probabilidad es alta por acumulación de partidos sin sumar
+    if racha_seca >= ratio_contribucion:
+        st.success(f"🔥 **ALTA PROBABILIDAD DE APORTE:** El jugador acumula **{racha_seca} partidos** sin sumar gol ni asistencia, superando su media histórica de una contribución cada **{ratio_contribucion:.1f} partidos**.")
+    else:
+        st.info(f"ℹ️ **ESTADO NORMAL:** Lleva **{racha_seca} partidos** sin sumar. Su promedio indica una contribución cada **{ratio_contribucion:.1f} partidos**.")
+
+    # Gráfica de rendimiento individual por nivel de rival
+    if not df_jugador.empty:
+        st.markdown("---")
+        fig = px.bar(
+            df_jugador,
+            x='Nivel Rival',
+            y=['Goles', 'Tiros', 'A Puerta', 'Asistencias'],
+            barmode='group',
+            title=f"Historial de Rendimiento Personal - {jugador_sel}",
+            color_discrete_sequence=['#FF4B4B', '#00CC96', '#636EFA', '#FFA15A']
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
 elif limpiar:
-    st.info("🧹 Los filtros y resultados han sido restablecidos. Selecciona los parámetros en la barra lateral y presiona Analizar.")
+    st.info("🧹 Los filtros y líneas han sido restablecidos.")
 else:
-    st.info("⚠️ Configura los parámetros en la barra lateral y presiona **Analizar** para ejecutar la simulación del equipo.")
+    st.info("👈 Configura las líneas de estudio en la barra lateral y presiona **Analizar** para evaluar las estadísticas individuales.")
