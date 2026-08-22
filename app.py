@@ -6,20 +6,20 @@ st.set_page_config(
     layout="wide"
 )
 
-# Definimos las páginas del menú lateral con nombres limpios e iconos
-panel_principal = st.Page(
+# Definimos las páginas con los nombres exactos para la barra lateral
+analisis_equipos = st.Page(
     "pages/panel_principal.py", 
-    title="Panel Táctico", 
+    title="Analisis equipos", 
     icon="📊", 
     default=True
 )
 
 analisis_jugadores = st.Page(
     "pages/analisis_jugadores.py", 
-    title="Análisis de Jugadores", 
+    title="Analisis jugadores", 
     icon="👥"
 )
 
 # Creamos y ejecutamos la navegación oficial
-pg = st.navigation([panel_principal, analisis_jugadores])
+pg = st.navigation([analisis_equipos, analisis_jugadores])
 pg.run()
