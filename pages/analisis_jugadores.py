@@ -6,7 +6,7 @@ import plotly.express as px
 st.set_page_config(page_title="GoalMetrics - Jugadores", layout="wide")
 
 st.title("🎯 Centro de Análisis Individual de Jugadores")
-st.markdown("Evaluación estadística con ponderación de forma reciente, tasas de acierto y simulador de combinadas.")
+st.markdown("Evaluación estadística con ponderación de forma reciente y tasas de acierto.")
 st.markdown("---")
 
 @st.cache_data(ttl=600)
@@ -15,11 +15,9 @@ def cargar_datos_jugadores():
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip()
     
-    # Si la columna se llama Equipo, la renombramos a Jugador
     if 'Jugador' not in df.columns and 'Equipo' in df.columns:
         df = df.rename(columns={'Equipo': 'Jugador'})
     
-    # Fecha en formato día/mes/año
     if 'Fecha' in df.columns:
         df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True, errors='coerce')
     
@@ -95,7 +93,6 @@ if analizar:
     st.markdown("---")
     st.subheader(f"📈 Análisis Individual: **{jugador_sel}** ({condicion_sel} vs {nivel_sel})")
     
-    # KPIs generales
     total_partidos = len(df_jugador)
     goles_tot = df_jugador['Goles'].sum() if 'Goles' in df_jugador.columns else 0
     asist_tot = df_jugador['Asistencias'].sum() if 'Asistencias' in df_jugador.columns else 0
@@ -120,7 +117,6 @@ if analizar:
     st.markdown("---")
     st.subheader("📊 Simulación Monte Carlo (Ponderación de Forma Reciente)")
 
-    # ===== MÍNIMO 2 PARTIDOS =====
     historial = pd.DataFrame()
     fuente = ""
 
@@ -148,7 +144,6 @@ if analizar:
     if len(historial) >= 1:
         n_rows = len(historial)
         
-        # Pesos temporales
         if 'Fecha' in historial.columns:
             hoy = pd.Timestamp.today()
             dias = (hoy - historial['Fecha']).dt.days.clip(lower=0.1)
@@ -159,7 +154,7 @@ if analizar:
 
         n_simulaciones = 5000
 
-        # ===== CORRECCIÓN: Poisson cuando hay pocos partidos =====
+        # Poisson cuando hay pocos partidos (evita solo 0% o 100%)
         if n_rows <= 3:
             lam_goles = np.average(historial['Goles'], weights=pesos)
             lam_tiros = np.average(historial['Tiros'], weights=pesos)
@@ -179,14 +174,12 @@ if analizar:
             sim_asist = np.random.choice(historial['Asistencias'].values, size=n_simulaciones, replace=True, p=pesos)
             sim_faltas = np.random.choice(historial['Faltas'].values, size=n_simulaciones, replace=True, p=pesos)
 
-        # Probabilidades Monte Carlo
         prob_goles = (sim_goles > linea_goles).mean() * 100
         prob_tiros = (sim_tiros > linea_tiros).mean() * 100
         prob_puerta = (sim_puerta > linea_puerta).mean() * 100
         prob_asist = (sim_asist > linea_asist).mean() * 100
         prob_faltas = (sim_faltas > linea_faltas).mean() * 100
 
-        # Acierto real histórico
         real_goles = (historial['Goles'] > linea_goles).mean() * 100
         real_tiros = (historial['Tiros'] > linea_tiros).mean() * 100
         real_puerta = (historial['A Puerta'] > linea_puerta).mean() * 100
@@ -210,43 +203,6 @@ if analizar:
             
             st.markdown(f"⚠️ **Más de {linea_faltas} Faltas**")
             st.markdown(f"### `{prob_faltas:.1f}%`  \n*(Acierto real: {real_faltas:.0f}%)*")
-
-        # ===== ARMADOR DE COMBINADAS (CORREGIDO) =====
-        st.markdown("---")
-        st.subheader("🎟️ Armador de Combinadas (Ticket de Estudio)")
-        st.markdown("Selecciona las líneas que deseas combinar:")
-
-        c_t1, c_t2, c_t3, c_t4, c_t5 = st.columns(5)
-        sel_g = c_t1.checkbox("Goles", key="ticket_goles")
-        sel_t = c_t2.checkbox("Tiros", key="ticket_tiros")
-        sel_p = c_t3.checkbox("A Puerta", key="ticket_puerta")
-        sel_a = c_t4.checkbox("Asistencias", key="ticket_asist")
-        sel_f = c_t5.checkbox("Faltas", key="ticket_faltas")
-
-        prob_combinada = 1.0
-        activas = 0
-        if sel_g: 
-            prob_combinada *= (prob_goles / 100)
-            activas += 1
-        if sel_t: 
-            prob_combinada *= (prob_tiros / 100)
-            activas += 1
-        if sel_p: 
-            prob_combinada *= (prob_puerta / 100)
-            activas += 1
-        if sel_a: 
-            prob_combinada *= (prob_asist / 100)
-            activas += 1
-        if sel_f: 
-            prob_combinada *= (prob_faltas / 100)
-            activas += 1
-
-        if activas > 0:
-            pct_combinado = prob_combinada * 100
-            st.success(f"🔥 **Probabilidad Conjunta del Ticket ({activas} selecciones):** `{pct_combinado:.2f}%`")
-            st.caption("Nota: se asume independencia entre las líneas (aproximación).")
-        else:
-            st.info("ℹ️ Selecciona al menos una casilla para armar tu combinada.")
 
     # ===== RACHA =====
     st.markdown("---")
