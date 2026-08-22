@@ -28,18 +28,12 @@ with st.sidebar:
     st.header("➕ Nueva Apuesta")
     with st.form("nueva_apuesta", clear_on_submit=True):
         evento = st.text_input("Evento / Partido")
+        seleccion = st.text_input("Selección (ej: Real Madrid, Más de 2.5)")
         
         opciones_mercado = [
-            "Ganador (1X2)", 
-            "Doble Oportunidad", 
-            "Ambos Marcan (BTTS)", 
-            "Over/Under Goles", 
-            "Over/Under Córners", 
-            "Hándicap Asiático", 
-            "Hándicap Europeo", 
-            "Tarjetas", 
-            "Resultado Exacto", 
-            "Otro"
+            "Ganador (1X2)", "Doble Oportunidad", "Ambos Marcan (BTTS)", 
+            "Over/Under Goles", "Over/Under Córners", "Hándicap Asiático", 
+            "Hándicap Europeo", "Tarjetas", "Resultado Exacto", "Otro"
         ]
         mercado = st.selectbox("Mercado", opciones_mercado)
         
@@ -47,19 +41,22 @@ with st.sidebar:
         stake = st.number_input("Stake ($)", min_value=1.0, step=0.5)
         
         if st.form_submit_button("Guardar Apuesta"):
-            if not evento:
-                st.error("El evento es obligatorio.")
+            if not evento or not seleccion:
+                st.error("El evento y la selección son obligatorios.")
             else:
                 try:
+                    # Incluimos TODOS los campos obligatorios
                     data = {
                         "user_id": user_id,
                         "evento": evento,
+                        "seleccion": seleccion,
                         "mercado": mercado,
                         "cuota": float(cuota),
                         "stake": float(stake),
                         "estado": "Pendiente",
                         "pnl": 0.0,
-                        "fecha": str(datetime.date.today())  # <--- AQUÍ ENVIAMOS LA FECHA ACTUAL
+                        "fecha": str(datetime.date.today()),
+                        "created_at": datetime.datetime.now().isoformat() # <--- LA CLAVE
                     }
                     supabase.table("apuestas").insert(data).execute()
                     st.success("¡Apuesta registrada!")
@@ -67,7 +64,7 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Error al guardar: {e}")
 
-# --- PANEL DE RESULTADOS (CERRAR APUESTAS) ---
+# --- RESTO DEL CÓDIGO (NO CAMBIA) ---
 st.subheader("🏁 Cerrar Apuesta")
 try:
     response = supabase.table("apuestas").select("*").eq("user_id", user_id).eq("estado", "Pendiente").execute()
@@ -79,7 +76,7 @@ if pendientes:
     df_pendientes = pd.DataFrame(pendientes)
     cols = st.columns([2, 1, 1])
     with cols[0]:
-        apuesta_id = st.selectbox("Selecciona la apuesta a cerrar:", df_pendientes['id'].tolist(), format_func=lambda x: f"{df_pendientes[df_pendientes['id']==x]['evento'].values[0]} ({df_pendientes[df_pendientes['id']==x]['mercado'].values[0]})")
+        apuesta_id = st.selectbox("Selecciona la apuesta a cerrar:", df_pendientes['id'].tolist(), format_func=lambda x: f"{df_pendientes[df_pendientes['id']==x]['evento'].values[0]} ({df_pendientes[df_pendientes['id']==x]['seleccion'].values[0]})")
     with cols[1]:
         resultado = st.selectbox("Resultado", ["Ganada", "Perdida"])
     
@@ -95,7 +92,7 @@ if pendientes:
 else:
     st.info("No tienes apuestas pendientes por cerrar.")
 
-# --- DASHBOARD DE MÉTRICAS Y GRÁFICO ---
+# --- DASHBOARD ---
 st.markdown("---")
 try:
     res = supabase.table("apuestas").select("*").eq("user_id", user_id).order("id", asc=True).execute()
@@ -105,24 +102,17 @@ except Exception:
 
 if not df.empty:
     df_cerradas = df[df['estado'].isin(['Ganada', 'Perdida'])].copy()
-    
     if not df_cerradas.empty:
         df_cerradas['acumulado'] = df_cerradas['pnl'].astype(float).cumsum()
-        
         col1, col2 = st.columns(2)
         col1.metric("💰 Balance Total (PnL)", f"{df_cerradas['pnl'].astype(float).sum():,.2f} $")
-        
         total_cerradas = len(df_cerradas)
         ganadas = len(df_cerradas[df_cerradas['estado']=='Ganada'])
         winrate = (ganadas / total_cerradas) * 100 if total_cerradas > 0 else 0
         col2.metric("🎯 Winrate", f"{winrate:.1f}%")
-        
         st.subheader("📊 Curva de Rendimiento")
         st.line_chart(df_cerradas['acumulado'])
     else:
-        st.info("Cierra tu primera apuesta para ver la curva de rendimiento y las métricas.")
-
+        st.info("Cierra tu primera apuesta para ver la curva de rendimiento.")
     st.subheader("Historial Completo")
     st.dataframe(df.sort_values(by="id", ascending=False), use_container_width=True, hide_index=True)
-else:
-    st.write("Aún no tienes historial de apuestas.")
