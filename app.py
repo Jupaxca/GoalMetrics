@@ -21,7 +21,6 @@ if 'user' not in st.session_state:
 if st.session_state.user is None:
     st.markdown("## 🔐 GoalMetrics · Acceso de Usuarios")
     
-    # Ahora usamos 3 pestañas
     tab1, tab2, tab3 = st.tabs(["Iniciar Sesión", "Registrarse", "Recuperar Clave"])
     
     with tab1:
@@ -54,7 +53,6 @@ if st.session_state.user is None:
             email_reset = st.text_input("Correo de la cuenta")
             if st.form_submit_button("Enviar enlace de recuperación", use_container_width=True):
                 try:
-                    # Esta es la función mágica de Supabase
                     supabase.auth.reset_password_for_email(email_reset)
                     st.success("¡Correo enviado! Revisa tu bandeja de entrada.")
                 except Exception as e:
@@ -66,10 +64,11 @@ if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
     st.session_state.user = None
     st.rerun()
 
-# Páginas
+# Definir las páginas oficiales (Incluyendo el nuevo Coach IA)
 analisis_equipos = st.Page("pages/Analisis_equipos.py", title="Analisis equipos", icon="📊", default=True)
 analisis_jugadores = st.Page("pages/analisis_jugadores.py", title="Analisis jugadores", icon="👥")
 tracker_apuestas = st.Page("pages/tracker_apuestas.py", title="Tracker de Apuestas", icon="📈")
+coach_ia = st.Page("pages/coach_ia.py", title="Coach IA", icon="🤖")
 
-pg = st.navigation([analisis_equipos, analisis_jugadores, tracker_apuestas])
+pg = st.navigation([analisis_equipos, analisis_jugadores, tracker_apuestas, coach_ia])
 pg.run()
