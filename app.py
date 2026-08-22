@@ -61,7 +61,7 @@ if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
     st.rerun()
 
 # Definir las páginas oficiales
-analisis_equipos = st.Page("pages/panel_principal.py", title="Analisis equipos", icon="📊", default=True)
+analisis_equipos = st.Page("pages/Analisis_equipos.py", title="Analisis equipos", icon="📊", default=True)
 analisis_jugadores = st.Page("pages/analisis_jugadores.py", title="Analisis jugadores", icon="👥")
 tracker_apuestas = st.Page("pages/tracker_apuestas.py", title="Tracker de Apuestas", icon="📈")
 
