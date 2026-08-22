@@ -100,13 +100,13 @@ linea_faltas = st.sidebar.slider("🛑 Línea de Faltas", 5.0, 25.0, 10.5, 0.5)
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("💰 Cuotas de la Casa (Value Bet)")
-st.sidebar.caption("Escribe las cuotas que ves en la casa de apuestas")
+st.sidebar.caption("Escribe las cuotas principales que ves en la casa")
 
 cuota_casa_1 = st.sidebar.number_input("Cuota Real Victoria (1)", min_value=1.01, max_value=50.0, value=1.80, step=0.01, format="%.2f")
 cuota_casa_x = st.sidebar.number_input("Cuota Real Empate (X)", min_value=1.01, max_value=50.0, value=3.40, step=0.01, format="%.2f")
 cuota_casa_2 = st.sidebar.number_input("Cuota Real Derrota (2)", min_value=1.01, max_value=50.0, value=4.20, step=0.01, format="%.2f")
 cuota_casa_btts_si = st.sidebar.number_input("Cuota Real BTTS Sí", min_value=1.01, max_value=50.0, value=1.75, step=0.01, format="%.2f")
-cuota_casa_btts_no = st.sidebar.number_input("Cuota Real BTTS No", min_value=1.01, max_value=50.0, value=2.05, step=0.01, format="%.2f")
+cuota_casa_dnb = st.sidebar.number_input("Cuota Real DNB (Sin Empate)", min_value=1.01, max_value=50.0, value=1.35, step=0.01, format="%.2f")
 
 color_equipo = colores_equipos.get(equipo_sel, "#3B82F6")
 
@@ -167,7 +167,6 @@ if btn_analizar:
     historial = pd.DataFrame()
     fuente_datos = ""
     
-    # Mínimo 2 → usa TODOS. Si hay 1 → respaldo. Si hay 0 → error.
     if len(df_exactos) >= 2:
         historial = df_exactos.copy()
         fuente_datos = f"Exacto ({condicion_label} vs {nivel_sel}) — {len(historial)} partidos"
@@ -244,6 +243,14 @@ if btn_analizar:
 
     st.markdown(f'<div class="insight-box"><b>Veredicto GoalMetrics:</b> {veredicto}</div>', unsafe_allow_html=True)
 
+    # --- MÉTRICAS DE EXPECTATIVA (LAMBDAS) ---
+    st.markdown("#### 📐 Parámetros del Modelo (Expectativa Poisson)")
+    lm1, lm2, lm3, lm4 = st.columns(4)
+    lm1.metric("⚽ Goles Proyectados", f"{lam_f:.2f}")
+    lm2.metric("🛡️ Goles Rival Proyectados", f"{lam_c:.2f}")
+    lm3.metric("👟 Tiros Proyectados", f"{lam_t:.1f}")
+    lm4.metric("🚩 Córners Proyectados", f"{lam_co:.1f}")
+
     # ADN
     st.subheader("🧬 ADN del Equipo")
     renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa)
@@ -259,16 +266,18 @@ if btn_analizar:
     c6.metric("🛡️ Doble Oportunidad (X2)", f"{doble_x2:.1f}%")
     c7.metric("⚖️ Apuesta sin Empate (DNB)", f"{dnb:.1f}%")
     
-    # Cuotas Justas + Value Bet
+    # --- CUOTAS JUSTAS + VALUE BET AMPLIADO (1X2, BTTS, DNB, 1X, X2) ---
     st.markdown("---")
-    st.subheader("🎯 Cuotas Justas + Value Bet")
+    st.subheader("🎯 Cuotas Justas + Value Bet Pro")
     
     cuota_justa_1 = round(100 / triunfos, 2) if triunfos > 0 else 99.0
     cuota_justa_x = round(100 / empates, 2) if empates > 0 else 99.0
     cuota_justa_2 = round(100 / derrotas, 2) if derrotas > 0 else 99.0
     prob_btts_no = 100 - ambos_anotan
     cuota_justa_btts_si = round(100 / ambos_anotan, 2) if ambos_anotan > 0 else 99.0
-    cuota_justa_btts_no = round(100 / prob_btts_no, 2) if prob_btts_no > 0 else 99.0
+    cuota_justa_dnb = round(100 / dnb, 2) if dnb > 0 else 99.0
+    cuota_justa_1x = round(100 / doble_1x, 2) if doble_1x > 0 else 99.0
+    cuota_justa_x2 = round(100 / doble_x2, 2) if doble_x2 > 0 else 99.0
 
     def calcular_ev(prob_porcentaje, cuota_casa):
         if cuota_casa <= 1.0 or prob_porcentaje <= 0:
@@ -279,19 +288,20 @@ if btn_analizar:
     ev_x = calcular_ev(empates, cuota_casa_x)
     ev_2 = calcular_ev(derrotas, cuota_casa_2)
     ev_btts_si = calcular_ev(ambos_anotan, cuota_casa_btts_si)
-    ev_btts_no = calcular_ev(prob_btts_no, cuota_casa_btts_no)
+    ev_dnb = calcular_ev(dnb, cuota_casa_dnb)
 
     qc1, qc2, qc3 = st.columns(3)
     qc1.metric("Cuota Justa (1)", f"{cuota_justa_1}", delta=f"{triunfos:.1f}%")
     qc2.metric("Cuota Justa (X)", f"{cuota_justa_x}", delta=f"{empates:.1f}%")
     qc3.metric("Cuota Justa (2)", f"{cuota_justa_2}", delta=f"{derrotas:.1f}%")
 
-    qc4, qc5 = st.columns(2)
+    qc4, qc5, qc6 = st.columns(3)
     qc4.metric("Cuota Justa BTTS Sí", f"{cuota_justa_btts_si}", delta=f"{ambos_anotan:.1f}%")
-    qc5.metric("Cuota Justa BTTS No", f"{cuota_justa_btts_no}", delta=f"{prob_btts_no:.1f}%")
+    qc5.metric("Cuota Justa DNB", f"{cuota_justa_dnb}", delta=f"{dnb:.1f}%")
+    qc6.metric("Cuota Justa 1X", f"{cuota_justa_1x}", delta=f"{doble_1x:.1f}%")
 
     st.markdown("#### 💎 Análisis de Value Bet")
-    st.caption("EV positivo = la casa paga más de lo que proyecta el modelo → hay valor.")
+    st.caption("EV positivo = la casa paga más de lo que proyecta el modelo estadístico.")
 
     def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob):
         es_value = ev > 0
@@ -311,26 +321,35 @@ if btn_analizar:
     mostrar_value("Victoria (1)", cuota_justa_1, cuota_casa_1, ev_1, triunfos)
     mostrar_value("Empate (X)", cuota_justa_x, cuota_casa_x, ev_x, empates)
     mostrar_value("Derrota (2)", cuota_justa_2, cuota_casa_2, ev_2, derrotas)
-    mostrar_value("BTTS Sí", cuota_justa_btts_si, cuota_casa_btts_si, ev_btts_si, ambos_anotan)
-    mostrar_value("BTTS No", cuota_justa_btts_no, cuota_casa_btts_no, ev_btts_no, prob_btts_no)
+    mostrar_value("Apuesta sin Empate (DNB)", cuota_justa_dnb, cuota_casa_dnb, ev_dnb, dnb)
 
     st.markdown("---")
     
     def crear_grafico(serie, titulo):
+        serie = pd.Series(serie).dropna().astype(int)
+        if len(serie) == 0:
+            return None
+        conteo = serie.value_counts().sort_index()
         df_c = pd.DataFrame({
-            titulo: serie.value_counts().sort_index().index.astype(str),
-            'Prob (%)': (serie.value_counts().sort_index() / num_sim) * 100
+            titulo: conteo.index.astype(str),
+            'Prob (%)': (conteo / len(serie) * 100).round(1)
         })
-        return alt.Chart(df_c).mark_bar(color=color_equipo).encode(
-            x=alt.X(f"{titulo}:N", sort=None, labelAngle=0),
-            y=alt.Y('Prob (%):Q', format='.1f')
+        chart = alt.Chart(df_c).mark_bar(color=color_equipo).encode(
+            x=alt.X(f'{titulo}:N', sort=None, title=titulo),
+            y=alt.Y('Prob (%):Q', title='Probabilidad (%)'),
+            tooltip=[f'{titulo}:N', 'Prob (%):Q']
         ).properties(height=300)
+        return chart
 
     st.markdown("#### ⚽ Probabilidad de Goles a Favor")
-    st.altair_chart(crear_grafico(pd.Series(sg_fav), 'Goles'), use_container_width=True)
+    chart_goles = crear_grafico(pd.Series(sg_fav), 'Goles')
+    if chart_goles is not None:
+        st.altair_chart(chart_goles, use_container_width=True)
 
     st.markdown("#### 🚩 Probabilidad de Córners")
-    st.altair_chart(crear_grafico(pd.Series(s_corn).astype(int), 'Córners'), use_container_width=True)
+    chart_corners = crear_grafico(pd.Series(s_corn), 'Córners')
+    if chart_corners is not None:
+        st.altair_chart(chart_corners, use_container_width=True)
     
     st.markdown("---")
     
@@ -364,5 +383,3 @@ if btn_analizar:
                            'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas', 'Peso']
                 if c in h_mostrar.columns]
         st.dataframe(h_mostrar[cols], hide_index=True, use_container_width=True)
-        if len(historial) > 5:
-            st.caption(f"Se usaron {len(historial)} partidos en total (los más antiguos tienen menos peso).")
