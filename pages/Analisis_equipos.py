@@ -3,12 +3,8 @@ import pandas as pd
 import numpy as np
 import altair as alt
 from collections import Counter
-
-st.set_page_config(
-    page_title="GoalMetrics | Football Analytics",
-    page_icon="📊",
-    layout="wide"
-)
+import hashlib
+import colorsys
 
 # ====================== CARGA DE DATOS ======================
 @st.cache_data(ttl=600)
@@ -49,8 +45,8 @@ except Exception as e:
     st.error(f"⚠️ Error al cargar los datos: {e}")
     st.stop()
 
-# ====================== COLORES ======================
-colores_equipos = {
+# ====================== COLORES + GENERADOR DINÁMICO ======================
+colores_base_equipos = {
     "Palmeiras": "#006400", "Flamengo": "#C8102E", "Paranaense": "#CC0000",
     "Fluminense": "#8B0000", "Vasco": "#333333", "Arsenal": "#EF0107",
     "Aston villa": "#670E36", "Barcelona": "#A50044", "Bayern Munich": "#DC052D",
@@ -61,7 +57,16 @@ colores_equipos = {
     "Real Madrid": "#00529F"
 }
 
-# ====================== SIDEBAR (más ordenado) ======================
+def generar_color_equipo(nombre):
+    if nombre in colores_base_equipos:
+        return colores_base_equipos[nombre]
+    # Genera un color único y vibrante basado en el nombre del equipo
+    hash_val = int(hashlib.md5(nombre.encode('utf-8')).hexdigest(), 16)
+    hue = (hash_val % 360) / 360.0
+    rgb = colorsys.hsv_to_rgb(hue, 0.65, 0.85)
+    return f"#{int(rgb[0]*255):02x}{int(rgb[1]*255):02x}{int(rgb[2]*255):02x}"
+
+# ====================== SIDEBAR ======================
 st.sidebar.header("⚙️ Configuración")
 
 with st.sidebar.expander("🏟️ Partido", expanded=True):
@@ -111,7 +116,7 @@ with st.sidebar.expander("📈 Cuotas de Líneas (Over)"):
     cuota_over_corners = st.number_input(f"Over {linea_corners} Córners", min_value=1.01, value=1.90, step=0.01, format="%.2f")
     cuota_over_faltas = st.number_input(f"Over {linea_faltas} Faltas", min_value=1.01, value=1.85, step=0.01, format="%.2f")
 
-color_equipo = colores_equipos.get(equipo_sel, "#3B82F6")
+color_equipo = generar_color_equipo(equipo_sel)
 
 # ====================== CSS ======================
 st.markdown(f"""
@@ -140,7 +145,7 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# ====================== FUNCIÓN ADN ======================
+# ====================== FUNCIONES AUXILIARES ======================
 def renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa):
     val_ataque = min(round(lam_f * 3.33, 1), 10.0)
     val_tiros = min(round(lam_t / 2.5, 1), 10.0)
@@ -183,15 +188,31 @@ def calcular_ev(prob, cuota):
         return 0.0
     return round((prob / 100 * cuota) - 1, 4)
 
+def calcular_kelly(prob, cuota):
+    if cuota <= 1.0 or prob <= 0:
+        return 0.0
+    p = prob / 100.0
+    b = cuota - 1.0
+    if b <= 0:
+        return 0.0
+    kelly = (p * cuota - 1.0) / b
+    # Half-Kelly (50% de la fórmula de Kelly) para mayor seguridad en el bankroll
+    stake = max(0.0, kelly * 0.5 * 100)
+    return round(stake, 2)
+
 def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob):
     es_value = ev > 0
     clase = "value-yes" if es_value else "value-no"
     icono = "✅ VALUE" if es_value else "❌ Sin valor"
     color_ev = "#10b981" if es_value else "#9ca3af"
+    
+    stake_kelly = calcular_kelly(prob, cuota_casa) if es_value else 0.0
+    kelly_text = f" &nbsp;|&nbsp; Stake (Half-Kelly): <b>{stake_kelly}% del Bank</b>" if es_value else ""
+
     st.markdown(f"""
         <div class="value-box {clase}">
             <b>{nombre}</b><br>
-            Prob: <b>{prob:.1f}%</b> &nbsp;|&nbsp; Justa: <b>{cuota_justa}</b> &nbsp;|&nbsp; Casa: <b>{cuota_casa}</b><br>
+            Prob: <b>{prob:.1f}%</b> &nbsp;|&nbsp; Justa: <b>{cuota_justa}</b> &nbsp;|&nbsp; Casa: <b>{cuota_casa}</b>{kelly_text}<br>
             <span style="color:{color_ev}; font-weight:bold; font-size:15px;">
                 EV: {ev:+.2%} → {icono}
             </span>
@@ -200,7 +221,7 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob):
 
 # ====================== TÍTULO + BOTÓN ======================
 st.markdown("### 📊 GoalMetrics")
-st.caption("Simulación Monte Carlo · Cuotas justas · Value Bets")
+st.caption("Simulación Monte Carlo · Cuotas justas · Value Bets · Criterio de Kelly")
 
 col_btn1, col_btn2, _ = st.columns([1.2, 1, 4])
 with col_btn1:
@@ -325,7 +346,8 @@ if btn_analizar:
 
     # ----- TAB 2: VALUE BET -----
     with tab2:
-        st.subheader("💎 Value Bet · 1X2 / BTTS / DNB")
+        st.subheader("💎 Value Bet & Criterio de Kelly (Half-Kelly)")
+        st.caption("El Stake te indica qué porcentaje de tu capital arriesgar de forma óptima según la ventaja matemática.")
         
         cuota_justa_1 = round(100 / triunfos, 2) if triunfos > 0 else 99.0
         cuota_justa_x = round(100 / empates, 2) if empates > 0 else 99.0
