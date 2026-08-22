@@ -90,14 +90,13 @@ if pendientes:
             apuesta = df_pendientes[df_pendientes['id'] == apuesta_id].iloc[0]
             pnl = (apuesta['stake'] * (apuesta['cuota'] - 1)) if resultado == "Ganada" else -apuesta['stake']
             
-            # --- CORRECCIÓN AQUÍ: Incluimos user_id para que RLS no oculte la fila ---
+            # --- CORRECCIÓN: Actualizamos solo el estado y el PnL sin tocar el user_id ---
             supabase.table("apuestas").update({
                 "estado": resultado, 
-                "pnl": pnl,
-                "user_id": user_id
+                "pnl": pnl
             }).eq("id", apuesta_id).execute()
             
-            st.success("¡Apuesta actualizada!")
+            st.success("¡Apuesta actualizada con éxito!")
             st.rerun()
 else:
     st.info("No tienes apuestas pendientes por cerrar.")
