@@ -19,11 +19,8 @@ def cargar_datos():
     
     df.columns = df.columns.astype(str).str.strip()
     df = df.dropna(subset=['Equipo', 'Fecha', 'Condición', 'Nivel Rival'])
-    
-    # Formato día/mes/año
     df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True, errors='coerce')
     df = df.dropna(subset=['Fecha'])
-    
     df['Equipo'] = df['Equipo'].astype(str).str.strip()
     df['Condición'] = df['Condición'].astype(str).str.strip().str.lower()
     df['Nivel Rival'] = df['Nivel Rival'].astype(str).str.strip()
@@ -105,12 +102,23 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("💰 Cuotas de la Casa (Value Bet)")
 st.sidebar.caption("Escribe las cuotas que ves en la casa de apuestas")
 
+# Cuotas 1X2 y BTTS
 cuota_casa_1 = st.sidebar.number_input("Cuota Real Victoria (1)", min_value=1.01, max_value=50.0, value=1.80, step=0.01, format="%.2f")
 cuota_casa_x = st.sidebar.number_input("Cuota Real Empate (X)", min_value=1.01, max_value=50.0, value=3.40, step=0.01, format="%.2f")
 cuota_casa_2 = st.sidebar.number_input("Cuota Real Derrota (2)", min_value=1.01, max_value=50.0, value=4.20, step=0.01, format="%.2f")
 cuota_casa_btts_si = st.sidebar.number_input("Cuota Real BTTS Sí", min_value=1.01, max_value=50.0, value=1.75, step=0.01, format="%.2f")
 cuota_casa_btts_no = st.sidebar.number_input("Cuota Real BTTS No", min_value=1.01, max_value=50.0, value=2.05, step=0.01, format="%.2f")
-cuota_casa_dnb = st.sidebar.number_input("Cuota Real DNB (Sin Empate)", min_value=1.01, max_value=50.0, value=1.35, step=0.01, format="%.2f")
+cuota_casa_dnb = st.sidebar.number_input("Cuota Real DNB", min_value=1.01, max_value=50.0, value=1.35, step=0.01, format="%.2f")
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("📈 Cuotas de las Líneas (Over)")
+st.sidebar.caption("Cuota de 'Más de' que ves en la casa")
+
+cuota_over_goles = st.sidebar.number_input(f"Cuota Over {linea_goles} Goles", min_value=1.01, max_value=50.0, value=1.90, step=0.01, format="%.2f")
+cuota_over_tiros = st.sidebar.number_input(f"Cuota Over {linea_tiros} Tiros", min_value=1.01, max_value=50.0, value=1.85, step=0.01, format="%.2f")
+cuota_over_puerta = st.sidebar.number_input(f"Cuota Over {linea_tiros_puerta} a Puerta", min_value=1.01, max_value=50.0, value=1.80, step=0.01, format="%.2f")
+cuota_over_corners = st.sidebar.number_input(f"Cuota Over {linea_corners} Córners", min_value=1.01, max_value=50.0, value=1.90, step=0.01, format="%.2f")
+cuota_over_faltas = st.sidebar.number_input(f"Cuota Over {linea_faltas} Faltas", min_value=1.01, max_value=50.0, value=1.85, step=0.01, format="%.2f")
 
 color_equipo = colores_equipos.get(equipo_sel, "#3B82F6")
 
@@ -152,7 +160,7 @@ def renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa):
 
     st.altair_chart(chart, use_container_width=True)
 
-# ====================== TÍTULO PRINCIPAL ======================
+# ====================== TÍTULO ======================
 st.title("📊 GoalMetrics | Panel de Análisis Táctico")
 st.markdown("Simulación de Monte Carlo, cuotas justas y detección de Value Bets.")
 st.markdown("---")
@@ -236,6 +244,13 @@ if btn_analizar:
     doble_x2 = derrotas + empates
     tot_sin_emp = triunfos + derrotas
     dnb = (triunfos / tot_sin_emp * 100) if tot_sin_emp > 0 else 50.0
+
+    # Probabilidades de las líneas
+    prob_over_goles = (sg_fav > linea_goles).mean() * 100
+    prob_over_tiros = (s_tir > linea_tiros).mean() * 100
+    prob_over_puerta = (s_tpuerta > linea_tiros_puerta).mean() * 100
+    prob_over_corners = (s_corn > linea_corners).mean() * 100
+    prob_over_faltas = (s_faltas > linea_faltas).mean() * 100
     
     marcadores = [f"{f}-{c}" for f, c in zip(sg_fav, sg_con)]
     conteo = Counter(marcadores)
@@ -271,8 +286,9 @@ if btn_analizar:
     c6.metric("🛡️ Doble Oportunidad (X2)", f"{doble_x2:.1f}%")
     c7.metric("⚖️ Apuesta sin Empate (DNB)", f"{dnb:.1f}%")
     
+    # ====================== VALUE BET 1X2 + BTTS + DNB ======================
     st.markdown("---")
-    st.subheader("🎯 Cuotas Justas + Value Bet Pro")
+    st.subheader("🎯 Cuotas Justas + Value Bet (1X2 / BTTS / DNB)")
     
     cuota_justa_1 = round(100 / triunfos, 2) if triunfos > 0 else 99.0
     cuota_justa_x = round(100 / empates, 2) if empates > 0 else 99.0
@@ -281,7 +297,6 @@ if btn_analizar:
     cuota_justa_btts_si = round(100 / ambos_anotan, 2) if ambos_anotan > 0 else 99.0
     cuota_justa_btts_no = round(100 / prob_btts_no, 2) if prob_btts_no > 0 else 99.0
     cuota_justa_dnb = round(100 / dnb, 2) if dnb > 0 else 99.0
-    cuota_justa_1x = round(100 / doble_1x, 2) if doble_1x > 0 else 99.0
 
     def calcular_ev(prob_porcentaje, cuota_casa):
         if cuota_casa <= 1.0 or prob_porcentaje <= 0:
@@ -294,19 +309,6 @@ if btn_analizar:
     ev_btts_si = calcular_ev(ambos_anotan, cuota_casa_btts_si)
     ev_btts_no = calcular_ev(prob_btts_no, cuota_casa_btts_no)
     ev_dnb = calcular_ev(dnb, cuota_casa_dnb)
-
-    qc1, qc2, qc3 = st.columns(3)
-    qc1.metric("Cuota Justa (1)", f"{cuota_justa_1}", delta=f"{triunfos:.1f}%")
-    qc2.metric("Cuota Justa (X)", f"{cuota_justa_x}", delta=f"{empates:.1f}%")
-    qc3.metric("Cuota Justa (2)", f"{cuota_justa_2}", delta=f"{derrotas:.1f}%")
-
-    qc4, qc5, qc6 = st.columns(3)
-    qc4.metric("Cuota Justa BTTS Sí", f"{cuota_justa_btts_si}", delta=f"{ambos_anotan:.1f}%")
-    qc5.metric("Cuota Justa BTTS No", f"{cuota_justa_btts_no}", delta=f"{prob_btts_no:.1f}%")
-    qc6.metric("Cuota Justa DNB", f"{cuota_justa_dnb}", delta=f"{dnb:.1f}%")
-
-    st.markdown("#### 💎 Análisis de Value Bet")
-    st.caption("EV positivo = la casa paga más de lo que proyecta el modelo estadístico.")
 
     def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob):
         es_value = ev > 0
@@ -328,7 +330,29 @@ if btn_analizar:
     mostrar_value("Derrota (2)", cuota_justa_2, cuota_casa_2, ev_2, derrotas)
     mostrar_value("BTTS Sí", cuota_justa_btts_si, cuota_casa_btts_si, ev_btts_si, ambos_anotan)
     mostrar_value("BTTS No", cuota_justa_btts_no, cuota_casa_btts_no, ev_btts_no, prob_btts_no)
-    mostrar_value("Apuesta sin Empate (DNB)", cuota_justa_dnb, cuota_casa_dnb, ev_dnb, dnb)
+    mostrar_value("DNB (Sin Empate)", cuota_justa_dnb, cuota_casa_dnb, ev_dnb, dnb)
+
+    # ====================== VALUE BET DE LÍNEAS (NUEVO) ======================
+    st.markdown("---")
+    st.subheader("📈 Value Bet de las Líneas (Over)")
+
+    cuota_justa_over_goles = round(100 / prob_over_goles, 2) if prob_over_goles > 0 else 99.0
+    cuota_justa_over_tiros = round(100 / prob_over_tiros, 2) if prob_over_tiros > 0 else 99.0
+    cuota_justa_over_puerta = round(100 / prob_over_puerta, 2) if prob_over_puerta > 0 else 99.0
+    cuota_justa_over_corners = round(100 / prob_over_corners, 2) if prob_over_corners > 0 else 99.0
+    cuota_justa_over_faltas = round(100 / prob_over_faltas, 2) if prob_over_faltas > 0 else 99.0
+
+    ev_over_goles = calcular_ev(prob_over_goles, cuota_over_goles)
+    ev_over_tiros = calcular_ev(prob_over_tiros, cuota_over_tiros)
+    ev_over_puerta = calcular_ev(prob_over_puerta, cuota_over_puerta)
+    ev_over_corners = calcular_ev(prob_over_corners, cuota_over_corners)
+    ev_over_faltas = calcular_ev(prob_over_faltas, cuota_over_faltas)
+
+    mostrar_value(f"Más de {linea_goles} Goles", cuota_justa_over_goles, cuota_over_goles, ev_over_goles, prob_over_goles)
+    mostrar_value(f"Más de {linea_tiros} Tiros", cuota_justa_over_tiros, cuota_over_tiros, ev_over_tiros, prob_over_tiros)
+    mostrar_value(f"Más de {linea_tiros_puerta} a Puerta", cuota_justa_over_puerta, cuota_over_puerta, ev_over_puerta, prob_over_puerta)
+    mostrar_value(f"Más de {linea_corners} Córners", cuota_justa_over_corners, cuota_over_corners, ev_over_corners, prob_over_corners)
+    mostrar_value(f"Más de {linea_faltas} Faltas", cuota_justa_over_faltas, cuota_over_faltas, ev_over_faltas, prob_over_faltas)
 
     st.markdown("---")
     
@@ -373,11 +397,11 @@ if btn_analizar:
         )
     with col_r:
         st.markdown("#### 📈 Probabilidades de Líneas")
-        st.metric(f"⚽ Más de {linea_goles} Goles", f"{(sg_fav > linea_goles).mean()*100:.1f}%")
-        st.metric(f"👟 Más de {linea_tiros} Tiros", f"{(s_tir > linea_tiros).mean()*100:.1f}%")
-        st.metric(f"🎯 Más de {linea_tiros_puerta} a Puerta", f"{(s_tpuerta > linea_tiros_puerta).mean()*100:.1f}%")
-        st.metric(f"🚩 Más de {linea_corners} Córners", f"{(s_corn > linea_corners).mean()*100:.1f}%")
-        st.metric(f"🛑 Más de {linea_faltas} Faltas", f"{(s_faltas > linea_faltas).mean()*100:.1f}%")
+        st.metric(f"⚽ Más de {linea_goles} Goles", f"{prob_over_goles:.1f}%")
+        st.metric(f"👟 Más de {linea_tiros} Tiros", f"{prob_over_tiros:.1f}%")
+        st.metric(f"🎯 Más de {linea_tiros_puerta} a Puerta", f"{prob_over_puerta:.1f}%")
+        st.metric(f"🚩 Más de {linea_corners} Córners", f"{prob_over_corners:.1f}%")
+        st.metric(f"🛑 Más de {linea_faltas} Faltas", f"{prob_over_faltas:.1f}%")
 
     st.markdown("---")
     st.info(f"💡 Base del análisis: **{len(historial)} partidos** | Modo: {fuente_datos}")
