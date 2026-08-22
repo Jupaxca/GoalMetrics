@@ -4,14 +4,13 @@ import numpy as np
 import altair as alt
 from collections import Counter
 
-# CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(
-    page_title="GoalMetrics | Football Analytics", 
-    page_icon="📊", 
+    page_title="GoalMetrics | Football Analytics",
+    page_icon="📊",
     layout="wide"
 )
 
-# 1. CARGA DE DATOS
+# ====================== CARGA DE DATOS ======================
 @st.cache_data(ttl=600)
 def cargar_datos():
     sheet_id = "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg"
@@ -20,7 +19,8 @@ def cargar_datos():
     
     df.columns = df.columns.astype(str).str.strip()
     df = df.dropna(subset=['Equipo', 'Fecha', 'Condición', 'Nivel Rival'])
-    df['Fecha'] = pd.to_datetime(df['Fecha'])
+    df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce')
+    df = df.dropna(subset=['Fecha'])
     df['Equipo'] = df['Equipo'].astype(str).str.strip()
     df['Condición'] = df['Condición'].astype(str).str.strip().str.lower()
     df['Nivel Rival'] = df['Nivel Rival'].astype(str).str.strip()
@@ -30,18 +30,17 @@ def cargar_datos():
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
     return df
 
-# 2. MOTOR MATEMÁTICO
 @st.cache_data
 def simular_montecarlo(lam_fav, lam_con, lam_tir, lam_tpuerta, lam_corn, lam_faltas):
     rng = np.random.default_rng(42)
     num_sim = 10000
     return (
-        rng.poisson(lam=lam_fav, size=num_sim),
-        rng.poisson(lam=lam_con, size=num_sim),
-        rng.poisson(lam=lam_tir, size=num_sim),
-        rng.poisson(lam=lam_tpuerta, size=num_sim),
-        rng.poisson(lam=lam_corn, size=num_sim),
-        rng.poisson(lam=lam_faltas, size=num_sim)
+        rng.poisson(lam=max(lam_fav, 0.01), size=num_sim),
+        rng.poisson(lam=max(lam_con, 0.01), size=num_sim),
+        rng.poisson(lam=max(lam_tir, 0.01), size=num_sim),
+        rng.poisson(lam=max(lam_tpuerta, 0.01), size=num_sim),
+        rng.poisson(lam=max(lam_corn, 0.01), size=num_sim),
+        rng.poisson(lam=max(lam_faltas, 0.01), size=num_sim)
     )
 
 try:
@@ -50,7 +49,7 @@ except Exception as e:
     st.error(f"⚠️ Error al cargar los datos: {e}")
     st.stop()
 
-# DICCIONARIO DE COLORES
+# ====================== COLORES ======================
 colores_equipos = {
     "Palmeiras": "#006400", "Flamengo": "#C8102E", "Paranaense": "#CC0000",
     "Fluminense": "#8B0000", "Vasco": "#333333", "Arsenal": "#EF0107",
@@ -62,7 +61,7 @@ colores_equipos = {
     "Real Madrid": "#00529F"
 }
 
-# --- PANEL LATERAL ---
+# ====================== SIDEBAR ======================
 st.sidebar.header("⚙️ Configuración de Análisis")
 
 lista_equipos = sorted([str(x) for x in df['Equipo'].unique() if pd.notna(x)])
@@ -99,10 +98,9 @@ linea_tiros_puerta = st.sidebar.slider("🎯 Línea Tiros a Puerta", 1.0, 10.0, 
 linea_corners = st.sidebar.slider("🚩 Línea de Córners", 1.0, 15.0, 5.5, 0.5)
 linea_faltas = st.sidebar.slider("🛑 Línea de Faltas", 5.0, 25.0, 10.5, 0.5)
 
-# ===== CUOTAS REALES DE LA CASA (Value Bet) =====
 st.sidebar.markdown("---")
 st.sidebar.subheader("💰 Cuotas de la Casa (Value Bet)")
-st.sidebar.caption("Escribe las cuotas que ves en BetPlay, Wplay, etc.")
+st.sidebar.caption("Escribe las cuotas que ves en la casa de apuestas")
 
 cuota_casa_1 = st.sidebar.number_input("Cuota Real Victoria (1)", min_value=1.01, max_value=50.0, value=1.80, step=0.01, format="%.2f")
 cuota_casa_x = st.sidebar.number_input("Cuota Real Empate (X)", min_value=1.01, max_value=50.0, value=3.40, step=0.01, format="%.2f")
@@ -112,19 +110,23 @@ cuota_casa_btts_no = st.sidebar.number_input("Cuota Real BTTS No", min_value=1.0
 
 color_equipo = colores_equipos.get(equipo_sel, "#3B82F6")
 
-# --- ESTILOS CSS ---
+# ====================== CSS ======================
 st.markdown(f"""
     <style>
     .stApp {{ background-color: #090D16; color: #F3F4F6; }}
     .stSidebar {{ background-color: #111827; }}
-    .insight-box {{ padding: 15px; border-radius: 10px; background-color: #1F2937; border-left: 5px solid {color_equipo}; margin-bottom: 20px; font-size: 16px; line-height: 1.5; }}
+    .insight-box {{
+        padding: 15px; border-radius: 10px; background-color: #1F2937;
+        border-left: 5px solid {color_equipo}; margin-bottom: 20px;
+        font-size: 16px; line-height: 1.5;
+    }}
     .value-box {{ padding: 12px; border-radius: 8px; margin-bottom: 10px; font-size: 15px; }}
     .value-yes {{ background-color: #064e3b; border-left: 5px solid #10b981; }}
     .value-no {{ background-color: #1f2937; border-left: 5px solid #6b7280; }}
     </style>
 """, unsafe_allow_html=True)
 
-# --- FUNCIÓN DE ADN ---
+# ====================== FUNCIÓN ADN ======================
 def renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa):
     val_ataque = min(round(lam_f * 3.33, 1), 10.0)
     val_tiros = min(round(lam_t / 2.5, 1), 10.0)
@@ -146,7 +148,7 @@ def renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa):
 
     st.altair_chart(chart, use_container_width=True)
 
-# --- PANEL PRINCIPAL ---
+# ====================== BOTONES ======================
 col_btn1, col_btn2 = st.columns([1, 4])
 with col_btn1:
     btn_analizar = st.button("⚡ Analizar", type="primary", use_container_width=True)
@@ -154,6 +156,7 @@ with col_btn2:
     if st.button("🧹 Limpiar"):
         st.rerun()
 
+# ====================== ANÁLISIS ======================
 if btn_analizar:
     df_base = df[df['Equipo'] == equipo_sel].sort_values(by='Fecha', ascending=False)
     df_exactos = df_base[
@@ -164,11 +167,10 @@ if btn_analizar:
     historial = pd.DataFrame()
     fuente_datos = ""
     
-    # Mínimo 2 partidos → usa TODOS los que cumplan el filtro
+    # Mínimo 2 → usa TODOS. Si hay 1 → respaldo. Si hay 0 → error.
     if len(df_exactos) >= 2:
         historial = df_exactos.copy()
         fuente_datos = f"Exacto ({condicion_label} vs {nivel_sel}) — {len(historial)} partidos"
-    
     elif len(df_exactos) == 1:
         partido_1 = df_exactos.head(1).copy()
         cond_opuesta = "visitante" if condicion_sel == "local" else "local"
@@ -186,30 +188,31 @@ if btn_analizar:
             historial = partido_1.copy()
             fuente_datos = "Solo 1 partido exacto disponible"
     else:
-        st.error(f"❌ No hay datos suficientes para analizar a {equipo_sel}.")
+        st.error(f"❌ No hay datos suficientes para analizar a {equipo_sel} con esos filtros.")
         st.stop()
 
-    # CABECERA
+    # Cabecera
     st.markdown(f"""
         <div style="background-color: {color_equipo}; padding: 18px; border-radius: 12px; color: white; text-align: center; font-weight: bold; font-size: 22px; margin-bottom: 25px;">
             🛡️ {equipo_sel.upper()} ({condicion_label.upper()} vs {nivel_sel.upper()})
         </div>
     """, unsafe_allow_html=True)
     
-    # PESOS TEMPORALES
+    # Pesos temporales
     hoy = pd.Timestamp.today().normalize()
     historial['Dias_Pasados'] = (hoy - pd.to_datetime(historial['Fecha'])).dt.days.replace(0, 0.1)
     historial['Peso'] = 1 / (1 + (historial['Dias_Pasados'] / 30))
     
     def prom(col):
         if col not in historial.columns:
-            return 0.0
-        return round(float(np.average(historial[col], weights=historial['Peso'])), 4)
+            return 0.05
+        vals = historial[col].fillna(0)
+        return round(float(np.average(vals, weights=historial['Peso'])), 4)
 
     lam_f = prom('Goles')
     lam_c = prom('Goles Rival')
-    lam_t = prom('Tiros' if 'Tiros' in historial.columns else 'Tiros Prom')
-    lam_tp = prom('A Puerta' if 'A Puerta' in historial.columns else 'A Puerta Prom')
+    lam_t = prom('Tiros')
+    lam_tp = prom('A Puerta')
     lam_co = prom('Corners')
     lam_fa = prom('Faltas')
     
@@ -241,7 +244,7 @@ if btn_analizar:
 
     st.markdown(f'<div class="insight-box"><b>Veredicto GoalMetrics:</b> {veredicto}</div>', unsafe_allow_html=True)
 
-    # ADN DEL EQUIPO
+    # ADN
     st.subheader("🧬 ADN del Equipo")
     renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa)
 
@@ -256,23 +259,21 @@ if btn_analizar:
     c6.metric("🛡️ Doble Oportunidad (X2)", f"{doble_x2:.1f}%")
     c7.metric("⚖️ Apuesta sin Empate (DNB)", f"{dnb:.1f}%")
     
-    # --- CUOTAS JUSTAS + VALUE BET ---
+    # Cuotas Justas + Value Bet
     st.markdown("---")
     st.subheader("🎯 Cuotas Justas + Value Bet")
     
-    cuota_justa_1 = round(100 / triunfos, 2) if triunfos > 0 else 0.0
-    cuota_justa_x = round(100 / empates, 2) if empates > 0 else 0.0
-    cuota_justa_2 = round(100 / derrotas, 2) if derrotas > 0 else 0.0
-    
+    cuota_justa_1 = round(100 / triunfos, 2) if triunfos > 0 else 99.0
+    cuota_justa_x = round(100 / empates, 2) if empates > 0 else 99.0
+    cuota_justa_2 = round(100 / derrotas, 2) if derrotas > 0 else 99.0
     prob_btts_no = 100 - ambos_anotan
-    cuota_justa_btts_si = round(100 / ambos_anotan, 2) if ambos_anotan > 0 else 0.0
-    cuota_justa_btts_no = round(100 / prob_btts_no, 2) if prob_btts_no > 0 else 0.0
+    cuota_justa_btts_si = round(100 / ambos_anotan, 2) if ambos_anotan > 0 else 99.0
+    cuota_justa_btts_no = round(100 / prob_btts_no, 2) if prob_btts_no > 0 else 99.0
 
     def calcular_ev(prob_porcentaje, cuota_casa):
         if cuota_casa <= 1.0 or prob_porcentaje <= 0:
             return 0.0
-        prob = prob_porcentaje / 100
-        return round((prob * cuota_casa) - 1, 4)
+        return round((prob_porcentaje / 100 * cuota_casa) - 1, 4)
 
     ev_1 = calcular_ev(triunfos, cuota_casa_1)
     ev_x = calcular_ev(empates, cuota_casa_x)
@@ -281,31 +282,28 @@ if btn_analizar:
     ev_btts_no = calcular_ev(prob_btts_no, cuota_casa_btts_no)
 
     qc1, qc2, qc3 = st.columns(3)
-    qc1.metric("Cuota Justa (1)", f"{cuota_justa_1}", delta=f"{triunfos:.1f}% prob")
-    qc2.metric("Cuota Justa (X)", f"{cuota_justa_x}", delta=f"{empates:.1f}% prob")
-    qc3.metric("Cuota Justa (2)", f"{cuota_justa_2}", delta=f"{derrotas:.1f}% prob")
+    qc1.metric("Cuota Justa (1)", f"{cuota_justa_1}", delta=f"{triunfos:.1f}%")
+    qc2.metric("Cuota Justa (X)", f"{cuota_justa_x}", delta=f"{empates:.1f}%")
+    qc3.metric("Cuota Justa (2)", f"{cuota_justa_2}", delta=f"{derrotas:.1f}%")
 
     qc4, qc5 = st.columns(2)
-    qc4.metric("Cuota Justa BTTS Sí", f"{cuota_justa_btts_si}", delta=f"{ambos_anotan:.1f}% prob")
-    qc5.metric("Cuota Justa BTTS No", f"{cuota_justa_btts_no}", delta=f"{prob_btts_no:.1f}% prob")
+    qc4.metric("Cuota Justa BTTS Sí", f"{cuota_justa_btts_si}", delta=f"{ambos_anotan:.1f}%")
+    qc5.metric("Cuota Justa BTTS No", f"{cuota_justa_btts_no}", delta=f"{prob_btts_no:.1f}%")
 
     st.markdown("#### 💎 Análisis de Value Bet")
-    st.caption("Si el EV es positivo (+), la casa está pagando más de lo que proyectan tus 10.000 simulaciones → hay valor.")
+    st.caption("EV positivo = la casa paga más de lo que proyecta el modelo → hay valor.")
 
     def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob):
         es_value = ev > 0
         clase = "value-yes" if es_value else "value-no"
         icono = "✅ VALUE BET" if es_value else "❌ Sin valor"
         color_ev = "#10b981" if es_value else "#9ca3af"
-        
         st.markdown(f"""
             <div class="value-box {clase}">
                 <b>{nombre}</b><br>
-                Probabilidad modelo: <b>{prob:.1f}%</b> &nbsp;|&nbsp; 
-                Cuota justa: <b>{cuota_justa}</b> &nbsp;|&nbsp; 
-                Cuota casa: <b>{cuota_casa}</b><br>
+                Probabilidad: <b>{prob:.1f}%</b> | Cuota justa: <b>{cuota_justa}</b> | Cuota casa: <b>{cuota_casa}</b><br>
                 <span style="color:{color_ev}; font-weight:bold; font-size:17px;">
-                    EV: {ev:+.2%} &nbsp;→&nbsp; {icono}
+                    EV: {ev:+.2%} → {icono}
                 </span>
             </div>
         """, unsafe_allow_html=True)
@@ -320,11 +318,11 @@ if btn_analizar:
     
     def crear_grafico(serie, titulo):
         df_c = pd.DataFrame({
-            titulo: serie.value_counts().sort_index().index.astype(str), 
+            titulo: serie.value_counts().sort_index().index.astype(str),
             'Prob (%)': (serie.value_counts().sort_index() / num_sim) * 100
         })
         return alt.Chart(df_c).mark_bar(color=color_equipo).encode(
-            x=alt.X(f"{titulo}:N", sort=None, labelAngle=0), 
+            x=alt.X(f"{titulo}:N", sort=None, labelAngle=0),
             y=alt.Y('Prob (%):Q', format='.1f')
         ).properties(height=300)
 
@@ -341,36 +339,30 @@ if btn_analizar:
         st.markdown("#### 🏆 Top 5 Marcadores")
         st.dataframe(
             pd.DataFrame([
-                {"Marcador": r, "Probabilidad": f"{(f/num_sim)*100:.1f}%"} 
+                {"Marcador": r, "Probabilidad": f"{(f/num_sim)*100:.1f}%"}
                 for r, f in conteo.most_common(5)
-            ]), 
-            hide_index=True, 
+            ]),
+            hide_index=True,
             use_container_width=True
         )
-            
     with col_r:
         st.markdown("#### 📈 Probabilidades de Líneas")
-        st.metric(label=f"⚽ Más de {linea_goles} Goles", value=f"{(sg_fav > linea_goles).mean() * 100:.1f}%")
-        st.metric(label=f"👟 Más de {linea_tiros} Tiros", value=f"{(s_tir > linea_tiros).mean() * 100:.1f}%")
-        st.metric(label=f"🎯 Más de {linea_tiros_puerta} a Puerta", value=f"{(s_tpuerta > linea_tiros_puerta).mean() * 100:.1f}%")
-        st.metric(label=f"🚩 Más de {linea_corners} Córners", value=f"{(s_corn > linea_corners).mean() * 100:.1f}%")
-        st.metric(label=f"🛑 Más de {linea_faltas} Faltas", value=f"{(s_faltas > linea_faltas).mean() * 100:.1f}%")
+        st.metric(f"⚽ Más de {linea_goles} Goles", f"{(sg_fav > linea_goles).mean()*100:.1f}%")
+        st.metric(f"👟 Más de {linea_tiros} Tiros", f"{(s_tir > linea_tiros).mean()*100:.1f}%")
+        st.metric(f"🎯 Más de {linea_tiros_puerta} a Puerta", f"{(s_tpuerta > linea_tiros_puerta).mean()*100:.1f}%")
+        st.metric(f"🚩 Más de {linea_corners} Córners", f"{(s_corn > linea_corners).mean()*100:.1f}%")
+        st.metric(f"🛑 Más de {linea_faltas} Faltas", f"{(s_faltas > linea_faltas).mean()*100:.1f}%")
 
     st.markdown("---")
-    st.info(f"💡 Base del análisis: **{len(historial)} partidos** analizados bajo el modo: {fuente_datos}")
+    st.info(f"💡 Base del análisis: **{len(historial)} partidos** | Modo: {fuente_datos}")
     
-    # HISTORIAL VISUAL (solo últimos 5)
-    with st.expander("📋 Ver detalle de los partidos utilizados (últimos 5 + resumen)"):
+    with st.expander("📋 Ver partidos utilizados (últimos 5)"):
         h_disp = historial.copy().sort_values(by='Fecha', ascending=False)
         h_mostrar = h_disp.head(5).copy()
         h_mostrar['Fecha'] = pd.to_datetime(h_mostrar['Fecha']).dt.strftime('%Y-%m-%d')
-        
-        cols = [c for c in ['Fecha', 'Equipo', 'Condición', 'Rival', 'Nivel Rival', 
-                           'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas', 'Peso'] 
+        cols = [c for c in ['Fecha', 'Equipo', 'Condición', 'Rival', 'Nivel Rival',
+                           'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas', 'Peso']
                 if c in h_mostrar.columns]
-        
-        st.caption(f"Mostrando los 5 partidos más recientes de los {len(historial)} utilizados en el cálculo.")
         st.dataframe(h_mostrar[cols], hide_index=True, use_container_width=True)
-        
         if len(historial) > 5:
-            st.caption(f"ℹ️ Se analizaron {len(historial)} partidos en total. Los más antiguos también influyen, pero con menor peso.")
+            st.caption(f"Se usaron {len(historial)} partidos en total (los más antiguos tienen menos peso).")
