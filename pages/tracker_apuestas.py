@@ -23,8 +23,12 @@ user_id = user.id
 
 st.markdown("## 📈 Tracker de Apuestas & Análisis Pro")
 
-# --- LÓGICA DE REGISTRO ---
+# --- CONFIGURACIÓN Y REGISTRO EN BARRA LATERAL ---
 with st.sidebar:
+    st.header("⚙️ Configuración")
+    bank_inicial = st.number_input("Bank Inicial ($)", min_value=0.0, value=100.0, step=10.0)
+    
+    st.markdown("---")
     st.header("➕ Nueva Apuesta")
     with st.form("nueva_apuesta", clear_on_submit=True):
         evento = st.text_input("Evento / Partido")
@@ -45,7 +49,6 @@ with st.sidebar:
                 st.error("El evento y la selección son obligatorios.")
             else:
                 try:
-                    # Incluimos TODOS los campos obligatorios
                     data = {
                         "user_id": user_id,
                         "evento": evento,
@@ -56,7 +59,7 @@ with st.sidebar:
                         "estado": "Pendiente",
                         "pnl": 0.0,
                         "fecha": str(datetime.date.today()),
-                        "created_at": datetime.datetime.now().isoformat() # <--- LA CLAVE
+                        "created_at": datetime.datetime.now().isoformat()
                     }
                     supabase.table("apuestas").insert(data).execute()
                     st.success("¡Apuesta registrada!")
@@ -64,7 +67,7 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Error al guardar: {e}")
 
-# --- RESTO DEL CÓDIGO (NO CAMBIA) ---
+# --- PANEL DE RESULTADOS (CERRAR APUESTAS) ---
 st.subheader("🏁 Cerrar Apuesta")
 try:
     response = supabase.table("apuestas").select("*").eq("user_id", user_id).eq("estado", "Pendiente").execute()
@@ -86,13 +89,20 @@ if pendientes:
         if st.button("Actualizar Resultado", use_container_width=True):
             apuesta = df_pendientes[df_pendientes['id'] == apuesta_id].iloc[0]
             pnl = (apuesta['stake'] * (apuesta['cuota'] - 1)) if resultado == "Ganada" else -apuesta['stake']
-            supabase.table("apuestas").update({"estado": resultado, "pnl": pnl}).eq("id", apuesta_id).execute()
+            
+            # --- CORRECCIÓN AQUÍ: Incluimos user_id para que RLS no oculte la fila ---
+            supabase.table("apuestas").update({
+                "estado": resultado, 
+                "pnl": pnl,
+                "user_id": user_id
+            }).eq("id", apuesta_id).execute()
+            
             st.success("¡Apuesta actualizada!")
             st.rerun()
 else:
     st.info("No tienes apuestas pendientes por cerrar.")
 
-# --- DASHBOARD ---
+# --- DASHBOARD DE MÉTRICAS Y GRÁFICO ---
 st.markdown("---")
 try:
     res = supabase.table("apuestas").select("*").eq("user_id", user_id).order("id", asc=True).execute()
@@ -102,17 +112,27 @@ except Exception:
 
 if not df.empty:
     df_cerradas = df[df['estado'].isin(['Ganada', 'Perdida'])].copy()
+    
+    total_pnl = df_cerradas['pnl'].astype(float).sum() if not df_cerradas.empty else 0.0
+    bank_actual = bank_inicial + total_pnl
+    
+    col1, col2, col3 = st.columns(3)
+    col1.metric("🏦 Bank Actual", f"{bank_actual:,.2f} $", delta=f"{total_pnl:,.2f} $")
+    col2.metric("💰 Beneficio PnL", f"{total_pnl:,.2f} $")
+    
+    total_cerradas = len(df_cerradas)
+    ganadas = len(df_cerradas[df_cerradas['estado']=='Ganada'])
+    winrate = (ganadas / total_cerradas) * 100 if total_cerradas > 0 else 0
+    col3.metric("🎯 Winrate", f"{winrate:.1f}%")
+    
     if not df_cerradas.empty:
-        df_cerradas['acumulado'] = df_cerradas['pnl'].astype(float).cumsum()
-        col1, col2 = st.columns(2)
-        col1.metric("💰 Balance Total (PnL)", f"{df_cerradas['pnl'].astype(float).sum():,.2f} $")
-        total_cerradas = len(df_cerradas)
-        ganadas = len(df_cerradas[df_cerradas['estado']=='Ganada'])
-        winrate = (ganadas / total_cerradas) * 100 if total_cerradas > 0 else 0
-        col2.metric("🎯 Winrate", f"{winrate:.1f}%")
-        st.subheader("📊 Curva de Rendimiento")
+        df_cerradas['acumulado'] = bank_inicial + df_cerradas['pnl'].astype(float).cumsum()
+        st.subheader("📊 Curva de Rendimiento (Evolución del Bank)")
         st.line_chart(df_cerradas['acumulado'])
     else:
-        st.info("Cierra tu primera apuesta para ver la curva de rendimiento.")
+        st.info("Cierra tu primera apuesta para ver la curva de rendimiento y la evolución de tu bank.")
+
     st.subheader("Historial Completo")
     st.dataframe(df.sort_values(by="id", ascending=False), use_container_width=True, hide_index=True)
+else:
+    st.write("Aún no tienes historial de apuestas.")
