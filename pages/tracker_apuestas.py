@@ -14,7 +14,7 @@ def init_supabase() -> Client:
 supabase = init_supabase()
 
 # ESCUDO DE SEGURIDAD
-if 'user' not in st.session_state or st.session_state.user is None:
+if "user" not in st.session_state or st.session_state.user is None:
     st.warning("Sesión no detectada. Por favor regresa a la página principal e inicia sesión.")
     st.stop()
 
@@ -22,44 +22,66 @@ user = st.session_state.user
 user_id = user.id
 
 st.markdown("## 📈 Tracker de Apuestas & Análisis Pro")
+st.caption("Registro · Cierre · Bank · ROI · Historial")
 
-# --- CONFIGURACIÓN Y REGISTRO EN BARRA LATERAL ---
+# ====================== SIDEBAR ======================
 with st.sidebar:
     st.header("⚙️ Configuración")
-    bank_inicial = st.number_input("Bank Inicial ($)", min_value=0.0, value=100.0, step=10.0)
+    
+    # Bank en session_state para que no se resetee al interactuar
+    if "bank_inicial" not in st.session_state:
+        st.session_state.bank_inicial = 100.0
+    
+    bank_inicial = st.number_input(
+        "Bank Inicial ($)",
+        min_value=0.0,
+        value=float(st.session_state.bank_inicial),
+        step=10.0,
+        key="input_bank",
+    )
+    st.session_state.bank_inicial = bank_inicial
     
     st.markdown("---")
     st.header("➕ Nueva Apuesta")
+    
     with st.form("nueva_apuesta", clear_on_submit=True):
         evento = st.text_input("Evento / Partido")
-        seleccion = st.text_input("Selección (ej: Real Madrid, Más de 2.5)")
+        seleccion = st.text_input("Selección (ej: Más de 2.5, BTTS Sí)")
         
         opciones_mercado = [
-            "Ganador (1X2)", "Doble Oportunidad", "Ambos Marcan (BTTS)", 
-            "Over/Under Goles", "Over/Under Córners", "Hándicap Asiático", 
-            "Hándicap Europeo", "Tarjetas", "Resultado Exacto", "Otro"
+            "Ganador (1X2)",
+            "Doble Oportunidad",
+            "Ambos Marcan (BTTS)",
+            "Over/Under Goles",
+            "Over/Under Córners",
+            "Hándicap Asiático",
+            "Hándicap Europeo",
+            "Tarjetas",
+            "Resultado Exacto",
+            "Player Props",
+            "Otro",
         ]
         mercado = st.selectbox("Mercado", opciones_mercado)
         
-        cuota = st.number_input("Cuota", min_value=1.00, step=0.01)
-        stake = st.number_input("Stake ($)", min_value=1.0, step=0.5)
+        cuota = st.number_input("Cuota", min_value=1.01, value=1.90, step=0.01, format="%.2f")
+        stake = st.number_input("Stake ($)", min_value=0.5, value=10.0, step=0.5)
         
-        if st.form_submit_button("Guardar Apuesta"):
-            if not evento or not seleccion:
+        if st.form_submit_button("Guardar Apuesta", type="primary"):
+            if not evento.strip() or not seleccion.strip():
                 st.error("El evento y la selección son obligatorios.")
             else:
                 try:
                     data = {
                         "user_id": user_id,
-                        "evento": evento,
-                        "seleccion": seleccion,
+                        "evento": evento.strip(),
+                        "seleccion": seleccion.strip(),
                         "mercado": mercado,
                         "cuota": float(cuota),
                         "stake": float(stake),
                         "estado": "Pendiente",
                         "pnl": 0.0,
                         "fecha": str(datetime.date.today()),
-                        "created_at": datetime.datetime.now().isoformat()
+                        "created_at": datetime.datetime.now().isoformat(),
                     }
                     supabase.table("apuestas").insert(data).execute()
                     st.success("¡Apuesta registrada!")
@@ -67,89 +89,160 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Error al guardar: {e}")
 
-# --- PANEL DE RESULTADOS (CERRAR APUESTAS) ---
-st.subheader("🏁 Cerrar Apuesta")
+# ====================== CARGAR APUESTAS ======================
 try:
     response = supabase.table("apuestas").select("*").eq("user_id", user_id).execute()
-    todas_las_apuestas = response.data if response.data else []
+    todas = response.data if response.data else []
 except Exception as e:
-    todas_las_apuestas = []
+    todas = []
     st.error(f"Error al conectar con la base de datos: {e}")
 
-# Filtramos solo las pendientes para el selector de arriba
-pendientes = [a for a in todas_las_apuestas if a.get('estado') == "Pendiente"]
+df = pd.DataFrame(todas) if todas else pd.DataFrame()
 
-if pendientes:
-    df_pendientes = pd.DataFrame(pendientes)
-    cols = st.columns([2, 1, 1])
+# ====================== CERRAR APUESTAS ======================
+st.subheader("🏁 Cerrar Apuesta")
+
+if not df.empty and "estado" in df.columns:
+    pendientes = df[df["estado"] == "Pendiente"].copy()
+else:
+    pendientes = pd.DataFrame()
+
+if not pendientes.empty:
+    def label_apuesta(i):
+        row = pendientes[pendientes["id"] == i].iloc[0]
+        return f"{row.get('evento', '?')} | {row.get('seleccion', '?')} @ {row.get('cuota', '?')}"
+
+    cols = st.columns([3, 1.2, 1.2])
     with cols[0]:
-        apuesta_id = st.selectbox("Selecciona la apuesta a cerrar:", df_pendientes['id'].tolist(), format_func=lambda x: f"{df_pendientes[df_pendientes['id']==x]['evento'].values[0]} ({df_pendientes[df_pendientes['id']==x]['seleccion'].values[0]})")
+        apuesta_id = st.selectbox(
+            "Apuesta pendiente",
+            pendientes["id"].tolist(),
+            format_func=label_apuesta,
+        )
     with cols[1]:
-        resultado = st.selectbox("Resultado", ["Ganada", "Perdida"])
-    
+        resultado = st.selectbox("Resultado", ["Ganada", "Perdida", "Nulo"])
     with cols[2]:
         st.write("")
         st.write("")
-        if st.button("Actualizar Resultado", use_container_width=True):
+        if st.button("Actualizar", use_container_width=True, type="primary"):
             try:
-                apuesta = df_pendientes[df_pendientes['id'] == apuesta_id].iloc[0]
-                pnl = (float(apuesta['stake']) * (float(apuesta['cuota']) - 1)) if resultado == "Ganada" else -float(apuesta['stake'])
+                apuesta = pendientes[pendientes["id"] == apuesta_id].iloc[0]
+                stake_val = float(apuesta["stake"])
+                cuota_val = float(apuesta["cuota"])
+                
+                if resultado == "Ganada":
+                    pnl = stake_val * (cuota_val - 1)
+                elif resultado == "Perdida":
+                    pnl = -stake_val
+                else:  # Nulo / Void
+                    pnl = 0.0
                 
                 supabase.table("apuestas").update({
-                    "estado": resultado, 
-                    "pnl": float(pnl)
+                    "estado": resultado,
+                    "pnl": float(pnl),
                 }).eq("id", int(apuesta_id)).eq("user_id", user_id).execute()
                 
-                st.success("¡Apuesta actualizada con éxito!")
+                st.success("Apuesta actualizada.")
                 st.rerun()
             except Exception as e:
                 st.error(f"Error al actualizar: {e}")
 else:
     st.info("No tienes apuestas pendientes por cerrar.")
 
-# --- DASHBOARD DE MÉTRICAS Y GRÁFICO ---
+# ====================== DASHBOARD ======================
 st.markdown("---")
 
-if todas_las_apuestas:
-    df = pd.DataFrame(todas_las_apuestas)
+if df.empty:
+    st.write("Aún no tienes historial de apuestas registrado.")
+    st.stop()
 
-    df_cerradas = df[df['estado'].str.capitalize().isin(['Ganada', 'Perdida'])].copy()
+# Normalizar
+df["pnl"] = pd.to_numeric(df.get("pnl", 0), errors="coerce").fillna(0)
+df["stake"] = pd.to_numeric(df.get("stake", 0), errors="coerce").fillna(0)
+df["cuota"] = pd.to_numeric(df.get("cuota", 0), errors="coerce").fillna(0)
+df["estado"] = df["estado"].astype(str).str.strip()
+
+df_cerradas = df[df["estado"].isin(["Ganada", "Perdida", "Nulo"])].copy()
+
+total_pnl = df_cerradas["pnl"].sum() if not df_cerradas.empty else 0.0
+stake_cerrado = df_cerradas["stake"].sum() if not df_cerradas.empty else 0.0
+roi = (total_pnl / stake_cerrado * 100) if stake_cerrado > 0 else 0.0
+bank_actual = bank_inicial + total_pnl
+
+solo_gp = df_cerradas[df_cerradas["estado"].isin(["Ganada", "Perdida"])]
+total_decididas = len(solo_gp)
+ganadas = len(solo_gp[solo_gp["estado"] == "Ganada"])
+winrate = (ganadas / total_decididas * 100) if total_decididas > 0 else 0.0
+
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("🏦 Bank Actual", f"{bank_actual:,.2f} $", delta=f"{total_pnl:+,.2f} $")
+c2.metric("💰 P&L", f"{total_pnl:+,.2f} $")
+c3.metric("📊 ROI", f"{roi:+.1f}%")
+c4.metric("🎯 Winrate", f"{winrate:.1f}%", delta=f"{ganadas}G / {total_decididas - ganadas}P")
+
+# Curva ordenada por fecha
+if not df_cerradas.empty:
+    st.subheader("📊 Curva de Rendimiento (Bank)")
     
-    total_pnl = df_cerradas['pnl'].astype(float).sum() if not df_cerradas.empty else 0.0
-    bank_actual = bank_inicial + total_pnl
-    
-    col1, col2, col3 = st.columns(3)
-    col1.metric("🏦 Bank Actual", f"{bank_actual:,.2f} $", delta=f"{total_pnl:,.2f} $")
-    col2.metric("💰 Beneficio PnL", f"{total_pnl:,.2f} $")
-    
-    total_cerradas = len(df_cerradas)
-    ganadas = len(df_cerradas[df_cerradas['estado'].str.capitalize() == 'Ganada'])
-    winrate = (ganadas / total_cerradas) * 100 if total_cerradas > 0 else 0
-    col3.metric("🎯 Winrate", f"{winrate:.1f}%")
-    
-    if not df_cerradas.empty:
-        df_cerradas['acumulado'] = bank_inicial + df_cerradas['pnl'].astype(float).cumsum()
-        st.subheader("📊 Curva de Rendimiento (Evolución del Bank)")
-        st.line_chart(df_cerradas['acumulado'])
+    if "fecha" in df_cerradas.columns:
+        df_cerradas["_ord"] = pd.to_datetime(df_cerradas["fecha"], errors="coerce")
+    elif "created_at" in df_cerradas.columns:
+        df_cerradas["_ord"] = pd.to_datetime(df_cerradas["created_at"], errors="coerce")
     else:
-        st.info("Cierra tu primera apuesta para ver la curva de rendimiento y la evolución de tu bank.")
-
-    st.subheader("Historial Completo")
-    st.dataframe(df.sort_values(by="id", ascending=False), use_container_width=True, hide_index=True)
+        df_cerradas["_ord"] = range(len(df_cerradas))
     
-    # --- GESTIÓN / BORRADO DE HISTORIAL ---
-    with st.expander("🗑️ Gestionar o Borrar Apuestas del Historial"):
-        apuesta_a_borrar = st.selectbox(
-            "Selecciona la apuesta que deseas eliminar:", 
-            df['id'].tolist(), 
-            format_func=lambda x: f"ID {x} - {df[df['id']==x]['evento'].values[0]} ({df[df['id']==x]['seleccion'].values[0]})"
+    df_curva = df_cerradas.sort_values("_ord").copy()
+    df_curva["acumulado"] = bank_inicial + df_curva["pnl"].cumsum()
+    st.line_chart(df_curva.set_index("_ord")["acumulado"] if "_ord" in df_curva.columns else df_curva["acumulado"])
+else:
+    st.info("Cierra tu primera apuesta para ver la curva de rendimiento.")
+
+# ====================== HISTORIAL CON FILTROS ======================
+st.markdown("---")
+st.subheader("Historial")
+
+f1, f2 = st.columns(2)
+with f1:
+    estados_filtro = st.multiselect(
+        "Filtrar por estado",
+        options=["Pendiente", "Ganada", "Perdida", "Nulo"],
+        default=["Pendiente", "Ganada", "Perdida", "Nulo"],
+    )
+with f2:
+    mercados_disp = sorted(df["mercado"].dropna().unique().tolist()) if "mercado" in df.columns else []
+    mercados_filtro = st.multiselect("Filtrar por mercado", options=mercados_disp, default=mercados_disp)
+
+df_hist = df.copy()
+if estados_filtro:
+    df_hist = df_hist[df_hist["estado"].isin(estados_filtro)]
+if mercados_filtro and "mercado" in df_hist.columns:
+    df_hist = df_hist[df_hist["mercado"].isin(mercados_filtro)]
+
+cols_mostrar = [c for c in ["id", "fecha", "evento", "seleccion", "mercado", "cuota", "stake", "estado", "pnl"] if c in df_hist.columns]
+df_hist = df_hist.sort_values(by="id", ascending=False)
+
+st.dataframe(df_hist[cols_mostrar], use_container_width=True, hide_index=True)
+
+# ====================== BORRAR CON CONFIRMACIÓN ======================
+with st.expander("🗑️ Gestionar / Borrar apuestas"):
+    if df.empty:
+        st.caption("No hay apuestas.")
+    else:
+        def label_borrar(i):
+            row = df[df["id"] == i].iloc[0]
+            return f"ID {i} · {row.get('evento', '?')} · {row.get('seleccion', '?')} · {row.get('estado', '?')}"
+
+        apuesta_borrar = st.selectbox(
+            "Selecciona la apuesta a eliminar",
+            df["id"].tolist(),
+            format_func=label_borrar,
         )
-        if st.button("🗑️ Eliminar Apuesta Seleccionada", type="primary"):
+        confirmar = st.checkbox("Confirmo que quiero eliminar esta apuesta")
+        
+        if st.button("🗑️ Eliminar apuesta", type="primary", disabled=not confirmar):
             try:
-                supabase.table("apuestas").delete().eq("id", int(apuesta_a_borrar)).eq("user_id", user_id).execute()
-                st.success("¡Apuesta eliminada correctamente!")
+                supabase.table("apuestas").delete().eq("id", int(apuesta_borrar)).eq("user_id", user_id).execute()
+                st.success("Apuesta eliminada.")
                 st.rerun()
             except Exception as e:
-                st.error(f"Error al eliminar (recuerda configurar la política DELETE en Supabase): {e}")
-else:
-    st.write("Aún no tienes historial de apuestas registrado.")
+                st.error(f"Error al eliminar (revisa política DELETE en Supabase): {e}")
