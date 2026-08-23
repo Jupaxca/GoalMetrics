@@ -40,7 +40,9 @@ if datos_ok and not df.empty and 'Jugador' in df.columns:
     jugadores = sorted(df['Jugador'].dropna().unique().tolist())
     jugador_sel = st.sidebar.selectbox("👤 Selecciona al Jugador", jugadores)
     
-    df_jugador = df[df['Jugador'] == jugador_sel]
+    df_jugador = df[df['Jugador'] == jugador_sel].copy()
+    if 'Fecha' in df_jugador.columns:
+        df_jugador = df_jugador.sort_values('Fecha')
     
     condiciones = sorted(df_jugador['Condición'].dropna().unique().tolist()) if 'Condición' in df_jugador.columns else ["local", "visitante"]
     condicion_sel = st.sidebar.selectbox("📍 Condición", [c.capitalize() for c in condiciones])
@@ -71,12 +73,15 @@ with st.sidebar.expander("💰 Cuotas de la Casa (Over / Props)"):
     cuota_casa_faltas = st.number_input(f"Cuota Over {linea_faltas} Faltas", min_value=1.01, value=1.80, step=0.01, format="%.2f")
 
 # Diagnóstico de partidos exactos
-df_diagnostico = df_jugador.sort_values(by='Fecha', ascending=False) if 'Fecha' in df_jugador.columns else df_jugador
-exactos_check = df_diagnostico[
-    (df_diagnostico['Condición'] == condicion_sel_lower) & 
-    (df_diagnostico['Nivel Rival'] == nivel_sel)
-]
-num_exactos = len(exactos_check)
+df_diagnostico = df_jugador.sort_values(by='Fecha', ascending=False) if 'Fecha' in df_jugador.columns and not df_jugador.empty else df_jugador
+if not df_diagnostico.empty:
+    exactos_check = df_diagnostico[
+        (df_diagnostico['Condición'] == condicion_sel_lower) & 
+        (df_diagnostico['Nivel Rival'] == nivel_sel)
+    ]
+    num_exactos = len(exactos_check)
+else:
+    num_exactos = 0
 
 if num_exactos >= 2:
     st.sidebar.success(f"✅ {num_exactos} partidos exactos")
@@ -126,7 +131,7 @@ def calcular_kelly(prob, cuota):
     if b <= 0:
         return 0.0
     kelly = (p * cuota - 1.0) / b
-    stake = max(0.0, kelly * 0.5 * 100) # Half-Kelly
+    stake = max(0.0, kelly * 0.5 * 100)  # Half-Kelly
     return round(stake, 2)
 
 def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob):
@@ -161,6 +166,10 @@ with col_b2:
 if analizar and datos_ok and not df.empty and 'Jugador' in df.columns:
     df_jugador = df[df['Jugador'] == jugador_sel].copy()
     
+    # Orden por fecha (más antiguo → más reciente)
+    if 'Fecha' in df_jugador.columns:
+        df_jugador = df_jugador.sort_values('Fecha')
+    
     df_exactos = df_jugador[
         (df_jugador['Condición'] == condicion_sel_lower) & 
         (df_jugador['Nivel Rival'] == nivel_sel)
@@ -175,7 +184,7 @@ if analizar and datos_ok and not df.empty and 'Jugador' in df.columns:
     elif len(df_exactos) == 1:
         historial = df_exactos.copy()
         if len(df_jugador) > 1:
-            extra = df_jugador[~df_jugador.index.isin(historial.index)].tail(1)
+            extra = df_jugador[\~df_jugador.index.isin(historial.index)].tail(1)
             historial = pd.concat([historial, extra])
             fuente = "1 partido exacto + 1 de respaldo reciente"
         else:
@@ -192,7 +201,7 @@ if analizar and datos_ok and not df.empty and 'Jugador' in df.columns:
     st.markdown(f'<div class="header-box">👤 {jugador_sel.upper()} &nbsp;·&nbsp; {condicion_sel} vs {nivel_sel}</div>', unsafe_allow_html=True)
     st.caption(f"Base del análisis: {len(historial)} partidos · Modo: {fuente}")
 
-    # Cálculos temporales (Ponderación por días como en el de equipos)
+    # Pesos temporales
     hoy = pd.Timestamp.today().normalize()
     if 'Fecha' in historial.columns:
         historial['Dias_Pasados'] = (hoy - pd.to_datetime(historial['Fecha'])).dt.days.replace(0, 0.1)
@@ -203,7 +212,7 @@ if analizar and datos_ok and not df.empty and 'Jugador' in df.columns:
     pesos = historial['Peso'] / historial['Peso'].sum()
     n_simulaciones = 10000
 
-    # Motor de Simulación (Poisson si hay pocos datos, muestreo ponderado con pesos si hay más)
+    # Motor de simulación
     if len(historial) <= 3:
         lam_goles = np.average(historial['Goles'], weights=pesos)
         lam_tiros = np.average(historial['Tiros'], weights=pesos)
@@ -229,7 +238,7 @@ if analizar and datos_ok and not df.empty and 'Jugador' in df.columns:
     prob_asist = (sim_asist > linea_asist).mean() * 100
     prob_faltas = (sim_faltas > linea_faltas).mean() * 100
 
-    # Estadísticas globales del jugador
+    # Estadísticas globales
     total_partidos = len(df_jugador)
     goles_tot = df_jugador['Goles'].sum()
     asist_tot = df_jugador['Asistencias'].sum()
@@ -237,15 +246,21 @@ if analizar and datos_ok and not df.empty and 'Jugador' in df.columns:
     puerta_prom = df_jugador['A Puerta'].mean()
     faltas_prom = df_jugador['Faltas'].mean()
 
-    # Análisis de Racha
+    # ===== RACHA CORREGIDA (de más reciente a más antiguo) =====
     contribuciones = goles_tot + asist_tot
     ratio_contribucion = total_partidos / contribuciones if contribuciones > 0 else 99
+    
     racha_seca = 0
-    for _, row in df_jugador.sort_values(by='Fecha', ascending=True).iterrows():
+    if 'Fecha' in df_jugador.columns:
+        df_ordenado = df_jugador.sort_values(by='Fecha', ascending=False)
+    else:
+        df_ordenado = df_jugador.iloc[::-1]
+    
+    for _, row in df_ordenado.iterrows():
         if row['Goles'] == 0 and row['Asistencias'] == 0:
             racha_seca += 1
         else:
-            racha_seca = 0  # reinicia al encontrar aporte
+            break  # para al primer partido con aporte
 
     # ====================== PESTAÑAS ======================
     tab1, tab2, tab3, tab4 = st.tabs(["📋 Resumen & Racha", "💎 Value Bet Props", "📈 Probabilidades", "🔍 Detalle Histórico"])
@@ -265,6 +280,7 @@ if analizar and datos_ok and not df.empty and 'Jugador' in df.columns:
 
         st.markdown("---")
         st.subheader("⚡ Estado de Racha")
+        st.caption("Calculada sobre todos los partidos del jugador (de más reciente a más antiguo).")
         if racha_seca >= ratio_contribucion:
             st.success(f"🔥 **ALTA PROBABILIDAD DE APORTE:** Lleva **{racha_seca} partidos** consecutivos sin gol ni asistencia, superando su media histórica.")
         else:
