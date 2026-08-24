@@ -77,8 +77,8 @@ with st.sidebar.expander("Cuotas de la Casa (Over / Props)"):
     cuota_casa_contrib = st.number_input(f"Cuota Over {linea_contrib} Gol/Asist", min_value=1.01, value=1.70, step=0.01, format="%.2f")
 
 with st.sidebar.expander("Modelo"):
-    usar_shrinkage = st.checkbox("Shrinkage hacia media del jugador", value=True)
-    k_shrink = st.slider("Fuerza prior (k)", 1.0, 15.0, 5.0, 1.0)
+    usar_shrinkage = st.checkbox("Shrinkage hacia media del jugador", value=True, key="chk_shrinkage_jug")
+    k_shrink = st.slider("Fuerza prior (k)", 1.0, 15.0, 5.0, 1.0, key="slider_k_jug", disabled=not usar_shrinkage)
 
 if not df_jugador.empty and "Fecha" in df_jugador.columns:
     df_diagnostico = df_jugador.sort_values(by="Fecha", ascending=False)
@@ -153,23 +153,23 @@ st.caption("Props orientativas. Contrasta modelo vs acierto real. Gestiona el ba
 
 with st.expander("Como interpretar este analisis", expanded=False):
     st.markdown("""
-### 🧪 ¿Qué es el Modelo Estadístico de Jugadores y cómo usarlo?
-Esta sección te permite proyectar el rendimiento individual en remates, goles, asistencias y faltas basándote en simulaciones matemáticas (Poisson). Si modificas las opciones en la barra lateral, los resultados se actualizan al instante.
+### 🧪 Configuración y Modelo Estadístico
+En la barra lateral puedes ajustar cómo el modelo calcula las proyecciones individuales:
+* **Shrinkage hacia la media del jugador:** Estabiliza la proyección combinando los partidos recientes con la media histórica general del jugador para evitar distorsiones por rachas muy cortas. Puedes **activarlo o desactivarlo** libremente y ajustar su **Fuerza (k)**.
 
-**1. Shrinkage hacia la media del jugador (Fuerza k)**
-* **¿Qué significa?** Si un jugador estrella tuvo mala suerte en los últimos 2 partidos y no remató a puerta, la estadística pura se basaría solo en eso. El "Shrinkage" estabiliza la proyección combinando los partidos recientes con la media histórica general del jugador.
-* **¿Cómo usarlo?** 
-  * Déjalo **ACTIVADO** para evitar que rachas muy cortas distorsionen el cálculo. 
-  * La **Fuerza (k)** determina cuánto peso se le da a la media general frente a los partidos filtrados.
+### 📊 Qué significan las métricas clave
+* **Lambda del modelo:** El promedio esperado del jugador para cada prop (goles, tiros, asistencias, etc.) tras ponderar los datos recientes.
+* **Ratio de contribución:** Frecuencia con la que el jugador aporta gol o asistencia (ej. 1 cada 3.5 partidos).
+* **Racha:** Compara los partidos consecutivos sin gol ni asistencia frente a su media para alertar sobre posibles cortes de racha.
 
-**2. Cómo leer las métricas clave**
-* **Modelo %:** La probabilidad real calculada por la simulación de que el jugador supere la línea establecida.
-* **Acierto real:** El porcentaje histórico exacto en el que el jugador superó esa línea dentro de los partidos analizados de la muestra. Si el *Modelo* y el *Acierto real* coinciden o son cercanos, la proyección es muy sólida.
-* **EV (Valor Esperado):** Si es positivo (`> 0`), indica que la cuota de la casa de apuestas es superior a la probabilidad matemática real, convirtiéndolo en un pronóstico con valor a largo plazo.
-* **Half-Kelly:** El porcentaje recomendado de tu bank que deberías arriesgar en función del valor detectado.
+### 💎 Value Bet Props & Half-Kelly
+* **Modelo %:** Probabilidad matemática calculada por la simulación de que el jugador supere la línea establecida.
+* **Acierto real:** El porcentaje histórico exacto en el que el jugador superó esa línea dentro de los partidos analizados de la muestra. ¡Si el modelo y el acierto real coinciden, la prop es muy sólida!
+* **EV > 0 (Value Bet):** Indica que la cuota de la casa de apuestas es superior a la probabilidad matemática real, convirtiéndolo en un pronóstico rentable a largo plazo.
+* **Half-Kelly:** Porcentaje recomendado y conservador de tu bank que deberías arriesgar.
+* **Muestra pequeña:** Si hay 3 partidos o menos, interpreta las métricas con cautela.
 """)
 
-# --- CONTROL DE ESTADO PARA EL BOTÓN ---
 if 'analizado_jugadores' not in st.session_state:
     st.session_state.analizado_jugadores = False
 
