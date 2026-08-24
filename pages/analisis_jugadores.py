@@ -91,7 +91,7 @@ with st.sidebar.expander("Modelo", expanded=True):
         key="slider_k_jug",
         disabled=not usar_shrinkage
     )
-    st.info(f"Shrinkage: **{shrink_opt}**")
+    st.caption("Recomendado ON en 5.0")
 
 if not df_jugador.empty and "Fecha" in df_jugador.columns:
     df_diagnostico = df_jugador.sort_values(by="Fecha", ascending=False)
@@ -165,19 +165,17 @@ st.caption("Props orientativas. Contrasta modelo vs acierto real. Gestiona el ba
 with st.expander("Como interpretar este analisis", expanded=False):
     st.markdown("""
 ### 📊 Configuracion y Modelo Estadistico
-- **Shrinkage (ON/OFF):** Estabiliza las proyecciones combinando el rendimiento del filtro actual con la media histórica global del jugador. Evita sobreestimaciones cuando hay pocas muestras.
-- **Fuerza prior (k):** Controla el peso que se le da a la media histórica del jugador frente a los datos recientes. A mayor $k$, más se acerca el resultado a la media global.
+- **Shrinkage (Recomendado: ON en 5.0):** Estabiliza las proyecciones individuales combinando los partidos recientes del filtro con la media histórica global del jugador. Evita que caigas en trampas cuando el jugador tiene pocos partidos en esa condición específica. Un valor de $k=5.0$ equilibra perfectamente la tendencia y el histórico.
 
 ### 📈 Metricas Clave
-- **Lambda ($\lambda$):** Es el promedio esperado de eventos (goles, tiros, asistencias) para este escenario según la distribución de Poisson.
-- **Ratio de contribución:** Mide la frecuencia con la que el jugador participa directamente en goles o asistencias (ej. 1 cada X partidos).
-- **Racha seca:** Cantidad de partidos consecutivos recientes en los que el jugador no ha registrado gol ni asistencia.
+- **Lambda ($\lambda$):** Promedio esperado de eventos (goles, tiros, asistencias) para este jugador en el escenario seleccionado según la distribución de Poisson.
+- **Ratio de contribución:** Frecuencia con la que el jugador participa directamente en goles o asistencias (ej. 1 aporte cada X partidos).
+- **Racha seca:** Cantidad de partidos consecutivos recientes en los que el jugador no ha registrado gol ni asistencia frente a su media habitual.
 
 ### 💰 Value Bet y Gestion de Bank (Half-Kelly)
-- **Probabilidad del Modelo (%):** Porcentaje obtenido mediante simulaciones de Monte Carlo / Poisson superando la línea de estudio.
-- **Acierto Real (%):** Porcentaje histórico real en los partidos considerados para la muestra.
-- **EV (Valor Esperado):** Si es positivo ($EV > 0$), significa que la cuota ofrecida por la casa tiene un valor matemático favorable a largo plazo frente a la probabilidad real estimada.
-- **Half-Kelly:** Sugerencia porcentual orientativa de tu bankroll para apostar, diseñada para maximizar el crecimiento protegiendo tu capital del riesgo.
+- **Modelo % vs Acierto Real %:** Compara la probabilidad teórica obtenida por la simulación frente al porcentaje histórico real dentro de la muestra.
+- **EV > 0 (Value Bet):** Cuota de la casa superior a la probabilidad real estimada, representando valor a largo plazo.
+- **Half-Kelly:** Sugerencia porcentual conservadora de tu bankroll para arriesgar protegiendo tu capital.
 """)
 
 if "analizado_jugadores" not in st.session_state:
@@ -233,7 +231,6 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
     st.markdown(f'<div class="header-box">{jugador_sel.upper()} | {condicion_sel} vs {nivel_sel}</div>', unsafe_allow_html=True)
     st.caption(f"Base: {n_obs} partidos | {fuente}")
     st.caption(f"Modelo: Poisson {'+ Shrinkage (k=' + str(int(k_shrink)) + ')' if usar_shrinkage else 'puro (Shrinkage OFF)'}")
-    st.info(f"Estado -> Shrinkage: {shrink_opt}")
 
     if muestra_pequena:
         st.warning("Muestra pequena. Interpreta Kelly con cautela.")
