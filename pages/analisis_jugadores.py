@@ -213,7 +213,8 @@ if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
     elif len(df_exactos) == 1:
         historial = df_exactos.copy()
         if len(df_jugador) > 1:
-            extra = df_jugador[\~df_jugador.index.isin(historial.index)].tail(1)
+            # --- AQUÍ ESTABA EL ERROR: ya le quité la \ antes de la ~ ---
+            extra = df_jugador[~df_jugador.index.isin(historial.index)].tail(1)
             historial = pd.concat([historial, extra])
             fuente = "1 partido exacto + 1 de respaldo reciente"
         else:
