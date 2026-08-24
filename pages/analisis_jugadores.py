@@ -177,6 +177,13 @@ Luego se simulan props con Poisson.
 - Half-Kelly: % orientativo del bank si hay value
 - Gol o Asistencia: goles + asistencias en el mismo partido
 
+Si modelo y acierto real divergen mucho, usa cautela.
+
+**Limitaciones**
+
+No distingue minutos jugados. No es prediccion garantizada.
+Props de jugador son mas ruidosas que mercados de equipo.
+""")
 
 col_b1, col_b2, _ = st.columns([1.2, 1, 4])
 with col_b1:
