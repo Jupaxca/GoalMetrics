@@ -242,48 +242,44 @@ st.caption("Simulación orientativa · EV y Kelly no son tips garantizados")
 
 with st.expander("📖 Cómo interpretar este análisis", expanded=False):
     st.markdown("""
-### Qué estás viendo
-El modelo estima **goles y estadísticas** con el historial filtrado (equipo + local/visitante + nivel de rival),
-da más peso a partidos recientes, estabiliza con **shrinkage** si hay pocos datos y corrige empates bajos con **Dixon–Coles**.
+### 🧪 ¿Qué es el Modelo Estadístico y cómo usarlo?
+Esta sección (ubicada en la barra lateral) te permite ajustar cómo el sistema calcula las probabilidades. Si modificas las opciones, verás cómo los números y gráficos de la pantalla cambian en tiempo real.
 
-### Resumen
-| Concepto | Significado |
-|----------|-------------|
-| **Victoria / Empate / Derrota** | % de simulaciones con ese resultado |
-| **BTTS** | % en los que ambos marcan |
-| **1X / X2 / DNB** | Doble oportunidad y empate no válido |
-| **λ** | Promedio esperado por partido |
-| **vs promedio del nivel** | Por encima o debajo de la media de ese nivel |
-| **ADN** | Perfil 0–10 orientativo |
+**1. Shrinkage hacia la media del nivel (Fuerza k)**
+* **¿Qué significa?** Si un equipo jugó solo 1 partido y marcó 4 goles, la matemática pura pensaría que siempre marcará 4 goles. El "Shrinkage" soluciona esto promediando los números del equipo con el promedio de *todos los equipos de ese mismo nivel*, logrando una proyección mucho más realista.
+* **¿Cómo usarlo?** 
+  * Déjalo **ACTIVADO** cuando tengas pocos partidos analizados (1 a 3 partidos). 
+  * La **Fuerza (k)** es cuánto peso le das a la media general. Si la subes a 10, el resultado será más conservador.
+  * Si el equipo ya tiene muchos partidos registrados en tu base de datos (ej. 5 o más), puedes **DESACTIVARLO** para confiar 100% en los números exactos del equipo.
 
-### Value Bet
-| Concepto | Significado |
-|----------|-------------|
-| **Prob** | Probabilidad del modelo |
-| **Cuota justa** | `100 / Prob` |
-| **Cuota casa** | Lo que pagas en el bookie |
-| **EV > 0** | Posible value (la casa paga de más según el modelo) |
-| **Half-Kelly** | % sugerido del bank (conservador) |
-| **Muestra pequeña** | ≤3 partidos → interpreta con cautela |
+**2. Dixon-Coles (ρ)**
+* **¿Qué significa?** El modelo matemático tradicional (Poisson) tiene un gran defecto en el fútbol: subestima la cantidad real de empates a pocos goles (0-0 y 1-1). La corrección Dixon-Coles corrige esta falla matemática.
+* **¿Cómo usarlo?**
+  * Déjalo **ACTIVADO** de forma predeterminada, ya que el fútbol es un deporte cerrado.
+  * El factor **ρ (Rho)** en negativo (ej. `-0.10`) fuerza matemáticamente a que la probabilidad del empate crezca y las goleadas salvajes bajen.
+  * **DESACTÍVALO** solo si estás seguro de que será un partido súper abierto donde el 0-0 es virtualmente imposible.
 
-### Líneas (Over)
-Probabilidad de **superar** la línea elegida en el sidebar.
-
-### Modelo (sidebar)
-- **Shrinkage:** acerca medias a la del nivel con pocos datos
-- **Dixon–Coles:** corrige subestimación de 0-0 y 1-1
-- **k más alto:** más peso al nivel
-- **ρ más negativo:** más corrección a empates bajos
+### Resumen Rápido de Resultados
+* **Value Bet (EV > 0):** Significa que, según los cálculos de este modelo, la casa de apuestas te está pagando "de más" por ese pronóstico y a largo plazo es rentable apostarlo.
+* **Half-Kelly:** El porcentaje sugerido y responsable de tu bank que podrías invertir en esa apuesta.
+* **λ (Lambda):** Es el promedio esperado de goles, tiros, etc., por partido según los filtros que aplicaste.
 """)
+
+# --- INICIO DE LA SOLUCIÓN DEL BOTÓN (SESSION STATE) ---
+if 'analizado_equipos' not in st.session_state:
+    st.session_state.analizado_equipos = False
 
 col_btn1, col_btn2, _ = st.columns([1.2, 1, 4])
 with col_btn1:
-    btn_analizar = st.button("⚡ Analizar", type="primary", use_container_width=True)
+    if st.button("⚡ Analizar", type="primary", use_container_width=True):
+        st.session_state.analizado_equipos = True
 with col_btn2:
     if st.button("🧹 Limpiar", use_container_width=True):
+        st.session_state.analizado_equipos = False
         st.rerun()
 
-if btn_analizar:
+# --- AHORA USAMOS EL SESSION STATE PARA EJECUTAR EL CÓDIGO ---
+if st.session_state.analizado_equipos:
     df_base = df[df["Equipo"] == equipo_sel].sort_values(by="Fecha", ascending=False)
     df_exactos = df_base[(df_base["Condición"] == condicion_sel) & (df_base["Nivel Rival"] == nivel_sel)]
     historial = pd.DataFrame()
