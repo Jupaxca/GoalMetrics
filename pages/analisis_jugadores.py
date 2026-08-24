@@ -250,7 +250,7 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
     elif len(df_exactos) == 1:
         historial = df_exactos.copy()
         if len(df_jugador) > 1:
-            extra = df_jugador[\~df_jugador.index.isin(historial.index)].tail(1)
+            extra = df_jugador[~df_jugador.index.isin(historial.index)].tail(1)
             historial = pd.concat([historial, extra])
             fuente = "1 partido exacto + 1 de respaldo reciente"
         else:
