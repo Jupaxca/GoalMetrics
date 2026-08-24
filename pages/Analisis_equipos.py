@@ -617,3 +617,59 @@ Partidos que entraron al cálculo y su **peso** (más reciente = más peso).
 - Poisson asume independencia aproximada entre eventos.
 - Más datos en el Sheet = mejores estimaciones.
 """)
+with st.expander("📖 Cómo interpretar este análisis", expanded=False):
+    st.markdown("""
+### Qué estás viendo
+Se filtra el historial del jugador (condición + nivel de rival), se ponderan partidos recientes,
+se estiman promedios (λ) y, si hay pocos datos, **shrinkage** hacia la media general del jugador.
+Luego se simulan props con **Poisson**.
+
+---
+
+### Resumen & Racha
+| Concepto | Significado |
+|----------|-------------|
+| **Goles / Asistencias totales** | Suma de todo su historial cargado |
+| **Promedios** | Media por partido (todos sus registros) |
+| **Ratio contribución** | Cada cuántos partidos aporta gol o asistencia, en media |
+| **Racha seca** | Partidos **seguidos recientes** sin gol ni asistencia |
+| **Alta probabilidad de aporte** | La racha actual supera su media histórica (señal suave, no garantía) |
+| **λ** | Esperado por partido en este filtro (tras shrinkage si está activo) |
+
+---
+
+### Value Bet Props
+| Concepto | Significado |
+|----------|-------------|
+| **Modelo %** | Probabilidad de superar la línea en la simulación |
+| **Acierto real** | En los partidos usados, ¿qué % veces superó esa línea de verdad? |
+| **Cuota justa** | Cuota implícita del modelo |
+| **EV > 0** | La cuota de la casa es mejor que la justa del modelo |
+| **Half-Kelly** | % orientativo del bank si hay value |
+| **Gol o Asistencia** | Goles + asistencias en el mismo partido |
+
+Si **modelo** y **acierto real** divergen mucho, prioriza cautela (poca muestra o filtro raro).
+
+---
+
+### Probabilidades
+Mismos % del modelo, con el acierto real como referencia rápida.
+
+---
+
+### Detalle
+Partidos que alimentaron el cálculo y sus pesos temporales.
+
+---
+
+### Modelo (sidebar)
+- **Shrinkage ON:** estabiliza cuando hay 2–4 partidos en el filtro.
+- **k más alto:** más peso a la media de toda la carrera del jugador.
+
+---
+
+### Limitaciones
+- No distingue minutos jugados (un partido de 15 min pesa igual si no filtras).
+- No es predicción de “seguro que marca”; es frecuencia esperada bajo el historial.
+- Props de jugador son más ruidosas que mercados de equipo.
+""")
