@@ -163,7 +163,7 @@ with st.sidebar.expander("Modelo estadistico", expanded=True):
     )
     usar_shrinkage = (shrink_opt == "ON")
     k_shrink = st.slider("Fuerza prior (k)", 1.0, 15.0, 5.0, 1.0, key="slider_k_eq", disabled=not usar_shrinkage)
-    st.caption("ON: mezcla filtro + media del nivel.")
+    st.caption("Recomendado ON en 5.0")
 
     st.markdown("**Dixon-Coles**")
     dc_opt = st.radio(
@@ -176,9 +176,7 @@ with st.sidebar.expander("Modelo estadistico", expanded=True):
     )
     usar_dc = (dc_opt == "ON")
     rho_dc = st.slider("rho Dixon-Coles", -0.20, 0.05, -0.10, 0.01, key="slider_rho_eq", disabled=not usar_dc)
-    st.caption("ON: corrige empates bajos.")
-
-    st.info(f"Estado -> Shrinkage: {shrink_opt} | Dixon-Coles: {dc_opt}")
+    st.caption("Recomendado ON en -0.10")
 
 color_equipo = generar_color_equipo(equipo_sel)
 
@@ -266,18 +264,18 @@ st.caption("Simulacion orientativa. EV y Kelly no son tips garantizados.")
 
 with st.expander("Como interpretar este analisis", expanded=False):
     st.markdown("""
-### 🧠 Modelos Estadisticos (Sidebar)
-- **Shrinkage (ON/OFF):** Combina el filtro actual con la media general de ese nivel de rival. Evita distorsiones cuando el equipo tiene pocos partidos registrados en esa condición.
-- **Dixon-Coles (ON/OFF):** Ajuste avanzado de Poisson que corrige la independencia de goles para modelar de forma precisa empates bajos recurrentes (0-0, 1-0, 0-1, 1-1).
+### 🧠 Modelos Estadisticos Avanzados (Sidebar)
+- **Shrinkage (Recomendado: ON en 5.0):** Cuando filtras por condiciones muy específicas (ej. visitante vs descenso), la muestra suele ser de pocos partidos. El Shrinkage evita que caigas en "espejismos" mezclando el rendimiento observado con la media general de ese nivel. Un valor de $k=5.0$ es el punto óptimo de protección estadística.
+- **Dixon-Coles (Recomendado: ON en -0.10):** El fútbol es un deporte de muy pocos goles y la matemática clásica de Poisson calcula mal los empates (0-0, 1-1). Dixon-Coles es un ajuste matemático profesional que corrige la probabilidad de esos marcadores cerrados para que reflejen la realidad de las ligas del mundo.
 
 ### 🧬 Resumen y ADN del Equipo
 - **Probabilidades 1X2, BTTS y DNB:** Resultados de 10,000 simulaciones de Monte Carlo basadas en las tasas de goles esperados ($\lambda$).
-- **ADN del Equipo:** Gráfico de barras (0 a 10) que mide de manera rápida la capacidad ofensiva, volumen de tiros, precisión a puerta, saques de esquina (corners) y disciplina (faltas).
+- **ADN del Equipo:** Gráfico de barras (0 a 10) que resume rápidamente la capacidad ofensiva, volumen de tiros, precisión a puerta, corners y disciplina.
 
 ### 🎯 Value Bet y Gestion de Bank
-- **Cuota Justa vs Cuota de Casa:** La cuota justa se calcula como $100 / \text{Probabilidad\%}$. Si la cuota de la casa es mayor, el modelo detecta valor.
-- **EV > 0 (Value Bet):** Indica ventaja matemática a largo plazo sobre la casa de apuestas.
-- **Half-Kelly:** Sugerencia del porcentaje del bankroll a apostar de forma conservadora para proteger tu capital.
+- **Cuota Justa vs Cuota de Casa:** La cuota justa es $100 / \text{Probabilidad\%}$. Si la casa paga más que la cuota justa, se detecta valor.
+- **EV > 0 (Value Bet):** Indica ventaja matemática rentable a largo plazo sobre la casa de apuestas.
+- **Half-Kelly:** Sugerencia porcentual conservadora de tu bankroll para proteger tu capital al apostar.
 - **Lineas Over:** Probabilidades de superar las líneas estadísticas establecidas en la barra lateral.
 """)
 
@@ -400,7 +398,6 @@ if st.session_state.analizado_equipos:
     if usar_dc:
         mods.append(f"Dixon-Coles rho={rho_dc:.2f}")
     st.caption("Modelo: " + (" + ".join(mods) if mods else "Poisson clasico (todo OFF)"))
-    st.info(f"Confirmacion: Shrinkage={shrink_opt} | Dixon-Coles={dc_opt}")
 
     if muestra_pequena:
         st.warning("Muestra pequena (<=3). Interpreta EV/Kelly con cautela.")
