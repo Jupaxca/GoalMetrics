@@ -275,9 +275,6 @@ Probabilidad de **superar** la línea elegida en el sidebar.
 - **k más alto:** más peso al nivel
 - **ρ más negativo:** más corrección a empates bajos
 
-### Limitaciones
-No usa alineaciones ni xG en vivo. Más datos en el Sheet = mejor estimación.
-""")
 
 col_btn1, col_btn2, _ = st.columns([1.2, 1, 4])
 with col_btn1:
