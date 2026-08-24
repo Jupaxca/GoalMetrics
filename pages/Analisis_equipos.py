@@ -152,10 +152,10 @@ with st.sidebar.expander("📈 Cuotas de Líneas (Over)"):
     cuota_over_total = st.number_input(f"Over {linea_total_partido} Goles partido", min_value=1.01, value=1.90, step=0.01, format="%.2f")
 
 with st.sidebar.expander("🧪 Modelo estadístico"):
-    usar_shrinkage = st.checkbox("Shrinkage hacia media del nivel", value=True)
-    k_shrink = st.slider("Fuerza prior shrinkage (k)", 1.0, 15.0, 5.0, 1.0)
-    usar_dc = st.checkbox("Dixon–Coles (corrige empates bajos)", value=True)
-    rho_dc = st.slider("ρ Dixon–Coles", -0.20, 0.05, -0.10, 0.01)
+    usar_shrinkage = st.checkbox("Shrinkage hacia media del nivel", value=True, key="chk_shrinkage_eq")
+    k_shrink = st.slider("Fuerza prior shrinkage (k)", 1.0, 15.0, 5.0, 1.0, key="slider_k_eq", disabled=not usar_shrinkage)
+    usar_dc = st.checkbox("Dixon–Coles (corrige empates bajos)", value=True, key="chk_dc_eq")
+    rho_dc = st.slider("ρ Dixon–Coles", -0.20, 0.05, -0.10, 0.01, key="slider_rho_eq", disabled=not usar_dc)
 
 color_equipo = generar_color_equipo(equipo_sel)
 
@@ -242,30 +242,26 @@ st.caption("Simulación orientativa · EV y Kelly no son tips garantizados")
 
 with st.expander("📖 Cómo interpretar este análisis", expanded=False):
     st.markdown("""
-### 🧪 ¿Qué es el Modelo Estadístico y cómo usarlo?
-Esta sección (ubicada en la barra lateral) te permite ajustar cómo el sistema calcula las probabilidades. Si modificas las opciones, verás cómo los números y gráficos de la pantalla cambian en tiempo real.
+### 🧪 Configuración y Modelo Estadístico
+En la barra lateral puedes ajustar cómo el sistema calcula las probabilidades en tiempo real:
+* **Shrinkage hacia la media del nivel:** Combina los números del equipo con el promedio general de su categoría para evitar proyecciones distorsionadas por pocos partidos. Puedes **activarlo o desactivarlo** libremente, y regular su **Fuerza (k)**.
+* **Dixon–Coles:** Corrige la falla del modelo clásico de Poisson para estimar con precisión los empates bajos (0-0 y 1-1). Puedes **activarlo o desactivarlo** según tu preferencia de análisis.
 
-**1. Shrinkage hacia la media del nivel (Fuerza k)**
-* **¿Qué significa?** Si un equipo jugó solo 1 partido y marcó 4 goles, la matemática pura pensaría que siempre marcará 4 goles. El "Shrinkage" soluciona esto promediando los números del equipo con el promedio de *todos los equipos de ese mismo nivel*, logrando una proyección mucho más realista.
-* **¿Cómo usarlo?** 
-  * Déjalo **ACTIVADO** cuando tengas pocos partidos analizados (1 a 3 partidos). 
-  * La **Fuerza (k)** es cuánto peso le das a la media general. Si la subes a 10, el resultado será más conservador.
-  * Si el equipo ya tiene muchos partidos registrados en tu base de datos (ej. 5 o más), puedes **DESACTIVARLO** para confiar 100% en los números exactos del equipo.
+### 📋 Qué significan las secciones principales
+* **Resumen / ADN:** Muestra las probabilidades de Victoria, Empate, Derrota, BTTS (ambos anotan), Doble Oportunidad (1X, X2), DNB (empate no válido), y el perfil visual del 0 al 10 (Ataque, Tiros, Precisión, Córners, Disciplina).
+* **λ (Lambda):** El promedio esperado de goles, tiros, etc., por partido según el historial filtrado y los pesos temporales recientes.
+* **vs Promedio del nivel:** Indica qué tan por encima o por debajo está el rendimiento del equipo frente a la media de su grupo de rivales.
 
-**2. Dixon-Coles (ρ)**
-* **¿Qué significa?** El modelo matemático tradicional (Poisson) tiene un gran defecto en el fútbol: subestima la cantidad real de empates a pocos goles (0-0 y 1-1). La corrección Dixon-Coles corrige esta falla matemática.
-* **¿Cómo usarlo?**
-  * Déjalo **ACTIVADO** de forma predeterminada, ya que el fútbol es un deporte cerrado.
-  * El factor **ρ (Rho)** en negativo (ej. `-0.10`) fuerza matemáticamente a que la probabilidad del empate crezca y las goleadas salvajes bajen.
-  * **DESACTÍVALO** solo si estás seguro de que será un partido súper abierto donde el 0-0 es virtualmente imposible.
+### 💎 Value Bet & Half-Kelly
+* **Prob vs Cuota Justa:** La probabilidad de la simulación convertida en cuota ideal (`100 / Prob`).
+* **EV > 0 (Value Bet):** Si el EV es positivo, significa que la cuota que paga la casa es superior a la probabilidad matemática real, representando una oportunidad con valor a largo plazo.
+* **Half-Kelly:** El porcentaje conservador recomendado de tu bank para gestionar tu inversión.
+* **Muestra pequeña:** Si la base tiene 3 partidos o menos, los resultados se marcan con precaución.
 
-### Resumen Rápido de Resultados
-* **Value Bet (EV > 0):** Significa que, según los cálculos de este modelo, la casa de apuestas te está pagando "de más" por ese pronóstico y a largo plazo es rentable apostarlo.
-* **Half-Kelly:** El porcentaje sugerido y responsable de tu bank que podrías invertir en esa apuesta.
-* **λ (Lambda):** Es el promedio esperado de goles, tiros, etc., por partido según los filtros que aplicaste.
+### 📈 Líneas (Over)
+* Porcentaje de probabilidad de **superar** los umbrales numéricos seleccionados en el sidebar (goles, tiros, córners, faltas, etc.).
 """)
 
-# --- INICIO DE LA SOLUCIÓN DEL BOTÓN (SESSION STATE) ---
 if 'analizado_equipos' not in st.session_state:
     st.session_state.analizado_equipos = False
 
@@ -278,7 +274,6 @@ with col_btn2:
         st.session_state.analizado_equipos = False
         st.rerun()
 
-# --- AHORA USAMOS EL SESSION STATE PARA EJECUTAR EL CÓDIGO ---
 if st.session_state.analizado_equipos:
     df_base = df[df["Equipo"] == equipo_sel].sort_values(by="Fecha", ascending=False)
     df_exactos = df_base[(df_base["Condición"] == condicion_sel) & (df_base["Nivel Rival"] == nivel_sel)]
