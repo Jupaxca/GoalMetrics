@@ -3,29 +3,25 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 
-# ====================== CARGA ======================
 @st.cache_data(ttl=600)
 def cargar_datos_jugadores():
     url = "https://docs.google.com/spreadsheets/d/1q98g-IxYaO8g3ksDb0vyZ9V7IrhPjDcVUtChZI8SNT4/export?format=csv"
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip()
-
     if "Jugador" not in df.columns and "Equipo" in df.columns:
         df = df.rename(columns={"Equipo": "Jugador"})
-
     if "Fecha" in df.columns:
         df["Fecha"] = pd.to_datetime(df["Fecha"], dayfirst=True, errors="coerce")
-
     for col in ["Goles", "Asistencias", "Tiros", "A Puerta", "Faltas", "Amarillas", "Rojas"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-
+    if "Condicion" in df.columns and "Condición" not in df.columns:
+        df = df.rename(columns={"Condicion": "Condición"})
     if "Condición" in df.columns:
         df["Condición"] = df["Condición"].astype(str).str.strip().str.lower()
-
     return df
 
-def shrinkage_lambda(lam_obs, lam_ n_obs, k=5.0):
+def shrinkage_lambda(lam_obs, lam_prior, n_obs, k=5.0):
     n = max(float(n_obs), 0.0)
     return (n * lam_obs + k * lam_prior) / (n + k)
 
@@ -37,48 +33,42 @@ except Exception as e:
     datos_ok = False
     df = pd.DataFrame()
 
-# ====================== SIDEBAR ======================
-st.sidebar.header("⚙️ Configuración del Jugador")
+st.sidebar.header("Configuracion del Jugador")
 
 if datos_ok and not df.empty and "Jugador" in df.columns:
     jugadores = sorted(df["Jugador"].dropna().unique().tolist())
-    jugador_sel = st.sidebar.selectbox("👤 Selecciona al Jugador", jugadores)
-
+    jugador_sel = st.sidebar.selectbox("Selecciona al Jugador", jugadores)
     df_jugador = df[df["Jugador"] == jugador_sel].copy()
     if "Fecha" in df_jugador.columns:
         df_jugador = df_jugador.sort_values("Fecha")
-
-    condiciones = (
-        sorted(df_jugador["Condición"].dropna().unique().tolist())
-        if "Condición" in df_jugador.columns
-        else ["local", "visitante"]
-    )
-    condicion_sel = st.sidebar.selectbox("📍 Condición", [c.capitalize() for c in condiciones])
+    if "Condición" in df_jugador.columns:
+        condiciones = sorted(df_jugador["Condición"].dropna().unique().tolist())
+    else:
+        condiciones = ["local", "visitante"]
+    condicion_sel = st.sidebar.selectbox("Condicion", [c.capitalize() for c in condiciones])
     condicion_sel_lower = condicion_sel.lower()
-
-    niveles = (
-        sorted(df_jugador["Nivel Rival"].dropna().unique().tolist())
-        if "Nivel Rival" in df_jugador.columns
-        else ["TOP", "CHAMPIONS", "MEDIA TABLA", "DESCENSO"]
-    )
-    nivel_sel = st.sidebar.selectbox("⭐ Nivel del Rival", niveles)
+    if "Nivel Rival" in df_jugador.columns:
+        niveles = sorted(df_jugador["Nivel Rival"].dropna().unique().tolist())
+    else:
+        niveles = ["TOP", "CHAMPIONS", "MEDIA TABLA", "DESCENSO"]
+    nivel_sel = st.sidebar.selectbox("Nivel del Rival", niveles)
 else:
-    jugador_sel = st.sidebar.selectbox("👤 Selecciona al Jugador", ["Sin datos"])
-    condicion_sel = st.sidebar.selectbox("📍 Condición", ["Local", "Visitante"])
+    jugador_sel = st.sidebar.selectbox("Selecciona al Jugador", ["Sin datos"])
+    condicion_sel = st.sidebar.selectbox("Condicion", ["Local", "Visitante"])
     condicion_sel_lower = condicion_sel.lower()
-    nivel_sel = st.sidebar.selectbox("⭐ Nivel del Rival", ["DESCENSO"])
+    nivel_sel = st.sidebar.selectbox("Nivel del Rival", ["DESCENSO"])
     df_jugador = pd.DataFrame()
 
 st.sidebar.markdown("---")
-with st.sidebar.expander("🎯 Líneas de Estudio (Player Props)", expanded=True):
-    linea_goles = st.slider("⚽ Línea de Goles", 0.0, 3.0, 0.5, 0.5)
-    linea_tiros = st.slider("🎯 Línea de Tiros Totales", 0.0, 10.0, 2.5, 0.5)
-    linea_puerta = st.slider("🥅 Línea de Tiros a Puerta", 0.0, 5.0, 1.5, 0.5)
-    linea_asist = st.slider("👟 Línea de Asistencias", 0.0, 2.0, 0.5, 0.5)
-    linea_faltas = st.slider("⚠️ Línea de Faltas", 0.0, 5.0, 1.0, 0.5)
-    linea_contrib = st.slider("🎯 Línea Gol o Asistencia", 0.0, 3.0, 0.5, 0.5)
+with st.sidebar.expander("Lineas de Estudio (Player Props)", expanded=True):
+    linea_goles = st.slider("Linea de Goles", 0.0, 3.0, 0.5, 0.5)
+    linea_tiros = st.slider("Linea de Tiros Totales", 0.0, 10.0, 2.5, 0.5)
+    linea_puerta = st.slider("Linea de Tiros a Puerta", 0.0, 5.0, 1.5, 0.5)
+    linea_asist = st.slider("Linea de Asistencias", 0.0, 2.0, 0.5, 0.5)
+    linea_faltas = st.slider("Linea de Faltas", 0.0, 5.0, 1.0, 0.5)
+    linea_contrib = st.slider("Linea Gol o Asistencia", 0.0, 3.0, 0.5, 0.5)
 
-with st.sidebar.expander("💰 Cuotas de la Casa (Over / Props)"):
+with st.sidebar.expander("Cuotas de la Casa (Over / Props)"):
     cuota_casa_goles = st.number_input(f"Cuota Over {linea_goles} Goles", min_value=1.01, value=2.10, step=0.01, format="%.2f")
     cuota_casa_tiros = st.number_input(f"Cuota Over {linea_tiros} Tiros", min_value=1.01, value=1.85, step=0.01, format="%.2f")
     cuota_casa_puerta = st.number_input(f"Cuota Over {linea_puerta} a Puerta", min_value=1.01, value=1.90, step=0.01, format="%.2f")
@@ -86,16 +76,16 @@ with st.sidebar.expander("💰 Cuotas de la Casa (Over / Props)"):
     cuota_casa_faltas = st.number_input(f"Cuota Over {linea_faltas} Faltas", min_value=1.01, value=1.80, step=0.01, format="%.2f")
     cuota_casa_contrib = st.number_input(f"Cuota Over {linea_contrib} Gol/Asist", min_value=1.01, value=1.70, step=0.01, format="%.2f")
 
-with st.sidebar.expander("🧪 Modelo"):
+with st.sidebar.expander("Modelo"):
     usar_shrinkage = st.checkbox("Shrinkage hacia media del jugador", value=True)
     k_shrink = st.slider("Fuerza prior (k)", 1.0, 15.0, 5.0, 1.0)
 
-df_diagnostico = (
-    df_jugador.sort_values(by="Fecha", ascending=False)
-    if "Fecha" in df_jugador.columns and not df_jugador.empty
-    else df_jugador
-)
-if not df_diagnostico.empty:
+if not df_jugador.empty and "Fecha" in df_jugador.columns:
+    df_diagnostico = df_jugador.sort_values(by="Fecha", ascending=False)
+else:
+    df_diagnostico = df_jugador
+
+if not df_diagnostico.empty and "Condición" in df_diagnostico.columns and "Nivel Rival" in df_diagnostico.columns:
     exactos_check = df_diagnostico[
         (df_diagnostico["Condición"] == condicion_sel_lower)
         & (df_diagnostico["Nivel Rival"] == nivel_sel)
@@ -105,13 +95,12 @@ else:
     num_exactos = 0
 
 if num_exactos >= 2:
-    st.sidebar.success(f"✅ {num_exactos} partidos exactos")
+    st.sidebar.success(f"{num_exactos} partidos exactos")
 elif num_exactos == 1:
-    st.sidebar.warning("⚠️ 1 partido exacto → respaldo")
+    st.sidebar.warning("1 partido exacto -> respaldo")
 else:
-    st.sidebar.error("❌ 0 partidos exactos")
+    st.sidebar.error("0 partidos exactos")
 
-# ====================== CSS ======================
 st.markdown("""
 <style>
 .stApp { background-color: #0B0F19; color: #F3F4F6; }
@@ -147,89 +136,80 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, real=None):
     clase = "value-yes" if es_value else "value-no"
     color_ev = "#10b981" if es_value else "#9ca3af"
     stake_kelly = calcular_kelly(prob, cuota_casa) if es_value else 0.0
-    kelly_text = f" &nbsp;|&nbsp; Half-Kelly: <b>{stake_kelly}% bank</b>" if es_value else ""
-    real_txt = f" &nbsp;|&nbsp; Acierto real: <b>{real:.0f}%</b>" if real is not None else ""
-    st.markdown(f"""
-    <div class="value-box {clase}">
-        <b>{nombre}</b><br>
-        Modelo: <b>{prob:.1f}%</b>{real_txt} &nbsp;|&nbsp; Justa: <b>{cuota_justa}</b> &nbsp;|&nbsp; Casa: <b>{cuota_casa}</b>{kelly_text}<br>
-        <span style="color:{color_ev}; font-weight:bold; font-size:15px;">
-            EV: {ev:+.2%} → {'✅ VALUE BET' if es_value else '❌ Sin valor'}
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
+    kelly_text = f" | Half-Kelly: <b>{stake_kelly}% bank</b>" if es_value else ""
+    real_txt = f" | Acierto real: <b>{real:.0f}%</b>" if real is not None else ""
+    st.markdown(
+        f'<div class="value-box {clase}">'
+        f"<b>{nombre}</b><br>"
+        f"Modelo: <b>{prob:.1f}%</b>{real_txt} | Justa: <b>{cuota_justa}</b> | Casa: <b>{cuota_casa}</b>{kelly_text}<br>"
+        f'<span style="color:{color_ev}; font-weight:bold; font-size:15px;">'
+        f"EV: {ev:+.2%} -> {'VALUE BET' if es_value else 'Sin valor'}"
+        f"</span></div>",
+        unsafe_allow_html=True,
+    )
 
-# ====================== UI ======================
-st.markdown("### 🎯 Centro de Análisis Individual de Jugadores")
-st.caption("Props orientativas · Contrasta modelo vs acierto real · Gestiona el bank")
+st.markdown("### Centro de Analisis Individual de Jugadores")
+st.caption("Props orientativas. Contrasta modelo vs acierto real. Gestiona el bank.")
 
-with st.expander("📖 Cómo interpretar este análisis", expanded=False):
+with st.expander("Como interpretar este analisis", expanded=False):
     st.markdown("""
-### Qué estás viendo
-Se filtra el historial del jugador (condición + nivel de rival), se ponderan partidos recientes,
-se estiman promedios (λ) y, si hay pocos datos, **shrinkage** hacia la media general del jugador.
-Luego se simulan props con **Poisson**.
+**Que estas viendo**
 
-### Resumen & Racha
-| Concepto | Significado |
-|----------|-------------|
-| **Goles / Asistencias totales** | Suma de todo su historial cargado |
-| **Promedios** | Media por partido (todos sus registros) |
-| **Ratio contribución** | Cada cuántos partidos aporta gol o asistencia, en media |
-| **Racha seca** | Partidos **seguidos recientes** sin gol ni asistencia |
-| **Alta probabilidad de aporte** | La racha supera su media histórica (señal suave, no garantía) |
-| **λ** | Esperado por partido en este filtro (tras shrinkage si está activo) |
+Se filtra el historial del jugador (condicion + nivel de rival), se ponderan partidos recientes,
+se estiman promedios (lambda) y, si hay pocos datos, shrinkage hacia la media general del jugador.
+Luego se simulan props con Poisson.
 
-### Value Bet Props
-| Concepto | Significado |
-|----------|-------------|
-| **Modelo %** | Probabilidad de superar la línea en la simulación |
-| **Acierto real** | En los partidos usados, % de veces que superó esa línea de verdad |
-| **Cuota justa** | Cuota implícita del modelo (`100 / Prob`) |
-| **EV > 0** | La cuota de la casa es mejor que la justa del modelo |
-| **Half-Kelly** | % orientativo del bank si hay value |
-| **Gol o Asistencia** | Goles + asistencias en el mismo partido |
+**Resumen y racha**
 
-Si **modelo** y **acierto real** divergen mucho, prioriza cautela (poca muestra o filtro raro).
+- Goles / Asistencias totales: suma del historial cargado
+- Promedios: media por partido
+- Ratio contribucion: cada cuantos partidos aporta gol o asistencia
+- Racha seca: partidos seguidos recientes sin gol ni asistencia
+- Alta probabilidad de aporte: la racha supera su media (senal suave, no garantia)
+- Lambda: esperado por partido en este filtro
 
-### Probabilidades
-Mismos % del modelo, con el acierto real como referencia rápida.
+**Value Bet Props**
 
-### Detalle
-Partidos que alimentaron el cálculo y sus pesos temporales.
+- Modelo %: probabilidad de superar la linea en la simulacion
+- Acierto real: en los partidos usados, % de veces que si superó la linea
+- Cuota justa: 100 / Prob
+- EV > 0: la casa paga mejor que lo justo del modelo
+- Half-Kelly: % orientativo del bank si hay value
+- Gol o Asistencia: goles + asistencias en el mismo partido
 
-### Modelo (sidebar)
-- **Shrinkage ON:** estabiliza cuando hay 2–4 partidos en el filtro
-- **k más alto:** más peso a la media de toda la carrera del jugador
+Si modelo y acierto real divergen mucho, usa cautela.
 
-### Limitaciones
-- No distingue minutos jugados
-- No es predicción de “seguro que marca”
-- Props de jugador son más ruidosas que mercados de equipo
+**Limitaciones**
+
+No distingue minutos jugados. No es prediccion garantizada.
+Props de jugador son mas ruidosas que mercados de equipo.
 """)
 
 col_b1, col_b2, _ = st.columns([1.2, 1, 4])
 with col_b1:
-    analizar = st.button("⚡ Analizar", type="primary", use_container_width=True)
+    analizar = st.button("Analizar", type="primary", use_container_width=True)
 with col_b2:
-    limpiar = st.button("🧹 Limpiar", use_container_width=True)
+    limpiar = st.button("Limpiar", use_container_width=True)
 
 if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
     df_jugador = df[df["Jugador"] == jugador_sel].copy()
     if "Fecha" in df_jugador.columns:
         df_jugador = df_jugador.sort_values("Fecha")
 
-    df_exactos = df_jugador[
-        (df_jugador["Condición"] == condicion_sel_lower)
-        & (df_jugador["Nivel Rival"] == nivel_sel)
-    ].copy()
+    if "Condición" in df_jugador.columns and "Nivel Rival" in df_jugador.columns:
+        df_exactos = df_jugador[
+            (df_jugador["Condición"] == condicion_sel_lower)
+            & (df_jugador["Nivel Rival"] == nivel_sel)
+        ].copy()
+    else:
+        df_exactos = pd.DataFrame()
 
     historial = pd.DataFrame()
     fuente = ""
 
     if len(df_exactos) >= 2:
         historial = df_exactos.copy()
-        fuente = f"Exacto ({condicion_sel} vs {nivel_sel}) — {len(historial)} partidos"
+        fuente = f"Exacto ({condicion_sel} vs {nivel_sel}) - {len(historial)} partidos"
     elif len(df_exactos) == 1:
         historial = df_exactos.copy()
         if len(df_jugador) > 1:
@@ -241,25 +221,24 @@ if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
     else:
         if len(df_jugador) >= 2:
             historial = df_jugador.tail(5).copy()
-            fuente = f"Sin exactos → últimos {len(historial)} partidos"
+            fuente = f"Sin exactos -> ultimos {len(historial)} partidos"
         else:
-            st.warning("⚠️ No hay suficientes registros para este jugador.")
+            st.warning("No hay suficientes registros para este jugador.")
             st.stop()
 
     n_obs = len(historial)
     muestra_pequena = n_obs <= 3
 
     st.markdown(
-        f'<div class="header-box">👤 {jugador_sel.upper()} &nbsp;·&nbsp; {condicion_sel} vs {nivel_sel}</div>',
+        f'<div class="header-box">{jugador_sel.upper()} | {condicion_sel} vs {nivel_sel}</div>',
         unsafe_allow_html=True,
     )
-    st.caption(f"Base: {n_obs} partidos · {fuente}")
+    st.caption(f"Base: {n_obs} partidos | {fuente}")
     if usar_shrinkage:
         st.caption(f"Modelo: Poisson + Shrinkage (k={k_shrink:.0f})")
     if muestra_pequena:
-        st.warning("⚠️ Muestra pequeña. Interpreta Kelly con cautela.")
+        st.warning("Muestra pequena. Interpreta Kelly con cautela.")
 
-    # Pesos temporales
     hoy = pd.Timestamp.today().normalize()
     if "Fecha" in historial.columns:
         historial["Dias_Pasados"] = (hoy - pd.to_datetime(historial["Fecha"])).dt.days.replace(0, 0.1)
@@ -323,59 +302,57 @@ if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
     faltas_prom = df_jugador["Faltas"].mean()
 
     contribuciones = goles_tot + asist_tot
-    ratio_contribucion = total_partidos / contribuciones if contribuciones > 0 else 99
+    ratio_contribucion = total_partidos / contribuciones if contribuciones > 0 else 99.0
 
     racha_seca = 0
-    df_ordenado = (
-        df_jugador.sort_values(by="Fecha", ascending=False)
-        if "Fecha" in df_jugador.columns
-        else df_jugador.iloc[::-1]
-    )
+    if "Fecha" in df_jugador.columns:
+        df_ordenado = df_jugador.sort_values(by="Fecha", ascending=False)
+    else:
+        df_ordenado = df_jugador.iloc[::-1]
     for _, row in df_ordenado.iterrows():
         if row["Goles"] == 0 and row["Asistencias"] == 0:
             racha_seca += 1
         else:
             break
 
-    tab1, tab2, tab3, tab4 = st.tabs(
-        ["📋 Resumen & Racha", "💎 Value Bet Props", "📈 Probabilidades", "🔍 Detalle"]
-    )
+    tab1, tab2, tab3, tab4 = st.tabs(["Resumen y Racha", "Value Bet Props", "Probabilidades", "Detalle"])
 
     with tab1:
-        st.subheader("📊 Métricas globales")
+        st.subheader("Metricas globales")
         k1, k2, k3, k4 = st.columns(4)
         k1.metric("Goles totales", int(goles_tot))
         k2.metric("Asistencias", int(asist_tot))
         k3.metric("Prom. tiros", f"{tiros_prom:.1f}")
         k4.metric("Prom. a puerta", f"{puerta_prom:.1f}")
-
         k5, k6, k7 = st.columns(3)
         k5.metric("Prom. faltas", f"{faltas_prom:.1f}")
         k6.metric("Partidos", total_partidos)
-        k7.metric("Ratio contribución", f"1 / {ratio_contribucion:.1f}")
+        k7.metric("Ratio contribucion", f"1 / {ratio_contribucion:.1f}")
 
-        st.markdown("##### λ del modelo")
+        st.markdown("##### Lambda del modelo")
         l1, l2, l3, l4, l5 = st.columns(5)
-        l1.metric("λ Goles", f"{lam_g:.2f}", delta=f"raw {lam_g_raw:.2f}" if usar_shrinkage else None)
-        l2.metric("λ Tiros", f"{lam_t:.2f}")
-        l3.metric("λ Puerta", f"{lam_p:.2f}")
-        l4.metric("λ Asist", f"{lam_a:.2f}")
-        l5.metric("λ Faltas", f"{lam_f:.2f}")
+        l1.metric("Goles", f"{lam_g:.2f}", delta=f"raw {lam_g_raw:.2f}" if usar_shrinkage else None)
+        l2.metric("Tiros", f"{lam_t:.2f}")
+        l3.metric("Puerta", f"{lam_p:.2f}")
+        l4.metric("Asist", f"{lam_a:.2f}")
+        l5.metric("Faltas", f"{lam_f:.2f}")
 
         st.markdown("---")
-        st.subheader("⚡ Racha")
-        st.caption("Todos los partidos del jugador, de más reciente a más antiguo.")
+        st.subheader("Racha")
         if racha_seca >= ratio_contribucion:
             st.success(
-                f"🔥 **Alta probabilidad de aporte:** {racha_seca} partidos seguidos sin gol ni asistencia "
-                f"(media histórica: 1 cada {ratio_contribucion:.1f})."
+                f"Alta probabilidad de aporte: {racha_seca} partidos seguidos sin gol ni asistencia "
+                f"(media: 1 cada {ratio_contribucion:.1f})."
             )
         else:
-            st.info(f"ℹ️ Estado normal: {racha_seca} partidos sin aporte directo.")
+            st.info(f"Estado normal: {racha_seca} partidos sin aporte directo.")
 
     with tab2:
-        st.subheader("💎 Value Bet & Half-Kelly")
-        cj = lambda p: round(100 / p, 2) if p > 0 else 99.0
+        st.subheader("Value Bet y Half-Kelly")
+
+        def cj(p):
+            return round(100 / p, 2) if p > 0 else 99.0
+
         col_v1, col_v2 = st.columns(2)
         with col_v1:
             mostrar_value(f"Over {linea_goles} Goles", cj(prob_goles), cuota_casa_goles, calcular_ev(prob_goles, cuota_casa_goles), prob_goles, real_goles)
@@ -387,7 +364,7 @@ if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
             mostrar_value(f"Over {linea_contrib} Gol o Asist", cj(prob_contrib), cuota_casa_contrib, calcular_ev(prob_contrib, cuota_casa_contrib), prob_contrib, real_contrib)
 
     with tab3:
-        st.subheader("📈 Probabilidades del modelo")
+        st.subheader("Probabilidades del modelo")
         lc1, lc2, lc3 = st.columns(3)
         lc1.metric(f"Goles > {linea_goles}", f"{prob_goles:.1f}%", delta=f"Real {real_goles:.0f}%")
         lc2.metric(f"Tiros > {linea_tiros}", f"{prob_tiros:.1f}%", delta=f"Real {real_tiros:.0f}%")
@@ -397,7 +374,6 @@ if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
         lc5.metric(f"Faltas > {linea_faltas}", f"{prob_faltas:.1f}%", delta=f"Real {real_faltas:.0f}%")
         lc6.metric(f"Gol/Asist > {linea_contrib}", f"{prob_contrib:.1f}%", delta=f"Real {real_contrib:.0f}%")
 
-        st.markdown("---")
         cols_graf = [c for c in ["Goles", "Tiros", "A Puerta", "Asistencias"] if c in df_jugador.columns]
         if cols_graf:
             fig = px.bar(
@@ -405,13 +381,13 @@ if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
                 x="Fecha" if "Fecha" in df_jugador.columns else df_jugador.index,
                 y=cols_graf,
                 barmode="group",
-                title=f"Historial — {jugador_sel}",
+                title=f"Historial - {jugador_sel}",
                 color_discrete_sequence=["#3B82F6", "#10B981", "#F59E0B", "#EF4444"],
             )
             st.plotly_chart(fig, use_container_width=True)
 
     with tab4:
-        st.subheader("🔍 Partidos usados")
+        st.subheader("Partidos usados")
         h_mostrar = historial.copy()
         if "Fecha" in h_mostrar.columns:
             h_mostrar["Fecha"] = pd.to_datetime(h_mostrar["Fecha"]).dt.strftime("%Y-%m-%d")
@@ -420,14 +396,15 @@ if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
         cols = [
             c for c in [
                 "Fecha", "Condición", "Rival", "Nivel Rival",
-                "Goles", "Asistencias", "Tiros", "A Puerta", "Faltas", "Peso"
-            ] if c in h_mostrar.columns
+                "Goles", "Asistencias", "Tiros", "A Puerta", "Faltas", "Peso",
+            ]
+            if c in h_mostrar.columns
         ]
         st.dataframe(h_mostrar[cols], hide_index=True, use_container_width=True)
         if usar_shrinkage:
-            st.caption(f"Prior = media de todos los partidos del jugador · k={k_shrink:.0f} · n_filtro={n_obs}")
+            st.caption(f"Prior = media del jugador | k={k_shrink:.0f} | n_filtro={n_obs}")
 
 elif limpiar:
-    st.info("🧹 Filtros restablecidos.")
+    st.info("Filtros restablecidos.")
 else:
-    st.info("👈 Elige jugador, líneas y cuotas, luego **Analizar**.")
+    st.info("Elige jugador, lineas y cuotas, luego Analizar.")
