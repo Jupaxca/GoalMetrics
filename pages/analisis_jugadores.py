@@ -25,7 +25,7 @@ def cargar_datos_jugadores():
 
     return df
 
-def shrinkage_lambda(lam_obs, lam_prior, n_obs, k=5.0):
+def shrinkage_lambda(lam_obs, lam_ n_obs, k=5.0):
     n = max(float(n_obs), 0.0)
     return (n * lam_obs + k * lam_prior) / (n + k)
 
@@ -90,7 +90,6 @@ with st.sidebar.expander("🧪 Modelo"):
     usar_shrinkage = st.checkbox("Shrinkage hacia media del jugador", value=True)
     k_shrink = st.slider("Fuerza prior (k)", 1.0, 15.0, 5.0, 1.0)
 
-# Diagnóstico
 df_diagnostico = (
     df_jugador.sort_values(by="Fecha", ascending=False)
     if "Fecha" in df_jugador.columns and not df_jugador.empty
@@ -114,20 +113,19 @@ else:
 
 # ====================== CSS ======================
 st.markdown("""
-    <style>
-    .stApp { background-color: #0B0F19; color: #F3F4F6; }
-    .stSidebar { background-color: #111827; }
-    .header-box {
-        background: linear-gradient(90deg, #3B82F6 0%, #1F2937 100%);
-        padding: 22px 28px; border-radius: 14px; color: white;
-        font-weight: 700; font-size: 24px; margin-bottom: 20px;
-        text-align: center;
-    }
-    .value-box { padding: 14px 16px; border-radius: 10px; margin-bottom: 10px; font-size: 14px; }
-    .value-yes { background-color: #064e3b; border-left: 4px solid #10b981; }
-    .value-no { background-color: #1f2937; border-left: 4px solid #4b5563; }
-    div[data-testid="stMetric"] { background-color: #1F2937; padding: 12px 16px; border-radius: 10px; }
-    </style>
+<style>
+.stApp { background-color: #0B0F19; color: #F3F4F6; }
+.stSidebar { background-color: #111827; }
+.header-box {
+    background: linear-gradient(90deg, #3B82F6 0%, #1F2937 100%);
+    padding: 22px 28px; border-radius: 14px; color: white;
+    font-weight: 700; font-size: 24px; margin-bottom: 20px; text-align: center;
+}
+.value-box { padding: 14px 16px; border-radius: 10px; margin-bottom: 10px; font-size: 14px; }
+.value-yes { background-color: #064e3b; border-left: 4px solid #10b981; }
+.value-no { background-color: #1f2937; border-left: 4px solid #4b5563; }
+div[data-testid="stMetric"] { background-color: #1F2937; padding: 12px 16px; border-radius: 10px; }
+</style>
 """, unsafe_allow_html=True)
 
 def calcular_ev(prob, cuota):
@@ -151,20 +149,64 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, real=None):
     stake_kelly = calcular_kelly(prob, cuota_casa) if es_value else 0.0
     kelly_text = f" &nbsp;|&nbsp; Half-Kelly: <b>{stake_kelly}% bank</b>" if es_value else ""
     real_txt = f" &nbsp;|&nbsp; Acierto real: <b>{real:.0f}%</b>" if real is not None else ""
-
     st.markdown(f"""
-        <div class="value-box {clase}">
-            <b>{nombre}</b><br>
-            Modelo: <b>{prob:.1f}%</b>{real_txt} &nbsp;|&nbsp; Justa: <b>{cuota_justa}</b> &nbsp;|&nbsp; Casa: <b>{cuota_casa}</b>{kelly_text}<br>
-            <span style="color:{color_ev}; font-weight:bold; font-size:15px;">
-                EV: {ev:+.2%} → {'✅ VALUE BET' if es_value else '❌ Sin valor'}
-            </span>
-        </div>
+    <div class="value-box {clase}">
+        <b>{nombre}</b><br>
+        Modelo: <b>{prob:.1f}%</b>{real_txt} &nbsp;|&nbsp; Justa: <b>{cuota_justa}</b> &nbsp;|&nbsp; Casa: <b>{cuota_casa}</b>{kelly_text}<br>
+        <span style="color:{color_ev}; font-weight:bold; font-size:15px;">
+            EV: {ev:+.2%} → {'✅ VALUE BET' if es_value else '❌ Sin valor'}
+        </span>
+    </div>
     """, unsafe_allow_html=True)
 
 # ====================== UI ======================
 st.markdown("### 🎯 Centro de Análisis Individual de Jugadores")
-st.caption("Poisson + Shrinkage · Pesos temporales · Value Bets · Half-Kelly")
+st.caption("Props orientativas · Contrasta modelo vs acierto real · Gestiona el bank")
+
+with st.expander("📖 Cómo interpretar este análisis", expanded=False):
+    st.markdown("""
+### Qué estás viendo
+Se filtra el historial del jugador (condición + nivel de rival), se ponderan partidos recientes,
+se estiman promedios (λ) y, si hay pocos datos, **shrinkage** hacia la media general del jugador.
+Luego se simulan props con **Poisson**.
+
+### Resumen & Racha
+| Concepto | Significado |
+|----------|-------------|
+| **Goles / Asistencias totales** | Suma de todo su historial cargado |
+| **Promedios** | Media por partido (todos sus registros) |
+| **Ratio contribución** | Cada cuántos partidos aporta gol o asistencia, en media |
+| **Racha seca** | Partidos **seguidos recientes** sin gol ni asistencia |
+| **Alta probabilidad de aporte** | La racha supera su media histórica (señal suave, no garantía) |
+| **λ** | Esperado por partido en este filtro (tras shrinkage si está activo) |
+
+### Value Bet Props
+| Concepto | Significado |
+|----------|-------------|
+| **Modelo %** | Probabilidad de superar la línea en la simulación |
+| **Acierto real** | En los partidos usados, % de veces que superó esa línea de verdad |
+| **Cuota justa** | Cuota implícita del modelo (`100 / Prob`) |
+| **EV > 0** | La cuota de la casa es mejor que la justa del modelo |
+| **Half-Kelly** | % orientativo del bank si hay value |
+| **Gol o Asistencia** | Goles + asistencias en el mismo partido |
+
+Si **modelo** y **acierto real** divergen mucho, prioriza cautela (poca muestra o filtro raro).
+
+### Probabilidades
+Mismos % del modelo, con el acierto real como referencia rápida.
+
+### Detalle
+Partidos que alimentaron el cálculo y sus pesos temporales.
+
+### Modelo (sidebar)
+- **Shrinkage ON:** estabiliza cuando hay 2–4 partidos en el filtro
+- **k más alto:** más peso a la media de toda la carrera del jugador
+
+### Limitaciones
+- No distingue minutos jugados
+- No es predicción de “seguro que marca”
+- Props de jugador son más ruidosas que mercados de equipo
+""")
 
 col_b1, col_b2, _ = st.columns([1.2, 1, 4])
 with col_b1:
@@ -215,7 +257,7 @@ if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
     if usar_shrinkage:
         st.caption(f"Modelo: Poisson + Shrinkage (k={k_shrink:.0f})")
     if muestra_pequena:
-        st.warning("⚠️ Muestra pequeña. El shrinkage estabiliza las λ; interpreta Kelly con cautela.")
+        st.warning("⚠️ Muestra pequeña. Interpreta Kelly con cautela.")
 
     # Pesos temporales
     hoy = pd.Timestamp.today().normalize()
@@ -229,14 +271,12 @@ if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
     def prom_w(col):
         return float(np.average(historial[col].fillna(0), weights=pesos))
 
-    # Observado en el filtro
     lam_g_raw = prom_w("Goles")
     lam_t_raw = prom_w("Tiros")
     lam_p_raw = prom_w("A Puerta")
     lam_a_raw = prom_w("Asistencias")
     lam_f_raw = prom_w("Faltas")
 
-    # Prior = media de TODOS los partidos del jugador
     prior_g = float(df_jugador["Goles"].mean()) if len(df_jugador) else lam_g_raw
     prior_t = float(df_jugador["Tiros"].mean()) if len(df_jugador) else lam_t_raw
     prior_p = float(df_jugador["A Puerta"].mean()) if len(df_jugador) else lam_p_raw
@@ -252,7 +292,6 @@ if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
     else:
         lam_g, lam_t, lam_p, lam_a, lam_f = lam_g_raw, lam_t_raw, lam_p_raw, lam_a_raw, lam_f_raw
 
-    # Poisson siempre (más estable para props)
     n_sim = 10000
     rng = np.random.default_rng(42)
     sim_goles = rng.poisson(max(lam_g, 0.01), n_sim)
@@ -269,7 +308,6 @@ if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
     prob_faltas = (sim_faltas > linea_faltas).mean() * 100
     prob_contrib = (sim_contrib > linea_contrib).mean() * 100
 
-    # Acierto real en el historial usado
     real_goles = (historial["Goles"] > linea_goles).mean() * 100
     real_tiros = (historial["Tiros"] > linea_tiros).mean() * 100
     real_puerta = (historial["A Puerta"] > linea_puerta).mean() * 100
@@ -277,7 +315,6 @@ if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
     real_faltas = (historial["Faltas"] > linea_faltas).mean() * 100
     real_contrib = ((historial["Goles"] + historial["Asistencias"]) > linea_contrib).mean() * 100
 
-    # Globales + racha
     total_partidos = len(df_jugador)
     goles_tot = df_jugador["Goles"].sum()
     asist_tot = df_jugador["Asistencias"].sum()
@@ -317,7 +354,7 @@ if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
         k6.metric("Partidos", total_partidos)
         k7.metric("Ratio contribución", f"1 / {ratio_contribucion:.1f}")
 
-        st.markdown("##### λ del modelo (tras shrinkage)" if usar_shrinkage else "##### λ del modelo")
+        st.markdown("##### λ del modelo")
         l1, l2, l3, l4, l5 = st.columns(5)
         l1.metric("λ Goles", f"{lam_g:.2f}", delta=f"raw {lam_g_raw:.2f}" if usar_shrinkage else None)
         l2.metric("λ Tiros", f"{lam_t:.2f}")
@@ -339,7 +376,6 @@ if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
     with tab2:
         st.subheader("💎 Value Bet & Half-Kelly")
         cj = lambda p: round(100 / p, 2) if p > 0 else 99.0
-
         col_v1, col_v2 = st.columns(2)
         with col_v1:
             mostrar_value(f"Over {linea_goles} Goles", cj(prob_goles), cuota_casa_goles, calcular_ev(prob_goles, cuota_casa_goles), prob_goles, real_goles)
@@ -382,9 +418,10 @@ if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
         if "Peso" in h_mostrar.columns:
             h_mostrar["Peso"] = h_mostrar["Peso"].round(3)
         cols = [
-            c
-            for c in ["Fecha", "Condición", "Rival", "Nivel Rival", "Goles", "Asistencias", "Tiros", "A Puerta", "Faltas", "Peso"]
-            if c in h_mostrar.columns
+            c for c in [
+                "Fecha", "Condición", "Rival", "Nivel Rival",
+                "Goles", "Asistencias", "Tiros", "A Puerta", "Faltas", "Peso"
+            ] if c in h_mostrar.columns
         ]
         st.dataframe(h_mostrar[cols], hide_index=True, use_container_width=True)
         if usar_shrinkage:
