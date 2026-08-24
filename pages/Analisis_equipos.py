@@ -162,12 +162,8 @@ with st.sidebar.expander("Modelo estadistico", expanded=True):
         label_visibility="collapsed"
     )
     usar_shrinkage = (shrink_opt == "ON")
-    if usar_shrinkage:
-        k_shrink = st.slider("Fuerza prior (k)", 1.0, 15.0, 5.0, 1.0, key="slider_k_eq")
-        st.caption("ON: mezcla filtro + media del nivel.")
-    else:
-        k_shrink = 5.0
-        st.caption("OFF: solo promedios del filtro.")
+    k_shrink = st.slider("Fuerza prior (k)", 1.0, 15.0, 5.0, 1.0, key="slider_k_eq", disabled=not usar_shrinkage)
+    st.caption("ON: mezcla filtro + media del nivel.")
 
     st.markdown("**Dixon-Coles**")
     dc_opt = st.radio(
@@ -179,20 +175,10 @@ with st.sidebar.expander("Modelo estadistico", expanded=True):
         label_visibility="collapsed"
     )
     usar_dc = (dc_opt == "ON")
-    if usar_dc:
-        rho_dc = st.slider("rho Dixon-Coles", -0.20, 0.05, -0.10, 0.01, key="slider_rho_eq")
-        st.caption("ON: corrige empates bajos.")
-    else:
-        rho_dc = -0.10
-        st.caption("OFF: Poisson independiente.")
+    rho_dc = st.slider("rho Dixon-Coles", -0.20, 0.05, -0.10, 0.01, key="slider_rho_eq", disabled=not usar_dc)
+    st.caption("ON: corrige empates bajos.")
 
     st.info(f"Estado -> Shrinkage: {shrink_opt} | Dixon-Coles: {dc_opt}")
-
-    if st.button("Reset opciones modelo", key="btn_reset_modelo_eq"):
-        for k in ["radio_shrink_eq", "radio_dc_eq", "slider_k_eq", "slider_rho_eq"]:
-            if k in st.session_state:
-                del st.session_state[k]
-        st.rerun()
 
 color_equipo = generar_color_equipo(equipo_sel)
 
@@ -280,12 +266,19 @@ st.caption("Simulacion orientativa. EV y Kelly no son tips garantizados.")
 
 with st.expander("Como interpretar este analisis", expanded=False):
     st.markdown("""
-Modelo
-- Shrinkage ON/OFF: acerca medias a la del nivel
-- Dixon-Coles ON/OFF: corrige empates bajos
-- Revisa el recuadro azul del sidebar para ver el estado actual
+### 🧠 Modelos Estadisticos (Sidebar)
+- **Shrinkage (ON/OFF):** Combina el filtro actual con la media general de ese nivel de rival. Evita distorsiones cuando el equipo tiene pocos partidos registrados en esa condición.
+- **Dixon-Coles (ON/OFF):** Ajuste avanzado de Poisson que corrige la independencia de goles para modelar de forma precisa empates bajos recurrentes (0-0, 1-0, 0-1, 1-1).
 
-Value Bet: EV > 0 = posible valor. Half-Kelly = % orientativo del bank.
+### 🧬 Resumen y ADN del Equipo
+- **Probabilidades 1X2, BTTS y DNB:** Resultados de 10,000 simulaciones de Monte Carlo basadas en las tasas de goles esperados ($\lambda$).
+- **ADN del Equipo:** Gráfico de barras (0 a 10) que mide de manera rápida la capacidad ofensiva, volumen de tiros, precisión a puerta, saques de esquina (corners) y disciplina (faltas).
+
+### 🎯 Value Bet y Gestion de Bank
+- **Cuota Justa vs Cuota de Casa:** La cuota justa se calcula como $100 / \text{Probabilidad\%}$. Si la cuota de la casa es mayor, el modelo detecta valor.
+- **EV > 0 (Value Bet):** Indica ventaja matemática a largo plazo sobre la casa de apuestas.
+- **Half-Kelly:** Sugerencia del porcentaje del bankroll a apostar de forma conservadora para proteger tu capital.
+- **Lineas Over:** Probabilidades de superar las líneas estadísticas establecidas en la barra lateral.
 """)
 
 if "analizado_equipos" not in st.session_state:
