@@ -6,10 +6,6 @@ from collections import Counter
 import hashlib
 import colorsys
 
-# En multipage es mejor que set_page_config esté solo en app.py.
-# Si quieres título propio en esta página, descomenta:
-# st.set_page_config(page_title="Análisis de Equipos", page_icon="📊", layout="wide")
-
 # ====================== CARGA DE DATOS ======================
 @st.cache_data(ttl=600)
 def cargar_datos():
@@ -30,17 +26,81 @@ def cargar_datos():
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
     return df
 
+# ====================== MODELOS NUEVOS ======================
+def shrinkage_lambda(lam_obs, lam_prior, n_obs, k=5.0):
+    """
+    Acerca la media observada a la media del nivel cuando hay pocos partidos.
+    k = fuerza del prior (equivalente a k partidos 'virtuales').
+    """
+    n = max(float(n_obs), 0.0)
+    return (n * lam_obs + k * lam_prior) / (n + k)
+
+def dixon_coles_tau(x, y, lam_x, lam_y, rho):
+    """Corrección Dixon–Coles para marcadores bajos."""
+    if x == 0 and y == 0:
+        return 1.0 - lam_x * lam_y * rho
+    if x == 0 and y == 1:
+        return 1.0 + lam_x * rho
+    if x == 1 and y == 0:
+        return 1.0 + lam_y * rho
+    if x == 1 and y == 1:
+        return 1.0 - rho
+    return 1.0
+
+def poisson_pmf(k, lam):
+    """PMF Poisson sin scipy."""
+    lam = max(float(lam), 1e-9)
+    k = int(k)
+    if k < 0:
+        return 0.0
+    # e^{-λ} * λ^k / k!
+    log_p = -lam + k * np.log(lam) - np.sum(np.log(np.arange(1, k + 1))) if k > 0 else -lam
+    return float(np.exp(log_p))
+
+def simular_goles_dixon_coles(lam_fav, lam_con, rho=-0.10, num_sim=10000, max_goles=8, seed=42):
+    """
+    Simula marcadores desde la distribución conjunta Poisson
+    corregida con Dixon–Coles (rejilla 0..max_goles).
+    """
+    rng = np.random.default_rng(seed)
+    lam_fav = max(lam_fav, 0.05)
+    lam_con = max(lam_con, 0.05)
+
+    xs = np.arange(0, max_goles + 1)
+    ys = np.arange(0, max_goles + 1)
+    joint = np.zeros((len(xs), len(ys)))
+
+    for i, x in enumerate(xs):
+        px = poisson_pmf(x, lam_fav)
+        for j, y in enumerate(ys):
+            py = poisson_pmf(y, lam_con)
+            tau = dixon_coles_tau(x, y, lam_fav, lam_con, rho)
+            joint[i, j] = max(px * py * tau, 0.0)
+
+    total = joint.sum()
+    if total <= 0:
+        # fallback independiente
+        rng2 = np.random.default_rng(seed)
+        return (
+            rng2.poisson(lam_fav, num_sim),
+            rng2.poisson(lam_con, num_sim),
+        )
+
+    joint = joint / total
+    flat = joint.ravel()
+    idx = rng.choice(len(flat), size=num_sim, p=flat)
+    i_idx = idx // joint.shape[1]
+    j_idx = idx % joint.shape[1]
+    return xs[i_idx], ys[j_idx]
+
 @st.cache_data
-def simular_montecarlo(lam_fav, lam_con, lam_tir, lam_tpuerta, lam_corn, lam_faltas):
-    rng = np.random.default_rng(42)
-    num_sim = 10000
+def simular_stats_poisson(lam_tir, lam_tpuerta, lam_corn, lam_faltas, num_sim=10000, seed=42):
+    rng = np.random.default_rng(seed)
     return (
-        rng.poisson(lam=max(lam_fav, 0.01), size=num_sim),
-        rng.poisson(lam=max(lam_con, 0.01), size=num_sim),
         rng.poisson(lam=max(lam_tir, 0.01), size=num_sim),
         rng.poisson(lam=max(lam_tpuerta, 0.01), size=num_sim),
         rng.poisson(lam=max(lam_corn, 0.01), size=num_sim),
-        rng.poisson(lam=max(lam_faltas, 0.01), size=num_sim)
+        rng.poisson(lam=max(lam_faltas, 0.01), size=num_sim),
     )
 
 try:
@@ -64,7 +124,7 @@ colores_base_equipos = {
 def generar_color_equipo(nombre):
     if nombre in colores_base_equipos:
         return colores_base_equipos[nombre]
-    hash_val = int(hashlib.md5(nombre.encode('utf-8')).hexdigest(), 16)
+    hash_val = int(hashlib.md5(nombre.encode("utf-8")).hexdigest(), 16)
     hue = (hash_val % 360) / 360.0
     rgb = colorsys.hsv_to_rgb(hue, 0.65, 0.85)
     return f"#{int(rgb[0]*255):02x}{int(rgb[1]*255):02x}{int(rgb[2]*255):02x}"
@@ -73,20 +133,20 @@ def generar_color_equipo(nombre):
 st.sidebar.header("⚙️ Configuración")
 
 with st.sidebar.expander("🏟️ Partido", expanded=True):
-    lista_equipos = sorted([str(x) for x in df['Equipo'].unique() if pd.notna(x)])
+    lista_equipos = sorted([str(x) for x in df["Equipo"].unique() if pd.notna(x)])
     equipo_sel = st.selectbox("Equipo", lista_equipos)
-    
-    df_equipo = df[df['Equipo'] == equipo_sel]
-    lista_niveles = sorted([str(x) for x in df_equipo['Nivel Rival'].unique() if pd.notna(x)])
-    
+
+    df_equipo = df[df["Equipo"] == equipo_sel]
+    lista_niveles = sorted([str(x) for x in df_equipo["Nivel Rival"].unique() if pd.notna(x)])
+
     condicion_label = st.selectbox("Condición", ["Local", "Visitante"])
     condicion_sel = condicion_label.lower()
     nivel_sel = st.selectbox("Nivel del Rival", lista_niveles)
 
-df_diagnostico = df_equipo.sort_values(by='Fecha', ascending=False)
+df_diagnostico = df_equipo.sort_values(by="Fecha", ascending=False)
 exactos_check = df_diagnostico[
-    (df_diagnostico['Condición'] == condicion_sel) & 
-    (df_diagnostico['Nivel Rival'] == nivel_sel)
+    (df_diagnostico["Condición"] == condicion_sel) &
+    (df_diagnostico["Nivel Rival"] == nivel_sel)
 ]
 num_exactos = len(exactos_check)
 
@@ -121,6 +181,13 @@ with st.sidebar.expander("📈 Cuotas de Líneas (Over)"):
     cuota_over_faltas = st.number_input(f"Over {linea_faltas} Faltas", min_value=1.01, value=1.85, step=0.01, format="%.2f")
     cuota_over_total = st.number_input(f"Over {linea_total_partido} Goles partido", min_value=1.01, value=1.90, step=0.01, format="%.2f")
 
+with st.sidebar.expander("🧪 Modelo estadístico"):
+    usar_shrinkage = st.checkbox("Shrinkage hacia media del nivel", value=True)
+    k_shrink = st.slider("Fuerza prior shrinkage (k)", 1.0, 15.0, 5.0, 1.0)
+    usar_dc = st.checkbox("Dixon–Coles (corrige empates bajos)", value=True)
+    rho_dc = st.slider("ρ Dixon–Coles", -0.20, 0.05, -0.10, 0.01,
+                       help="Valores típicos entre -0.15 y -0.05. Más negativo = más peso a 0-0/1-1.")
+
 color_equipo = generar_color_equipo(equipo_sel)
 
 # ====================== CSS ======================
@@ -150,7 +217,7 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# ====================== FUNCIONES ======================
+# ====================== FUNCIONES UI ======================
 def renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa):
     val_ataque = min(round(lam_f * 3.33, 1), 10.0)
     val_tiros = min(round(lam_t / 2.5, 1), 10.0)
@@ -159,15 +226,14 @@ def renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa):
     val_discip = min(round((25 - lam_fa) / 2.5, 1), 10.0)
 
     df_adn = pd.DataFrame({
-        'Métrica': ['Ataque', 'Volumen Tiros', 'Precisión', 'Córners', 'Disciplina'],
-        'Puntuación': [val_ataque, val_tiros, val_precis, val_corners, val_discip]
+        "Métrica": ["Ataque", "Volumen Tiros", "Precisión", "Córners", "Disciplina"],
+        "Puntuación": [val_ataque, val_tiros, val_precis, val_corners, val_discip]
     })
-
     chart = alt.Chart(df_adn).mark_bar(cornerRadiusTopRight=6, cornerRadiusBottomRight=6).encode(
-        x=alt.X('Puntuación:Q', scale=alt.Scale(domain=[0, 10]), title=None),
-        y=alt.Y('Métrica:N', sort='-x', title=None),
+        x=alt.X("Puntuación:Q", scale=alt.Scale(domain=[0, 10]), title=None),
+        y=alt.Y("Métrica:N", sort="-x", title=None),
         color=alt.value(color_equipo),
-        tooltip=['Métrica', 'Puntuación']
+        tooltip=["Métrica", "Puntuación"]
     ).properties(height=220)
     st.altair_chart(chart, use_container_width=True)
 
@@ -178,12 +244,12 @@ def crear_grafico(serie, titulo):
     conteo = serie.value_counts().sort_index()
     df_c = pd.DataFrame({
         titulo: conteo.index.astype(str),
-        'Prob (%)': (conteo / len(serie) * 100).round(1)
+        "Prob (%)": (conteo / len(serie) * 100).round(1)
     })
     return alt.Chart(df_c).mark_bar(color=color_equipo).encode(
-        x=alt.X(f'{titulo}:N', sort=None, title=titulo),
-        y=alt.Y('Prob (%):Q', title='Probabilidad (%)'),
-        tooltip=[f'{titulo}:N', 'Prob (%):Q']
+        x=alt.X(f"{titulo}:N", sort=None, title=titulo),
+        y=alt.Y("Prob (%):Q", title="Probabilidad (%)"),
+        tooltip=[f"{titulo}:N", "Prob (%):Q"]
     ).properties(height=280)
 
 def calcular_ev(prob, cuota):
@@ -208,7 +274,6 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, muestra_pequena=Fal
     stake = calcular_kelly(prob, cuota_casa) if es_value else 0.0
     kelly_txt = f" &nbsp;|&nbsp; Stake Half-Kelly: <b>{stake}% bank</b>" if es_value else ""
     caution = " <span style='color:#f59e0b;'>(muestra pequeña)</span>" if muestra_pequena and es_value else ""
-    
     st.markdown(f"""
         <div class="value-box {clase}">
             <b>{nombre}</b>{caution}<br>
@@ -221,7 +286,7 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, muestra_pequena=Fal
 
 # ====================== UI PRINCIPAL ======================
 st.markdown("### 📊 GoalMetrics · Análisis de Equipos")
-st.caption("Monte Carlo · Cuotas justas · Value Bets · Half-Kelly")
+st.caption("Poisson + Shrinkage + Dixon–Coles · Monte Carlo · Value Bets · Half-Kelly")
 
 col_btn1, col_btn2, _ = st.columns([1.2, 1, 4])
 with col_btn1:
@@ -231,26 +296,26 @@ with col_btn2:
         st.rerun()
 
 if btn_analizar:
-    df_base = df[df['Equipo'] == equipo_sel].sort_values(by='Fecha', ascending=False)
+    df_base = df[df["Equipo"] == equipo_sel].sort_values(by="Fecha", ascending=False)
     df_exactos = df_base[
-        (df_base['Condición'] == condicion_sel) & 
-        (df_base['Nivel Rival'] == nivel_sel)
+        (df_base["Condición"] == condicion_sel) &
+        (df_base["Nivel Rival"] == nivel_sel)
     ]
-    
+
     historial = pd.DataFrame()
     fuente_datos = ""
-    
+
     if len(df_exactos) >= 2:
         historial = df_exactos.copy()
         fuente_datos = f"Exacto ({condicion_label} vs {nivel_sel}) — {len(historial)} partidos"
     elif len(df_exactos) == 1:
         partido_1 = df_exactos.head(1).copy()
         cond_opuesta = "visitante" if condicion_sel == "local" else "local"
-        df_opuestos = df_base[df_base['Condición'] == cond_opuesta]
+        df_opuestos = df_base[df_base["Condición"] == cond_opuesta]
         if len(df_opuestos) >= 1:
             partido_2 = df_opuestos.head(1).copy()
             factor = 0.88 if condicion_sel == "visitante" else 1.12
-            for col in ['Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas']:
+            for col in ["Goles", "Goles Rival", "Tiros", "A Puerta", "Corners", "Faltas"]:
                 if col in partido_2.columns:
                     partido_2[col] = (partido_2[col] * factor).round(2)
             historial = pd.concat([partido_1, partido_2], ignore_index=True)
@@ -263,29 +328,59 @@ if btn_analizar:
         st.stop()
 
     muestra_pequena = len(historial) <= 3
+    n_obs = len(historial)
 
     # Pesos temporales
     hoy = pd.Timestamp.today().normalize()
-    historial['Dias_Pasados'] = (hoy - pd.to_datetime(historial['Fecha'])).dt.days.replace(0, 0.1)
-    historial['Peso'] = 1 / (1 + (historial['Dias_Pasados'] / 30))
-    
+    historial["Dias_Pasados"] = (hoy - pd.to_datetime(historial["Fecha"])).dt.days.replace(0, 0.1)
+    historial["Peso"] = 1 / (1 + (historial["Dias_Pasados"] / 30))
+
     def prom(col):
         if col not in historial.columns:
             return 0.05
-        return round(float(np.average(historial[col].fillna(0), weights=historial['Peso'])), 4)
+        return round(float(np.average(historial[col].fillna(0), weights=historial["Peso"])), 4)
 
-    lam_f = prom('Goles')
-    lam_c = prom('Goles Rival')
-    lam_t = prom('Tiros')
-    lam_tp = prom('A Puerta')
-    lam_co = prom('Corners')
-    lam_fa = prom('Faltas')
-    
-    sg_fav, sg_con, s_tir, s_tpuerta, s_corn, s_faltas = simular_montecarlo(
-        lam_f, lam_c, lam_t, lam_tp, lam_co, lam_fa
-    )
-    
+    # Medias observadas (filtro)
+    lam_f_raw = prom("Goles")
+    lam_c_raw = prom("Goles Rival")
+    lam_t_raw = prom("Tiros")
+    lam_tp_raw = prom("A Puerta")
+    lam_co_raw = prom("Corners")
+    lam_fa_raw = prom("Faltas")
+
+    # Priors = media del nivel
+    df_nivel = df[df["Nivel Rival"] == nivel_sel]
+    prior_f = float(df_nivel["Goles"].mean()) if len(df_nivel) else lam_f_raw
+    prior_c = float(df_nivel["Goles Rival"].mean()) if len(df_nivel) and "Goles Rival" in df_nivel.columns else lam_c_raw
+    prior_t = float(df_nivel["Tiros"].mean()) if len(df_nivel) and "Tiros" in df_nivel.columns else lam_t_raw
+    prior_tp = float(df_nivel["A Puerta"].mean()) if len(df_nivel) and "A Puerta" in df_nivel.columns else lam_tp_raw
+    prior_co = float(df_nivel["Corners"].mean()) if len(df_nivel) and "Corners" in df_nivel.columns else lam_co_raw
+    prior_fa = float(df_nivel["Faltas"].mean()) if len(df_nivel) and "Faltas" in df_nivel.columns else lam_fa_raw
+
+    # ===== SHRINKAGE =====
+    if usar_shrinkage:
+        lam_f = shrinkage_lambda(lam_f_raw, prior_f, n_obs, k_shrink)
+        lam_c = shrinkage_lambda(lam_c_raw, prior_c, n_obs, k_shrink)
+        lam_t = shrinkage_lambda(lam_t_raw, prior_t, n_obs, k_shrink)
+        lam_tp = shrinkage_lambda(lam_tp_raw, prior_tp, n_obs, k_shrink)
+        lam_co = shrinkage_lambda(lam_co_raw, prior_co, n_obs, k_shrink)
+        lam_fa = shrinkage_lambda(lam_fa_raw, prior_fa, n_obs, k_shrink)
+    else:
+        lam_f, lam_c, lam_t, lam_tp, lam_co, lam_fa = (
+            lam_f_raw, lam_c_raw, lam_t_raw, lam_tp_raw, lam_co_raw, lam_fa_raw
+        )
+
+    # ===== SIMULACIÓN GOLES (Dixon–Coles o Poisson independiente) =====
     num_sim = 10000
+    if usar_dc:
+        sg_fav, sg_con = simular_goles_dixon_coles(lam_f, lam_c, rho=rho_dc, num_sim=num_sim)
+    else:
+        rng = np.random.default_rng(42)
+        sg_fav = rng.poisson(max(lam_f, 0.01), num_sim)
+        sg_con = rng.poisson(max(lam_c, 0.01), num_sim)
+
+    s_tir, s_tpuerta, s_corn, s_faltas = simular_stats_poisson(lam_t, lam_tp, lam_co, lam_fa, num_sim=num_sim)
+
     triunfos = (sg_fav > sg_con).mean() * 100
     empates = (sg_fav == sg_con).mean() * 100
     derrotas = (sg_fav < sg_con).mean() * 100
@@ -295,7 +390,6 @@ if btn_analizar:
     tot_sin_emp = triunfos + derrotas
     dnb = (triunfos / tot_sin_emp * 100) if tot_sin_emp > 0 else 50.0
 
-    # Líneas
     prob_over_goles = (sg_fav > linea_goles).mean() * 100
     prob_over_tiros = (s_tir > linea_tiros).mean() * 100
     prob_over_puerta = (s_tpuerta > linea_tiros_puerta).mean() * 100
@@ -303,11 +397,11 @@ if btn_analizar:
     prob_over_faltas = (s_faltas > linea_faltas).mean() * 100
     total_goles_sim = sg_fav + sg_con
     prob_over_total = (total_goles_sim > linea_total_partido).mean() * 100
-    
+
     marcadores = [f"{f}-{c}" for f, c in zip(sg_fav, sg_con)]
     conteo = Counter(marcadores)
     marcador_mas_comun = conteo.most_common(1)[0][0]
-    
+
     if triunfos > 50:
         veredicto = f"Tendencia Fuerte · Marcador proyectado {marcador_mas_comun}"
     elif derrotas > 50:
@@ -315,20 +409,26 @@ if btn_analizar:
     else:
         veredicto = f"Partido Muy Parejo · Marcador proyectado {marcador_mas_comun}"
 
-    # Promedio del nivel (contexto)
-    df_nivel = df[df['Nivel Rival'] == nivel_sel]
-    prom_nivel_goles = df_nivel['Goles'].mean() if len(df_nivel) else 0
-    prom_nivel_tiros = df_nivel['Tiros'].mean() if len(df_nivel) and 'Tiros' in df_nivel.columns else 0
+    prom_nivel_goles = prior_f
+    prom_nivel_tiros = prior_t
 
-    # Cabecera
-    st.markdown(f'<div class="header-box">🛡️ {equipo_sel.upper()} &nbsp;·&nbsp; {condicion_label.upper()} vs {nivel_sel.upper()}</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="header-box">🛡️ {equipo_sel.upper()} &nbsp;·&nbsp; {condicion_label.upper()} vs {nivel_sel.upper()}</div>',
+        unsafe_allow_html=True,
+    )
     st.markdown(f'<div class="veredicto-box"><b>Veredicto:</b> {veredicto}</div>', unsafe_allow_html=True)
     st.caption(f"Base: {len(historial)} partidos · {fuente_datos}")
-    
-    if muestra_pequena:
-        st.warning("⚠️ **Muestra pequeña (≤3 partidos).** Las probabilidades y el Kelly pueden ser inestables. Úsalos con cautela.")
 
-    # ====================== PESTAÑAS ======================
+    modelo_txt = []
+    if usar_shrinkage:
+        modelo_txt.append(f"Shrinkage k={k_shrink:.0f}")
+    if usar_dc:
+        modelo_txt.append(f"Dixon–Coles ρ={rho_dc:.2f}")
+    st.caption("Modelo: " + (" + ".join(modelo_txt) if modelo_txt else "Poisson clásico"))
+
+    if muestra_pequena:
+        st.warning("⚠️ **Muestra pequeña (≤3 partidos).** Shrinkage ayuda a estabilizar, pero interpreta el Kelly con cautela.")
+
     tab1, tab2, tab3, tab4 = st.tabs(["📋 Resumen", "💎 Value Bet", "📈 Líneas & Gráficos", "🔍 Detalle"])
 
     with tab1:
@@ -347,10 +447,10 @@ if btn_analizar:
         c6.metric("X2", f"{doble_x2:.1f}%")
         c7.metric("DNB", f"{dnb:.1f}%")
 
-        st.markdown("##### Expectativa del modelo")
+        st.markdown("##### Expectativa del modelo (λ)")
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Goles", f"{lam_f:.2f}")
-        m2.metric("Goles Rival", f"{lam_c:.2f}")
+        m1.metric("Goles", f"{lam_f:.2f}", delta=f"raw {lam_f_raw:.2f}" if usar_shrinkage else None)
+        m2.metric("Goles Rival", f"{lam_c:.2f}", delta=f"raw {lam_c_raw:.2f}" if usar_shrinkage else None)
         m3.metric("Tiros", f"{lam_t:.1f}")
         m4.metric("Córners", f"{lam_co:.1f}")
 
@@ -363,19 +463,15 @@ if btn_analizar:
 
     with tab2:
         st.subheader("💎 Value Bet & Half-Kelly")
-        st.caption("Primero se listan las apuestas con valor (EV > 0).")
-
-        # Datos 1X2
         items_1x2 = [
-            ("Victoria (1)", round(100/triunfos,2) if triunfos>0 else 99, cuota_casa_1, calcular_ev(triunfos, cuota_casa_1), triunfos),
-            ("Empate (X)", round(100/empates,2) if empates>0 else 99, cuota_casa_x, calcular_ev(empates, cuota_casa_x), empates),
-            ("Derrota (2)", round(100/derrotas,2) if derrotas>0 else 99, cuota_casa_2, calcular_ev(derrotas, cuota_casa_2), derrotas),
-            ("BTTS Sí", round(100/ambos_anotan,2) if ambos_anotan>0 else 99, cuota_casa_btts_si, calcular_ev(ambos_anotan, cuota_casa_btts_si), ambos_anotan),
-            ("BTTS No", round(100/(100-ambos_anotan),2) if ambos_anotan<100 else 99, cuota_casa_btts_no, calcular_ev(100-ambos_anotan, cuota_casa_btts_no), 100-ambos_anotan),
-            ("DNB", round(100/dnb,2) if dnb>0 else 99, cuota_casa_dnb, calcular_ev(dnb, cuota_casa_dnb), dnb),
+            ("Victoria (1)", round(100 / triunfos, 2) if triunfos > 0 else 99, cuota_casa_1, calcular_ev(triunfos, cuota_casa_1), triunfos),
+            ("Empate (X)", round(100 / empates, 2) if empates > 0 else 99, cuota_casa_x, calcular_ev(empates, cuota_casa_x), empates),
+            ("Derrota (2)", round(100 / derrotas, 2) if derrotas > 0 else 99, cuota_casa_2, calcular_ev(derrotas, cuota_casa_2), derrotas),
+            ("BTTS Sí", round(100 / ambos_anotan, 2) if ambos_anotan > 0 else 99, cuota_casa_btts_si, calcular_ev(ambos_anotan, cuota_casa_btts_si), ambos_anotan),
+            ("BTTS No", round(100 / (100 - ambos_anotan), 2) if ambos_anotan < 100 else 99, cuota_casa_btts_no, calcular_ev(100 - ambos_anotan, cuota_casa_btts_no), 100 - ambos_anotan),
+            ("DNB", round(100 / dnb, 2) if dnb > 0 else 99, cuota_casa_dnb, calcular_ev(dnb, cuota_casa_dnb), dnb),
         ]
         items_1x2.sort(key=lambda x: x[3], reverse=True)
-
         col_a, col_b = st.columns(2)
         mid = (len(items_1x2) + 1) // 2
         with col_a:
@@ -387,17 +483,15 @@ if btn_analizar:
 
         st.markdown("---")
         st.subheader("📈 Value Bet · Líneas (Over)")
-
         items_lineas = [
-            (f"Over {linea_goles} Goles", round(100/prob_over_goles,2) if prob_over_goles>0 else 99, cuota_over_goles, calcular_ev(prob_over_goles, cuota_over_goles), prob_over_goles),
-            (f"Over {linea_tiros} Tiros", round(100/prob_over_tiros,2) if prob_over_tiros>0 else 99, cuota_over_tiros, calcular_ev(prob_over_tiros, cuota_over_tiros), prob_over_tiros),
-            (f"Over {linea_tiros_puerta} a Puerta", round(100/prob_over_puerta,2) if prob_over_puerta>0 else 99, cuota_over_puerta, calcular_ev(prob_over_puerta, cuota_over_puerta), prob_over_puerta),
-            (f"Over {linea_corners} Córners", round(100/prob_over_corners,2) if prob_over_corners>0 else 99, cuota_over_corners, calcular_ev(prob_over_corners, cuota_over_corners), prob_over_corners),
-            (f"Over {linea_faltas} Faltas", round(100/prob_over_faltas,2) if prob_over_faltas>0 else 99, cuota_over_faltas, calcular_ev(prob_over_faltas, cuota_over_faltas), prob_over_faltas),
-            (f"Over {linea_total_partido} Goles partido", round(100/prob_over_total,2) if prob_over_total>0 else 99, cuota_over_total, calcular_ev(prob_over_total, cuota_over_total), prob_over_total),
+            (f"Over {linea_goles} Goles", round(100 / prob_over_goles, 2) if prob_over_goles > 0 else 99, cuota_over_goles, calcular_ev(prob_over_goles, cuota_over_goles), prob_over_goles),
+            (f"Over {linea_tiros} Tiros", round(100 / prob_over_tiros, 2) if prob_over_tiros > 0 else 99, cuota_over_tiros, calcular_ev(prob_over_tiros, cuota_over_tiros), prob_over_tiros),
+            (f"Over {linea_tiros_puerta} a Puerta", round(100 / prob_over_puerta, 2) if prob_over_puerta > 0 else 99, cuota_over_puerta, calcular_ev(prob_over_puerta, cuota_over_puerta), prob_over_puerta),
+            (f"Over {linea_corners} Córners", round(100 / prob_over_corners, 2) if prob_over_corners > 0 else 99, cuota_over_corners, calcular_ev(prob_over_corners, cuota_over_corners), prob_over_corners),
+            (f"Over {linea_faltas} Faltas", round(100 / prob_over_faltas, 2) if prob_over_faltas > 0 else 99, cuota_over_faltas, calcular_ev(prob_over_faltas, cuota_over_faltas), prob_over_faltas),
+            (f"Over {linea_total_partido} Goles partido", round(100 / prob_over_total, 2) if prob_over_total > 0 else 99, cuota_over_total, calcular_ev(prob_over_total, cuota_over_total), prob_over_total),
         ]
         items_lineas.sort(key=lambda x: x[3], reverse=True)
-
         col_c, col_d = st.columns(2)
         mid2 = (len(items_lineas) + 1) // 2
         with col_c:
@@ -422,41 +516,46 @@ if btn_analizar:
         g1, g2 = st.columns(2)
         with g1:
             st.markdown("##### ⚽ Distribución de Goles (equipo)")
-            ch = crear_grafico(pd.Series(sg_fav), 'Goles')
-            if ch: st.altair_chart(ch, use_container_width=True)
+            ch = crear_grafico(pd.Series(sg_fav), "Goles")
+            if ch:
+                st.altair_chart(ch, use_container_width=True)
         with g2:
             st.markdown("##### 🚩 Distribución de Córners")
-            ch2 = crear_grafico(pd.Series(s_corn), 'Córners')
-            if ch2: st.altair_chart(ch2, use_container_width=True)
+            ch2 = crear_grafico(pd.Series(s_corn), "Córners")
+            if ch2:
+                st.altair_chart(ch2, use_container_width=True)
 
         st.markdown("##### 🏆 Top 5 Marcadores")
         st.dataframe(
             pd.DataFrame([
-                {"Marcador": r, "Probabilidad": f"{(f/num_sim)*100:.1f}%"}
+                {"Marcador": r, "Probabilidad": f"{(f / num_sim) * 100:.1f}%"}
                 for r, f in conteo.most_common(5)
             ]),
-            hide_index=True, use_container_width=True
+            hide_index=True,
+            use_container_width=True,
         )
 
     with tab4:
-        st.subheader("🔍 Partidos utilizados en el modelo")
+        st.subheader("🔍 Partidos utilizados")
         st.caption(f"{len(historial)} partidos · {fuente_datos}")
-        
-        h_mostrar = historial.copy().sort_values(by='Fecha', ascending=False)
-        h_mostrar['Fecha'] = pd.to_datetime(h_mostrar['Fecha']).dt.strftime('%Y-%m-%d')
-        h_mostrar['Peso'] = h_mostrar['Peso'].round(3)
-        
-        cols = [c for c in ['Fecha', 'Condición', 'Rival', 'Nivel Rival',
-                           'Goles', 'Goles Rival', 'Tiros', 'A Puerta', 'Corners', 'Faltas', 'Peso']
+        h_mostrar = historial.copy().sort_values(by="Fecha", ascending=False)
+        h_mostrar["Fecha"] = pd.to_datetime(h_mostrar["Fecha"]).dt.strftime("%Y-%m-%d")
+        h_mostrar["Peso"] = h_mostrar["Peso"].round(3)
+        cols = [c for c in ["Fecha", "Condición", "Rival", "Nivel Rival",
+                            "Goles", "Goles Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Peso"]
                 if c in h_mostrar.columns]
         st.dataframe(h_mostrar[cols], hide_index=True, use_container_width=True)
 
         st.markdown("---")
-        st.markdown("##### Parámetros λ (Poisson)")
+        st.markdown("##### Parámetros λ")
         p1, p2, p3 = st.columns(3)
-        p1.write(f"**Goles a favor:** {lam_f:.3f}")
-        p1.write(f"**Goles en contra:** {lam_c:.3f}")
+        p1.write(f"**Goles a favor:** {lam_f:.3f} (raw {lam_f_raw:.3f})")
+        p1.write(f"**Goles en contra:** {lam_c:.3f} (raw {lam_c_raw:.3f})")
         p2.write(f"**Tiros:** {lam_t:.3f}")
         p2.write(f"**A puerta:** {lam_tp:.3f}")
         p3.write(f"**Córners:** {lam_co:.3f}")
         p3.write(f"**Faltas:** {lam_fa:.3f}")
+        if usar_shrinkage:
+            st.caption(f"Shrinkage activo: prior = media del nivel · k = {k_shrink:.0f} · n = {n_obs}")
+        if usar_dc:
+            st.caption(f"Dixon–Coles activo: ρ = {rho_dc:.2f} (corrige 0-0, 1-0, 0-1, 1-1)")
