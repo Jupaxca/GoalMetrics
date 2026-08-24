@@ -559,3 +559,61 @@ if btn_analizar:
             st.caption(f"Shrinkage activo: prior = media del nivel · k = {k_shrink:.0f} · n = {n_obs}")
         if usar_dc:
             st.caption(f"Dixon–Coles activo: ρ = {rho_dc:.2f} (corrige 0-0, 1-0, 0-1, 1-1)")
+with st.expander("📖 Cómo interpretar este análisis", expanded=False):
+    st.markdown("""
+### Qué estás viendo
+El modelo estima **goles y estadísticas** con el historial filtrado (equipo + local/visitante + nivel de rival),
+da más peso a partidos recientes, estabiliza con **shrinkage** si hay pocos datos y corrige empates bajos con **Dixon–Coles**.
+
+---
+
+### Resumen
+| Concepto | Significado |
+|----------|-------------|
+| **Victoria / Empate / Derrota** | % de simulaciones con ese resultado |
+| **BTTS** | % de partidos simulados en los que ambos equipos marcan |
+| **1X / X2 / DNB** | Doble oportunidad y “empate no válido” |
+| **λ (Goles, Tiros…)** | Promedio esperado por partido según el modelo |
+| **vs promedio del nivel** | Si el equipo va por encima o debajo de la media de ese nivel de rival |
+| **ADN** | Perfil 0–10 orientativo (no es una nota objetiva del equipo) |
+
+---
+
+### Value Bet
+| Concepto | Significado |
+|----------|-------------|
+| **Prob** | Probabilidad del modelo |
+| **Cuota justa** | `100 / Prob` → cuota “equitativa” según el modelo |
+| **Cuota casa** | Lo que paga el bookie (tú la pones) |
+| **EV > 0** | La casa paga **más** de lo que el modelo considera justo → posible value |
+| **Half-Kelly** | % sugerido del bank si hay value (mitad de Kelly, más conservador) |
+| **Muestra pequeña** | Con ≤3 partidos el EV/Kelly pueden ser inestables |
+
+**Regla práctica:** no apostar solo porque salga verde. Cruza con contexto (lesiones, alineación, motivación).
+
+---
+
+### Líneas (Over)
+El % es la probabilidad de **superar** la línea que elegiste en el sidebar  
+(ej. Over 1.5 goles del equipo, Over 2.5 del partido, córners, etc.).
+
+---
+
+### Detalle
+Partidos que entraron al cálculo y su **peso** (más reciente = más peso).
+
+---
+
+### Modelo (sidebar)
+- **Shrinkage ON:** con pocos partidos, acerca las medias a la del nivel (menos extremos).
+- **Dixon–Coles ON:** corrige la tendencia del Poisson a subestimar 0-0 y 1-1.
+- **k más alto:** más confianza en la media del nivel.
+- **ρ más negativo:** más corrección hacia empates bajos.
+
+---
+
+### Limitaciones
+- No usa alineaciones, xG en vivo ni cuotas automáticas.
+- Poisson asume independencia aproximada entre eventos.
+- Más datos en el Sheet = mejores estimaciones.
+""")
