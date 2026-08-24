@@ -178,11 +178,6 @@ Luego se simulan props con Poisson.
 - Gol o Asistencia: goles + asistencias en el mismo partido
 
 Si modelo y acierto real divergen mucho, usa cautela.
-
-**Limitaciones**
-
-No distingue minutos jugados. No es prediccion garantizada.
-Props de jugador son mas ruidosas que mercados de equipo.
 """)
 
 col_b1, col_b2, _ = st.columns([1.2, 1, 4])
@@ -213,7 +208,6 @@ if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
     elif len(df_exactos) == 1:
         historial = df_exactos.copy()
         if len(df_jugador) > 1:
-            # --- AQUÍ ESTABA EL ERROR: ya le quité la \ antes de la ~ ---
             extra = df_jugador[~df_jugador.index.isin(historial.index)].tail(1)
             historial = pd.concat([historial, extra])
             fuente = "1 partido exacto + 1 de respaldo reciente"
