@@ -153,40 +153,36 @@ st.caption("Props orientativas. Contrasta modelo vs acierto real. Gestiona el ba
 
 with st.expander("Como interpretar este analisis", expanded=False):
     st.markdown("""
-**Que estas viendo**
+### 🧪 ¿Qué es el Modelo Estadístico de Jugadores y cómo usarlo?
+Esta sección te permite proyectar el rendimiento individual en remates, goles, asistencias y faltas basándote en simulaciones matemáticas (Poisson). Si modificas las opciones en la barra lateral, los resultados se actualizan al instante.
 
-Se filtra el historial del jugador (condicion + nivel de rival), se ponderan partidos recientes,
-se estiman promedios (lambda) y, si hay pocos datos, shrinkage hacia la media general del jugador.
-Luego se simulan props con Poisson.
+**1. Shrinkage hacia la media del jugador (Fuerza k)**
+* **¿Qué significa?** Si un jugador estrella tuvo mala suerte en los últimos 2 partidos y no remató a puerta, la estadística pura se basaría solo en eso. El "Shrinkage" estabiliza la proyección combinando los partidos recientes con la media histórica general del jugador.
+* **¿Cómo usarlo?** 
+  * Déjalo **ACTIVADO** para evitar que rachas muy cortas distorsionen el cálculo. 
+  * La **Fuerza (k)** determina cuánto peso se le da a la media general frente a los partidos filtrados.
 
-**Resumen y racha**
-
-- Goles / Asistencias totales: suma del historial cargado
-- Promedios: media por partido
-- Ratio contribucion: cada cuantos partidos aporta gol o asistencia
-- Racha seca: partidos seguidos recientes sin gol ni asistencia
-- Alta probabilidad de aporte: la racha supera su media (senal suave, no garantia)
-- Lambda: esperado por partido en este filtro
-
-**Value Bet Props**
-
-- Modelo %: probabilidad de superar la linea en la simulacion
-- Acierto real: en los partidos usados, % de veces que si superó la linea
-- Cuota justa: 100 / Prob
-- EV > 0: la casa paga mejor que lo justo del modelo
-- Half-Kelly: % orientativo del bank si hay value
-- Gol o Asistencia: goles + asistencias en el mismo partido
-
-Si modelo y acierto real divergen mucho, usa cautela.
+**2. Cómo leer las métricas clave**
+* **Modelo %:** La probabilidad real calculada por la simulación de que el jugador supere la línea establecida.
+* **Acierto real:** El porcentaje histórico exacto en el que el jugador superó esa línea dentro de los partidos analizados de la muestra. Si el *Modelo* y el *Acierto real* coinciden o son cercanos, la proyección es muy sólida.
+* **EV (Valor Esperado):** Si es positivo (`> 0`), indica que la cuota de la casa de apuestas es superior a la probabilidad matemática real, convirtiéndolo en un pronóstico con valor a largo plazo.
+* **Half-Kelly:** El porcentaje recomendado de tu bank que deberías arriesgar en función del valor detectado.
 """)
+
+# --- CONTROL DE ESTADO PARA EL BOTÓN ---
+if 'analizado_jugadores' not in st.session_state:
+    st.session_state.analizado_jugadores = False
 
 col_b1, col_b2, _ = st.columns([1.2, 1, 4])
 with col_b1:
-    analizar = st.button("Analizar", type="primary", use_container_width=True)
+    if st.button("Analizar", type="primary", use_container_width=True):
+        st.session_state.analizado_jugadores = True
 with col_b2:
-    limpiar = st.button("Limpiar", use_container_width=True)
+    if st.button("Limpiar", use_container_width=True):
+        st.session_state.analizado_jugadores = False
+        st.rerun()
 
-if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
+if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugador" in df.columns:
     df_jugador = df[df["Jugador"] == jugador_sel].copy()
     if "Fecha" in df_jugador.columns:
         df_jugador = df_jugador.sort_values("Fecha")
@@ -399,7 +395,5 @@ if analizar and datos_ok and not df.empty and "Jugador" in df.columns:
         if usar_shrinkage:
             st.caption(f"Prior = media del jugador | k={k_shrink:.0f} | n_filtro={n_obs}")
 
-elif limpiar:
-    st.info("Filtros restablecidos.")
 else:
     st.info("Elige jugador, lineas y cuotas, luego Analizar.")
