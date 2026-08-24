@@ -93,12 +93,6 @@ with st.sidebar.expander("Modelo", expanded=True):
     )
     st.info(f"Shrinkage: **{shrink_opt}**")
 
-    if st.button("Reset opciones modelo", key="btn_reset_jug"):
-        for k in ["radio_shrink_jug", "slider_k_jug"]:
-            if k in st.session_state:
-                del st.session_state[k]
-        st.rerun()
-
 if not df_jugador.empty and "Fecha" in df_jugador.columns:
     df_diagnostico = df_jugador.sort_values(by="Fecha", ascending=False)
 else:
@@ -170,15 +164,20 @@ st.caption("Props orientativas. Contrasta modelo vs acierto real. Gestiona el ba
 
 with st.expander("Como interpretar este analisis", expanded=False):
     st.markdown("""
-Configuracion y Modelo
-- Shrinkage ON/OFF: estabiliza combinando con la media historica del jugador
-- Fuerza (k): pondera el peso del prior (activo si Shrinkage ON)
+### 📊 Configuracion y Modelo Estadistico
+- **Shrinkage (ON/OFF):** Estabiliza las proyecciones combinando el rendimiento del filtro actual con la media histórica global del jugador. Evita sobreestimaciones cuando hay pocas muestras.
+- **Fuerza prior (k):** Controla el peso que se le da a la media histórica del jugador frente a los datos recientes. A mayor $k$, más se acerca el resultado a la media global.
 
-Value Bet Props
-- Modelo %: probabilidad de la simulacion
-- Acierto real: porcentaje historico en la muestra
-- EV > 0: valor a largo plazo
-- Half-Kelly: % recomendado del bank
+### 📈 Metricas Clave
+- **Lambda ($\lambda$):** Es el promedio esperado de eventos (goles, tiros, asistencias) para este escenario según la distribución de Poisson.
+- **Ratio de contribución:** Mide la frecuencia con la que el jugador participa directamente en goles o asistencias (ej. 1 cada X partidos).
+- **Racha seca:** Cantidad de partidos consecutivos recientes en los que el jugador no ha registrado gol ni asistencia.
+
+### 💰 Value Bet y Gestion de Bank (Half-Kelly)
+- **Probabilidad del Modelo (%):** Porcentaje obtenido mediante simulaciones de Monte Carlo / Poisson superando la línea de estudio.
+- **Acierto Real (%):** Porcentaje histórico real en los partidos considerados para la muestra.
+- **EV (Valor Esperado):** Si es positivo ($EV > 0$), significa que la cuota ofrecida por la casa tiene un valor matemático favorable a largo plazo frente a la probabilidad real estimada.
+- **Half-Kelly:** Sugerencia porcentual orientativa de tu bankroll para apostar, diseñada para maximizar el crecimiento protegiendo tu capital del riesgo.
 """)
 
 if "analizado_jugadores" not in st.session_state:
