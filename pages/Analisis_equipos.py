@@ -274,7 +274,7 @@ Probabilidad de **superar** la línea elegida en el sidebar.
 - **Dixon–Coles:** corrige subestimación de 0-0 y 1-1
 - **k más alto:** más peso al nivel
 - **ρ más negativo:** más corrección a empates bajos
-
+""")
 
 col_btn1, col_btn2, _ = st.columns([1.2, 1, 4])
 with col_btn1:
