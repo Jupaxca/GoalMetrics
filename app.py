@@ -47,12 +47,17 @@ if st.session_state.user is None:
         with st.form("signup_form"):
             email_su = st.text_input("Correo electrónico")
             password_su = st.text_input("Contraseña (mínimo 6 caracteres)", type="password")
+            password_su_confirm = st.text_input("Confirmar contraseña", type="password")
+            
             if st.form_submit_button("Crear cuenta", use_container_width=True):
-                try:
-                    supabase.auth.sign_up({"email": email_su, "password": password_su})
-                    st.success("¡Cuenta creada! Revisa tu correo para confirmar.")
-                except Exception as e:
-                    st.error(f"Error: {e}")
+                if password_su != password_su_confirm:
+                    st.error("Las contraseñas no coinciden. Por favor, revísalas.")
+                else:
+                    try:
+                        supabase.auth.sign_up({"email": email_su, "password": password_su})
+                        st.success("¡Cuenta creada! Revisa tu correo para confirmar.")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
 
     with tab3:
         st.write("Ingresa tu correo y te enviaremos un enlace de recuperación.")
@@ -65,6 +70,12 @@ if st.session_state.user is None:
                 except Exception as e:
                     st.error(f"Error: {e}")
     st.stop()
+
+# --- ZONA PRIVADA (USUARIO LOGUEADO) ---
+
+# Saludo de bienvenida personalizado en la barra lateral
+user_email = getattr(st.session_state.user, "email", "Analista")
+st.sidebar.markdown(f"👋 Hola, **{user_email}**")
 
 if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
     supabase.auth.sign_out()
