@@ -19,7 +19,6 @@ def cargar_datos():
     df["Condición"] = df["Condición"].astype(str).str.strip().str.lower()
     df["Nivel Rival"] = df["Nivel Rival"].astype(str).str.strip()
     
-    # Procesamiento de columnas numéricas base y defensivas
     cols_numericas = ["Goles", "Goles Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Atajadas", "Amarillas", "Rojas", "Corners Rival"]
     for col in cols_numericas:
         if col in df.columns:
@@ -205,6 +204,10 @@ st.markdown(f"""
 .value-box {{ padding: 14px 16px; border-radius: 10px; margin-bottom: 10px; font-size: 14px; }}
 .value-yes {{ background-color: #064e3b; border-left: 4px solid #10b981; }}
 .value-no {{ background-color: #1f2937; border-left: 4px solid #4b5563; }}
+.ratio-box {{
+    background-color: #1F2937; padding: 16px 20px; border-radius: 12px;
+    border-left: 5px solid #3B82F6; margin-bottom: 20px; font-size: 16px;
+}}
 div[data-testid="stMetric"] {{ background-color: #1F2937; padding: 12px 16px; border-radius: 10px; }}
 </style>
 """, unsafe_allow_html=True)
@@ -281,9 +284,8 @@ with st.expander("Como interpretar este analisis", expanded=False):
 - **Probabilidades 1X2, BTTS y DNB:** Resultados de 10,000 simulaciones de Monte Carlo basadas en las tasas de goles esperados ($\lambda$).
 - **ADN del Equipo:** Gráfico de barras (0 a 10) que resume rápidamente la capacidad ofensiva, volumen de tiros, precisión a puerta, corners y disciplina.
 
-### 🛡️ Solidez Defensiva
-- **Tiros a Puerta Permitidos:** Calculado automáticamente sumando los goles en contra y las atajadas del portero.
-- **Gráfico Mixto (Barras + Línea):** Permite visualizar de forma limpia la relación entre la presión de tiros sufrida y los goles recibidos por encuentro.
+### 🛡️ Solidez Defensiva y Cuadro Comparativo
+- **Tiros a Puerta Permitidos vs Goles en Contra:** Evalúa la presión real al arco y muestra una proporción directa (*Ej: Permite 1 gol cada X tiros a puerta*) para medir la verdadera solidez del bloque y del portero.
 
 ### 🎯 Value Bet y Gestion de Bank
 - **Cuota Justa vs Cuota de Casa:** La cuota justa es $100 / \text{Probabilidad\%}$. Si la casa paga más que la cuota justa, se detecta valor.
@@ -323,7 +325,6 @@ if st.session_state.analizado_equipos:
             for col in ["Goles", "Goles Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Atajadas"]:
                 if col in partido_2.columns:
                     partido_2[col] = (partido_2[col] * factor).round(2)
-            # Recalcular tiros a puerta rival para el partido ajustado
             partido_2["Tiros a Puerta Rival"] = partido_2["Goles Rival"] + partido_2["Atajadas"]
             historial = pd.concat([partido_1, partido_2], ignore_index=True)
             fuente_datos = f"Mixto con respaldo ({cond_opuesta.capitalize()} ajustado)"
@@ -417,7 +418,6 @@ if st.session_state.analizado_equipos:
     if muestra_pequena:
         st.warning("Muestra pequena (<=3). Interpreta EV/Kelly con cautela.")
 
-    # Añadimos la nueva pestaña "Solidez Defensiva"
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["Resumen", "Value Bet", "Solidez Defensiva", "Lineas y Graficos", "Detalle"])
 
     with tab1:
@@ -482,8 +482,8 @@ if st.session_state.analizado_equipos:
                 mostrar_value(*it, muestra_pequena=muestra_pequena)
 
     with tab3:
-        st.subheader("🛡️ Radiografía de Solidez Defensiva")
-        st.caption("Comportamiento defensivo, presión del rival, faltas y disciplina calculados por partido.")
+        st.subheader("🛡️ Cuadro Comparativo de Solidez Defensiva")
+        st.caption("Análisis de conversión y eficiencia defensiva cruzando la presión de tiros sufrida frente a los goles encajados.")
 
         # Promedios defensivos calculados con pesos
         prom_tp_rival = prom("Tiros a Puerta Rival")
@@ -493,47 +493,26 @@ if st.session_state.analizado_equipos:
         prom_amarillas = prom("Amarillas")
         prom_rojas = prom("Rojas")
 
+        # Cálculo del ratio de resistencia (Tiros permitidos por cada gol recibido)
+        if prom_g_rival > 0:
+            ratio_resistencia = prom_tp_rival / prom_g_rival
+            txt_eficiencia = f"El equipo recibe en promedio <b>1 gol cada {ratio_resistencia:.1f} tiros a puerta</b> permitidos."
+        else:
+            txt_eficiencia = "<b>Muro impenetrable:</b> Promedia 0 goles en contra en la muestra seleccionada."
+
+        # Cuadro comparativo destacado (Ratio)
+        st.markdown(f'<div class="ratio-box"><b>⚖️ Índice de Conversión Defensiva:</b><br>{txt_eficiencia}</div>', unsafe_allow_html=True)
+
+        # Métricas defensivas principales en tarjetas limpias
         d1, d2, d3 = st.columns(3)
         d1.metric("Tiros a Puerta Permitidos", f"{prom_tp_rival:.1f}", help="Goles en contra + Atajadas del portero")
         d2.metric("Goles en Contra (Prom.)", f"{prom_g_rival:.2f}")
-        d3.metric("Córners del Rival / Concedidos", f"{prom_c_rival:.1f}")
+        d3.metric("Córners del Rival", f"{prom_c_rival:.1f}")
 
         d4, d5, d6 = st.columns(3)
         d4.metric("Faltas Promedio", f"{prom_faltas:.1f}")
         d5.metric("Tarjetas Amarillas", f"{prom_amarillas:.1f}")
         d6.metric("Tarjetas Rojas", f"{prom_rojas:.2f}")
-
-        st.markdown("---")
-        st.subheader("📊 Evolución Mixta: Tiros Permitidos vs Goles en Contra")
-        st.caption("Las barras azules muestran los tiros a puerta sufridos; la línea naranja marca los goles recibidos por encuentro.")
-
-        df_grafico_def = historial.sort_values(by="Fecha").copy()
-        df_grafico_def["Fecha_Str"] = pd.to_datetime(df_grafico_def["Fecha"]).dt.strftime("%Y-%m-%d")
-
-        base_def = alt.Chart(df_grafico_def).encode(
-            x=alt.X("Fecha_Str:N", title="Fecha del Partido", sort=None)
-        )
-
-        barras_tiros = base_def.mark_bar(color="#3B82F6", opacity=0.7, cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
-            y=alt.Y("Tiros a Puerta Rival:Q", title="Tiros a Puerta Permitidos (Barras)"),
-            tooltip=["Fecha_Str", "Rival", "Tiros a Puerta Rival", "Goles Rival", "Atajadas"]
-        )
-
-        linea_goles = base_def.mark_line(color="#F97316", strokeWidth=3).encode(
-            y=alt.Y("Goles Rival:Q", title="Goles en Contra (Línea)"),
-            tooltip=["Fecha_Str", "Rival", "Goles Rival", "Atajadas"]
-        )
-        
-        puntos_goles = base_def.mark_circle(color="#F97316", size=70).encode(
-            y="Goles Rival:Q",
-            tooltip=["Fecha_Str", "Rival", "Goles Rival"]
-        )
-
-        chart_mixto = alt.layer(barras_tiros, linea_goles + puntos_goles).resolve_scale(
-            y='independent'
-        ).properties(height=320)
-
-        st.altair_chart(chart_mixto, use_container_width=True)
 
     with tab4:
         lc1, lc2, lc3 = st.columns(3)
@@ -558,7 +537,6 @@ if st.session_state.analizado_equipos:
         h_mostrar = historial.copy().sort_values(by="Fecha", ascending=False)
         h_mostrar["Fecha"] = pd.to_datetime(h_mostrar["Fecha"]).dt.strftime("%Y-%m-%d")
         h_mostrar["Peso"] = h_mostrar["Peso"].round(3)
-        # Agregamos las columnas defensivas nuevas a la tabla de detalle para que puedas auditarlas
         cols = [c for c in ["Fecha", "Condición", "Rival", "Nivel Rival", "Goles", "Goles Rival", "Atajadas", "Tiros a Puerta Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Amarillas", "Rojas", "Peso"] if c in h_mostrar.columns]
         st.dataframe(h_mostrar[cols], hide_index=True, use_container_width=True)
 else:
