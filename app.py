@@ -73,20 +73,24 @@ if st.session_state.user is None:
 
 # --- ZONA PRIVADA (USUARIO LOGUEADO) ---
 
+# Obtener nombre personalizado o usar correo por defecto si no lo ha configurado
+user_metadata = getattr(st.session_state.user, "user_metadata", {})
+nombre_mostrado = user_metadata.get("display_name", getattr(st.session_state.user, "email", "Analista"))
+
 # Saludo de bienvenida personalizado en la barra lateral
-user_email = getattr(st.session_state.user, "email", "Analista")
-st.sidebar.markdown(f"👋 Hola, **{user_email}**")
+st.sidebar.markdown(f"👋 Hola, **{nombre_mostrado}**")
 
 if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
     supabase.auth.sign_out()
     st.session_state.user = None
     st.rerun()
 
-# Definir las páginas oficiales
+# Definir las páginas oficiales (incluyendo la nueva página de Perfil)
 analisis_equipos = st.Page("pages/Analisis_equipos.py", title="Analisis equipos", icon="📊", default=True)
 analisis_jugadores = st.Page("pages/analisis_jugadores.py", title="Analisis jugadores", icon="👥")
 tracker_apuestas = st.Page("pages/tracker_apuestas.py", title="Tracker de Apuestas", icon="📈")
 coach_ia = st.Page("pages/coach_ia.py", title="Coach IA", icon="🤖")
+perfil_usuario = st.Page("pages/perfil.py", title="Mi Perfil", icon="👤")
 
-pg = st.navigation([analisis_equipos, analisis_jugadores, tracker_apuestas, coach_ia])
+pg = st.navigation([analisis_equipos, analisis_jugadores, tracker_apuestas, coach_ia, perfil_usuario])
 pg.run()
