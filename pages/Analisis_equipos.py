@@ -208,6 +208,10 @@ st.markdown(f"""
     background-color: #1F2937; padding: 16px 20px; border-radius: 12px;
     border-left: 5px solid #3B82F6; margin-bottom: 20px; font-size: 16px;
 }}
+.ratio-box-off {{
+    background-color: #1F2937; padding: 16px 20px; border-radius: 12px;
+    border-left: 5px solid #10b981; margin-bottom: 20px; font-size: 16px;
+}}
 div[data-testid="stMetric"] {{ background-color: #1F2937; padding: 12px 16px; border-radius: 10px; }}
 </style>
 """, unsafe_allow_html=True)
@@ -284,8 +288,9 @@ with st.expander("Como interpretar este analisis", expanded=False):
 - **Probabilidades 1X2, BTTS y DNB:** Resultados de 10,000 simulaciones de Monte Carlo basadas en las tasas de goles esperados ($\lambda$).
 - **ADN del Equipo:** Gráfico de barras (0 a 10) que resume rápidamente la capacidad ofensiva, volumen de tiros, precisión a puerta, corners y disciplina.
 
-### 🛡️ Solidez Defensiva y Cuadro Comparativo
-- **Tiros a Puerta Permitidos vs Goles en Contra:** Evalúa la presión real al arco y muestra una proporción directa (*Ej: Permite 1 gol cada X tiros a puerta*) para medir la verdadera solidez del bloque y del portero.
+### 🛡️ Solidez Defensiva y Fase Ofensiva (Cuadros Comparativos)
+- **Solidez Defensiva:** Evalúa la presión real al arco y muestra una proporción directa (*Ej: Permite 1 gol cada X tiros a puerta*) para medir la verdadera solidez del bloque y del portero.
+- **Fase Ofensiva:** Cruza los tiros totales, tiros a puerta y goles para medir la letalidad (*Ej: Necesita X tiros a puerta para anotar 1 gol*) y la precisión de puntería en porcentaje.
 
 ### 🎯 Value Bet y Gestion de Bank
 - **Cuota Justa vs Cuota de Casa:** La cuota justa es $100 / \text{Probabilidad\%}$. Si la casa paga más que la cuota justa, se detecta valor.
@@ -418,7 +423,7 @@ if st.session_state.analizado_equipos:
     if muestra_pequena:
         st.warning("Muestra pequena (<=3). Interpreta EV/Kelly con cautela.")
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Resumen", "Value Bet", "Solidez Defensiva", "Lineas y Graficos", "Detalle"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Resumen", "Value Bet", "Solidez Defensiva", "Fase Ofensiva", "Lineas y Graficos", "Detalle"])
 
     with tab1:
         st.subheader("ADN del Equipo")
@@ -485,7 +490,6 @@ if st.session_state.analizado_equipos:
         st.subheader("🛡️ Cuadro Comparativo de Solidez Defensiva")
         st.caption("Análisis de conversión y eficiencia defensiva cruzando la presión de tiros sufrida frente a los goles encajados.")
 
-        # Promedios defensivos calculados con pesos
         prom_tp_rival = prom("Tiros a Puerta Rival")
         prom_g_rival = prom("Goles Rival")
         prom_c_rival = prom("Corners Rival") if "Corners Rival" in historial.columns else prom("Corners")
@@ -493,17 +497,14 @@ if st.session_state.analizado_equipos:
         prom_amarillas = prom("Amarillas")
         prom_rojas = prom("Rojas")
 
-        # Cálculo del ratio de resistencia (Tiros permitidos por cada gol recibido)
         if prom_g_rival > 0:
             ratio_resistencia = prom_tp_rival / prom_g_rival
             txt_eficiencia = f"El equipo recibe en promedio <b>1 gol cada {ratio_resistencia:.1f} tiros a puerta</b> permitidos."
         else:
             txt_eficiencia = "<b>Muro impenetrable:</b> Promedia 0 goles en contra en la muestra seleccionada."
 
-        # Cuadro comparativo destacado (Ratio)
         st.markdown(f'<div class="ratio-box"><b>⚖️ Índice de Conversión Defensiva:</b><br>{txt_eficiencia}</div>', unsafe_allow_html=True)
 
-        # Métricas defensivas principales en tarjetas limpias
         d1, d2, d3 = st.columns(3)
         d1.metric("Tiros a Puerta Permitidos", f"{prom_tp_rival:.1f}", help="Goles en contra + Atajadas del portero")
         d2.metric("Goles en Contra (Prom.)", f"{prom_g_rival:.2f}")
@@ -515,6 +516,38 @@ if st.session_state.analizado_equipos:
         d6.metric("Tarjetas Rojas", f"{prom_rojas:.2f}")
 
     with tab4:
+        st.subheader("⚡ Cuadro Comparativo de Fase Ofensiva")
+        st.caption("Análisis de letalidad, volumen de remates y precisión de puntería en el último tercio.")
+
+        prom_tiros = prom("Tiros")
+        prom_a_puerta = prom("A Puerta")
+        prom_goles = prom("Goles")
+        prom_corners = prom("Corners")
+
+        if prom_goles > 0:
+            ratio_ofensivo = prom_a_puerta / prom_goles
+            txt_ofensiva = f"El equipo necesita en promedio <b>{ratio_ofensivo:.1f} tiros a puerta</b> para anotar 1 gol."
+        else:
+            txt_ofensiva = "<b>Sequía ofensiva:</b> Promedia 0 goles a favor en la muestra seleccionada."
+
+        if prom_tiros > 0:
+            precision_punteria = (prom_a_puerta / prom_tiros) * 100
+            txt_precision = f"<b>Precisión de Puntería:</b> El <b>{precision_punteria:.1f}%</b> de sus remates totales van dirigidos entre los tres palos."
+        else:
+            txt_precision = "Sin registros de tiros totales."
+
+        st.markdown(f'<div class="ratio-box-off"><b>🎯 Índice de Letalidad Ofensiva:</b><br>{txt_ofensiva}<br><br>{txt_precision}</div>', unsafe_allow_html=True)
+
+        o1, o2, o3 = st.columns(3)
+        o1.metric("Tiros Totales (Prom.)", f"{prom_tiros:.1f}")
+        o2.metric("Tiros a Puerta (Prom.)", f"{prom_a_puerta:.1f}")
+        o3.metric("Goles a Favor (Prom.)", f"{prom_goles:.2f}")
+
+        o4, o5, _ = st.columns(3)
+        o4.metric("Córners a Favor (Prom.)", f"{prom_corners:.1f}")
+        o5.metric("Índice de Letalidad", "Clínico" if prom_goles > 1.5 else "Moderado")
+
+    with tab5:
         lc1, lc2, lc3 = st.columns(3)
         lc1.metric(f"Goles > {linea_goles}", f"{prob_over_goles:.1f}%")
         lc2.metric(f"Total > {linea_total_partido}", f"{prob_over_total:.1f}%")
@@ -533,7 +566,7 @@ if st.session_state.analizado_equipos:
             hide_index=True, use_container_width=True,
         )
 
-    with tab5:
+    with tab6:
         h_mostrar = historial.copy().sort_values(by="Fecha", ascending=False)
         h_mostrar["Fecha"] = pd.to_datetime(h_mostrar["Fecha"]).dt.strftime("%Y-%m-%d")
         h_mostrar["Peso"] = h_mostrar["Peso"].round(3)
