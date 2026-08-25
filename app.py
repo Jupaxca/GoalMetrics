@@ -15,17 +15,16 @@ def init_supabase() -> Client:
 
 supabase = init_supabase()
 
-# LÓGICA DE PERSISTENCIA DE SESIÓN Y TOKENS
+# Guardar el cliente en st.session_state para mantener la sesión viva entre páginas
+if 'supabase_client' not in st.session_state:
+    st.session_state.supabase_client = supabase
+
 if 'user' not in st.session_state:
     st.session_state.user = None
-    st.session_state.access_token = None
-    st.session_state.refresh_token = None
     try:
-        session = supabase.auth.get_session()
+        session = st.session_state.supabase_client.auth.get_session()
         if session and session.session:
             st.session_state.user = session.user
-            st.session_state.access_token = session.session.access_token
-            st.session_state.refresh_token = session.session.refresh_token
     except Exception:
         pass
 
@@ -40,11 +39,8 @@ if st.session_state.user is None:
             password = st.text_input("Contraseña", type="password")
             if st.form_submit_button("Entrar", use_container_width=True):
                 try:
-                    res = supabase.auth.sign_in_with_password({"email": email, "password": password})
+                    res = st.session_state.supabase_client.auth.sign_in_with_password({"email": email, "password": password})
                     st.session_state.user = res.user
-                    if res.session:
-                        st.session_state.access_token = res.session.access_token
-                        st.session_state.refresh_token = res.session.refresh_token
                     st.success("¡Bienvenido!")
                     st.rerun()
                 except Exception as e:
@@ -61,7 +57,7 @@ if st.session_state.user is None:
                     st.error("Las contraseñas no coinciden. Por favor, revísalas.")
                 else:
                     try:
-                        supabase.auth.sign_up({"email": email_su, "password": password_su})
+                        st.session_state.supabase_client.auth.sign_up({"email": email_su, "password": password_su})
                         st.success("¡Cuenta creada! Revisa tu correo para confirmar.")
                     except Exception as e:
                         st.error(f"Error: {e}")
@@ -72,7 +68,7 @@ if st.session_state.user is None:
             email_reset = st.text_input("Correo de la cuenta")
             if st.form_submit_button("Enviar enlace de recuperación", use_container_width=True):
                 try:
-                    supabase.auth.reset_password_for_email(email_reset)
+                    st.session_state.supabase_client.auth.reset_password_for_email(email_reset)
                     st.success("¡Correo enviado! Revisa tu bandeja de entrada.")
                 except Exception as e:
                     st.error(f"Error: {e}")
@@ -86,10 +82,8 @@ nombre_mostrado = user_metadata.get("display_name", getattr(st.session_state.use
 st.sidebar.markdown(f"👋 Hola, **{nombre_mostrado}**")
 
 if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
-    supabase.auth.sign_out()
+    st.session_state.supabase_client.auth.sign_out()
     st.session_state.user = None
-    st.session_state.access_token = None
-    st.session_state.refresh_token = None
     st.rerun()
 
 analisis_equipos = st.Page("pages/Analisis_equipos.py", title="Analisis equipos", icon="📊", default=True)
