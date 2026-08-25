@@ -15,13 +15,17 @@ def init_supabase() -> Client:
 
 supabase = init_supabase()
 
-# LÓGICA DE PERSISTENCIA DE SESIÓN (AUTO-LOGIN)
+# LÓGICA DE PERSISTENCIA DE SESIÓN Y TOKENS
 if 'user' not in st.session_state:
     st.session_state.user = None
+    st.session_state.access_token = None
+    st.session_state.refresh_token = None
     try:
         session = supabase.auth.get_session()
         if session and session.session:
             st.session_state.user = session.user
+            st.session_state.access_token = session.session.access_token
+            st.session_state.refresh_token = session.session.refresh_token
     except Exception:
         pass
 
@@ -38,6 +42,9 @@ if st.session_state.user is None:
                 try:
                     res = supabase.auth.sign_in_with_password({"email": email, "password": password})
                     st.session_state.user = res.user
+                    if res.session:
+                        st.session_state.access_token = res.session.access_token
+                        st.session_state.refresh_token = res.session.refresh_token
                     st.success("¡Bienvenido!")
                     st.rerun()
                 except Exception as e:
@@ -73,19 +80,18 @@ if st.session_state.user is None:
 
 # --- ZONA PRIVADA (USUARIO LOGUEADO) ---
 
-# Obtener nombre personalizado o usar correo por defecto si no lo ha configurado
 user_metadata = getattr(st.session_state.user, "user_metadata", {})
 nombre_mostrado = user_metadata.get("display_name", getattr(st.session_state.user, "email", "Analista"))
 
-# Saludo de bienvenida personalizado en la barra lateral
 st.sidebar.markdown(f"👋 Hola, **{nombre_mostrado}**")
 
 if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
     supabase.auth.sign_out()
     st.session_state.user = None
+    st.session_state.access_token = None
+    st.session_state.refresh_token = None
     st.rerun()
 
-# Definir las páginas oficiales (incluyendo la nueva página de Perfil)
 analisis_equipos = st.Page("pages/Analisis_equipos.py", title="Analisis equipos", icon="📊", default=True)
 analisis_jugadores = st.Page("pages/analisis_jugadores.py", title="Analisis jugadores", icon="👥")
 tracker_apuestas = st.Page("pages/tracker_apuestas.py", title="Tracker de Apuestas", icon="📈")
