@@ -33,6 +33,21 @@ def shrinkage_lambda(lam_obs, lam_prior, n_obs, k=5.0):
     n = max(float(n_obs), 0.0)
     return (n * lam_obs + k * lam_prior) / (n + k)
 
+def obtener_peso_tier(tier):
+    """
+    Asigna un valor numérico a la dificultad del rival.
+    TOP y CHAMPIONS comparten el nivel más alto (3), tratándose como equivalentes.
+    """
+    t = str(tier).upper().strip()
+    if "TOP" in t or "CHAMPIONS" in t:
+        return 3
+    elif "MEDIA" in t:
+        return 2
+    elif "DESCENSO" in t or "BAJO" in t:
+        return 1
+    else:
+        return 2
+
 try:
     df = cargar_datos_jugadores()
     datos_ok = True
@@ -101,7 +116,7 @@ with st.sidebar.expander("Modelo", expanded=True):
     )
     st.caption("Recomendado ON en 5.0")
 
-# Comprobación rápida de partidos exactos
+# Comprobación de partidos exactos
 if not df_jugador.empty and "Condición" in df_jugador.columns and "Nivel Rival" in df_jugador.columns:
     exactos_check = df_jugador[
         (df_jugador["Condición"] == condicion_sel_lower)
@@ -114,9 +129,9 @@ else:
 if num_exactos >= 3:
     st.sidebar.success(f"{num_exactos} partidos exactos (Suficientes)")
 elif num_exactos > 0:
-    st.sidebar.warning(f"{num_exactos} partido(s) exacto(s) -> Respaldo aplicado")
+    st.sidebar.warning(f"{num_exactos} partido(s) exacto(s) -> Respaldo inteligente activo")
 else:
-    st.sidebar.error("0 partidos exactos -> Respaldo cruzado")
+    st.sidebar.error("0 partidos exactos -> Respaldo cruzado activo")
 
 st.markdown("""
 <style>
@@ -164,14 +179,14 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, real=None):
     )
 
 st.markdown("### Centro de Analisis Individual de Jugadores")
-st.caption("Props orientativas con filtrado específico por condición y nivel de rival, control de sesgo y gestión de bank.")
+st.caption("Props orientativas con control de dificultad de rival (Tier TOP/Champions equivalentes), sesgo de localía y gestión de bank.")
 
 with st.expander("Como interpretar este analisis", expanded=False):
     st.markdown("""
 ### 📊 Configuracion y Modelo Estadistico
-- **Filtrado por Escenario (Condición + Nivel de Rival):** El modelo evalúa partidos exactos contra el tier de rival seleccionado en la condición indicada, aplicando respaldos inteligentes si faltan datos.
-- **Promedios del Escenario:** Las métricas principales muestran estrictamente los promedios ponderados del subconjunto analizado para evitar confusiones con totales globales de su carrera.
-- **Shrinkage (Recomendado: ON en 5.0):** Estabiliza las proyecciones combinando la muestra específica con la media histórica global.
+- **Equivalencia de Tiers (TOP & Champions):** Los partidos contra rivales TOP y de Champions comparten el mismo factor de dificultad máxima. Si se usan como respaldo cruzado frente a rivales inferiores, se ajustan automáticamente.
+- **Factor de Dificultad de Rival:** Si el modelo toma un partido de otra categoría para completar la muestra, pondera y escala las métricas (subiendo el valor si venía de enfrentar a un TOP más difícil, o descontando si venía de enfrentar a un rival más accesible de descenso).
+- **Shrinkage (Recomendado: ON en 5.0):** Estabiliza las proyecciones combinando la muestra filtrada con la media histórica global.
 """)
 
 if "analizado_jugadores" not in st.session_state:
@@ -191,10 +206,11 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
     if "Fecha" in df_jugador.columns:
         df_jugador = df_jugador.sort_values("Fecha")
 
-    # --- LÓGICA DE FILTRADO ESPECÍFICO (CONDICIÓN + NIVEL RIVAL) CON RESPALDO ---
+    # --- LÓGICA AVANZADA DE MUESTRA, CONDICIÓN Y TIER DE RIVAL ---
     umbral_minimo = 3
-    
-    # 1. Buscar partidos exactos (Condición + Nivel Rival)
+    t_target = obtener_peso_tier(nivel_sel)
+
+    # 1. Buscar partidos exactos (Condición + Nivel Rival exacto)
     if "Condición" in df_jugador.columns and "Nivel Rival" in df_jugador.columns:
         df_exactos = df_jugador[
             (df_jugador["Condición"] == condicion_sel_lower)
@@ -221,26 +237,65 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
             r["Peso_Contexto"] = 1.0
             historial_list.append(r)
 
-        # Rellenar con otros partidos de la misma condición (diferente rival)
+        # Función auxiliar para calcular ajustes por condición y por dificultad de tier
+        def calcular_factores_respaldo(row_data, condicion_buscada, tier_objetivo):
+            cond_partido = str(row_data.get("Condición", "")).lower()
+            tier_partido = str(row_data.get("Nivel Rival", ""))
+            t_match = obtener_peso_tier(tier_partido)
+
+            # 1. Factor por condición (Local / Visitante)
+            if cond_partido == condicion_buscada:
+                f_cond = 1.0
+                tipo_cond = "Misma condición"
+            else:
+                if condicion_buscada == "visitante" and cond_partido == "local":
+                    f_cond = 0.90  # Castigo por localía previa al evaluar visitante
+                    tipo_cond = "Cruzado (Casa -> Fuera)"
+                elif condicion_buscada == "local" and cond_partido == "visitante":
+                    f_cond = 1.05  # Impulso por visitante previo al evaluar casa
+                    tipo_cond = "Cruzado (Fuera -> Casa)"
+                else:
+                    f_cond = 1.0
+                    tipo_cond = "Cruzado Estándar"
+
+            # 2. Factor por Nivel de Rival (Tier) con equivalencia TOP/Champions
+            diff = tier_objetivo - t_match  # target - match
+            if diff == 0:
+                f_tier = 1.0
+                tipo_tier = "Tier equivalente"
+            elif diff > 0:
+                # El objetivo es más difícil que el partido de respaldo -> Descontar
+                f_tier = max(0.65, 1.0 - (diff * 0.12))
+                tipo_tier = "Ajuste a la baja (Rival respaldo más fácil)"
+            else:
+                # El objetivo es más fácil que el partido de respaldo -> Impulsar
+                f_tier = min(1.35, 1.0 + (abs(diff) * 0.10))
+                tipo_tier = "Ajuste al alza (Rival respaldo más difícil)"
+
+            f_total = f_cond * f_tier
+            descripcion = f"Respaldo | {tipo_cond} | {tipo_tier} ({tier_partido})"
+            return f_total, descripcion
+
+        # Rellenar con partidos de la misma condición pero distinto tier
         if "Condición" in df_jugador.columns:
-            df_resto_condicion = df_jugador[
-                (df_jugador["Condición"] == condicion_sel_lower)
-                & (df_jugador["Nivel Rival"] != nivel_sel)
-            ].copy()
+            df_misma_cond = df_jugador[df_jugador["Condición"] == condicion_sel_lower].copy()
+            if not df_exactos.empty:
+                df_misma_cond = df_misma_cond[~df_misma_cond.index.isin(df_exactos.index)]
         else:
-            df_resto_condicion = pd.DataFrame()
+            df_misma_cond = pd.DataFrame()
 
-        faltantes = umbral_minimo - len(df_exactos)
-        comodines_nivel = df_resto_condicion.tail(faltantes)
+        faltantes = umbral_minimo - len(historial_list)
+        comodines_tier = df_misma_cond.tail(faltantes)
 
-        for _, row in comodines_nivel.iterrows():
+        for _, row in comodines_tier.iterrows():
             r = row.to_dict()
-            r["Factor_Ajuste"] = 1.0
-            r["Tipo_Uso"] = "Respaldo (Misma condición, diferente rival)"
+            f_tot, desc = calcular_factores_respaldo(r, condicion_sel_lower, t_target)
+            r["Factor_Ajuste"] = f_tot
+            r["Tipo_Uso"] = desc
             r["Peso_Contexto"] = 0.85
             historial_list.append(r)
 
-        # Si aún faltan, usar contexto opuesto con ajuste cruzado de localía
+        # Si aún faltan, usar condición opuesta con ajuste cruzado completo
         if len(historial_list) < umbral_minimo:
             opuesto_lower = "local" if condicion_sel_lower == "visitante" else "visitante"
             if "Condición" in df_jugador.columns:
@@ -253,26 +308,17 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
 
             for _, row in comodines_cruzados.iterrows():
                 r = row.to_dict()
-                if condicion_sel_lower == "visitante" and opuesto_lower == "local":
-                    factor_ajuste = 0.90  # Castigo por localía previa
-                    tipo_uso = "Comodín Cruzado (Ajuste a la baja por localía)"
-                elif condicion_sel_lower == "local" and opuesto_lower == "visitante":
-                    factor_ajuste = 1.05  # Impulso por rendimiento previo de visitante
-                    tipo_uso = "Comodín Cruzado (Aumento por visitante)"
-                else:
-                    factor_ajuste = 1.0
-                    tipo_uso = "Comodín Estándar"
-
-                r["Factor_Ajuste"] = factor_ajuste
-                r["Tipo_Uso"] = tipo_uso
+                f_tot, desc = calcular_factores_respaldo(r, condicion_sel_lower, t_target)
+                r["Factor_Ajuste"] = f_tot
+                r["Tipo_Uso"] = desc
                 r["Peso_Contexto"] = 0.75
                 historial_list.append(r)
 
-        fuente = f"Muestra adaptada al escenario ({len(historial_list)} partidos)"
+        fuente = f"Muestra adaptada con ponderación de Tiers ({len(historial_list)} partidos)"
 
     historial = pd.DataFrame(historial_list)
 
-    # Aplicar el factor de ajuste a las métricas del historial
+    # Aplicar el factor de ajuste combinado a las métricas del historial
     for col in ["Goles", "Asistencias", "Tiros", "A Puerta", "Faltas"]:
         if col in historial.columns:
             historial[col] = historial[col] * historial["Factor_Ajuste"]
@@ -344,7 +390,6 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
     real_faltas = (historial["Faltas"] > linea_faltas).mean() * 100
     real_contrib = ((historial["Goles"] + historial["Asistencias"]) > linea_contrib).mean() * 100
 
-    # Promedios específicos del escenario analizado
     prom_goles_escenario = historial["Goles"].mean()
     prom_asist_escenario = historial["Asistencias"].mean()
     prom_tiros_escenario = historial["Tiros"].mean()
@@ -366,7 +411,7 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
 
     with tab1:
         st.subheader(f"Métricas promedio en el escenario: {condicion_sel} vs {nivel_sel}")
-        st.caption("Valores calculados exclusivamente sobre la muestra filtrada y adaptada para este análisis.")
+        st.caption("Valores calculados estrictamente sobre la muestra adaptada por dificultad de rival y condición.")
         
         k1, k2, k3, k4 = st.columns(4)
         k1.metric("Prom. Goles", f"{prom_goles_escenario:.2f}")
