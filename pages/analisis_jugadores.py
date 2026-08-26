@@ -3,6 +3,12 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 
+st.set_page_config(
+    page_title="GoalMetrics | Análisis de Jugadores",
+    page_icon="⚽",
+    layout="wide"
+)
+
 @st.cache_data(ttl=600)
 def cargar_datos_jugadores():
     url = "https://docs.google.com/spreadsheets/d/1q98g-IxYaO8g3ksDb0vyZ9V7IrhPjDcVUtChZI8SNT4/export?format=csv"
@@ -93,26 +99,22 @@ with st.sidebar.expander("Modelo", expanded=True):
     )
     st.caption("Recomendado ON en 5.0")
 
-if not df_jugador.empty and "Fecha" in df_jugador.columns:
-    df_diagnostico = df_jugador.sort_values(by="Fecha", ascending=False)
-else:
-    df_diagnostico = df_jugador
-
-if not df_diagnostico.empty and "Condición" in df_diagnostico.columns and "Nivel Rival" in df_diagnostico.columns:
-    exactos_check = df_diagnostico[
-        (df_diagnostico["Condición"] == condicion_sel_lower)
-        & (df_diagnostico["Nivel Rival"] == nivel_sel)
+# Diagnóstico rápido de partidos exactos
+if not df_jugador.empty and "Condición" in df_jugador.columns and "Nivel Rival" in df_jugador.columns:
+    exactos_check = df_jugador[
+        (df_jugador["Condición"] == condicion_sel_lower)
+        & (df_jugador["Nivel Rival"] == nivel_sel)
     ]
     num_exactos = len(exactos_check)
 else:
     num_exactos = 0
 
-if num_exactos >= 2:
-    st.sidebar.success(f"{num_exactos} partidos exactos")
-elif num_exactos == 1:
-    st.sidebar.warning("1 partido exacto -> respaldo")
+if num_exactos >= 3:
+    st.sidebar.success(f"{num_exactos} partidos exactos (Suficientes)")
+elif num_exactos > 0:
+    st.sidebar.warning(f"{num_exactos} partido(s) exacto(s) -> Activará comodín de respaldo")
 else:
-    st.sidebar.error("0 partidos exactos")
+    st.sidebar.error("0 partidos exactos -> Usará respaldo cruzado")
 
 st.markdown("""
 <style>
@@ -160,22 +162,13 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, real=None):
     )
 
 st.markdown("### Centro de Analisis Individual de Jugadores")
-st.caption("Props orientativas. Contrasta modelo vs acierto real. Gestiona el bank.")
+st.caption("Props orientativas con control de sesgo de localía, ajuste por comodines y gestión de bank.")
 
 with st.expander("Como interpretar este analisis", expanded=False):
     st.markdown("""
 ### 📊 Configuracion y Modelo Estadistico
-- **Shrinkage (Recomendado: ON en 5.0):** Estabiliza las proyecciones individuales combinando los partidos recientes del filtro con la media histórica global del jugador. Evita que caigas en trampas cuando el jugador tiene pocos partidos en esa condición específica. Un valor de $k=5.0$ equilibra perfectamente la tendencia y el histórico.
-
-### 📈 Metricas Clave
-- **Lambda ($\lambda$):** Promedio esperado de eventos (goles, tiros, asistencias) para este jugador en el escenario seleccionado según la distribución de Poisson.
-- **Ratio de contribución:** Frecuencia con la que el jugador participa directamente en goles o asistencias (ej. 1 aporte cada X partidos).
-- **Racha seca:** Cantidad de partidos consecutivos recientes en los que el jugador no ha registrado gol ni asistencia frente a su media habitual.
-
-### 💰 Value Bet y Gestion de Bank (Half-Kelly)
-- **Modelo % vs Acierto Real %:** Compara la probabilidad teórica obtenida por la simulación frente al porcentaje histórico real dentro de la muestra.
-- **EV > 0 (Value Bet):** Cuota de la casa superior a la probabilidad real estimada, representando valor a largo plazo.
-- **Half-Kelly:** Sugerencia porcentual conservadora de tu bankroll para arriesgar protegiendo tu capital.
+- **Ajuste de Localía y Comodines:** Si el jugador no cuenta con el umbral mínimo de partidos nativos en el contexto seleccionado (Local/Visitante), el modelo integra partidos del contexto contrario aplicándoles un factor de corrección estricto (penalización a la baja si se usa casa para evaluar fuera, o impulso si se usa fuera para evaluar casa) y un peso menor (`0.75`).
+- **Shrinkage (Recomendado: ON en 5.0):** Estabiliza las proyecciones combinando la muestra filtrada con la media histórica global del jugador.
 """)
 
 if "analizado_jugadores" not in st.session_state:
@@ -195,53 +188,83 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
     if "Fecha" in df_jugador.columns:
         df_jugador = df_jugador.sort_values("Fecha")
 
-    if "Condición" in df_jugador.columns and "Nivel Rival" in df_jugador.columns:
-        df_exactos = df_jugador[
-            (df_jugador["Condición"] == condicion_sel_lower)
-            & (df_jugador["Nivel Rival"] == nivel_sel)
-        ].copy()
+    # --- LÓGICA AVANZADA DE UMBRAL Y COMODÍN CRUZADO ---
+    umbral_minimo = 3
+    if "Condición" in df_jugador.columns:
+        df_nativos = df_jugador[df_jugador["Condición"] == condicion_sel_lower].copy()
     else:
-        df_exactos = pd.DataFrame()
+        df_nativos = df_jugador.copy()
 
-    historial = pd.DataFrame()
-    fuente = ""
+    historial_list = []
 
-    if len(df_exactos) >= 2:
-        historial = df_exactos.copy()
-        fuente = f"Exacto ({condicion_sel} vs {nivel_sel}) - {len(historial)} partidos"
-    elif len(df_exactos) == 1:
-        historial = df_exactos.copy()
-        if len(df_jugador) > 1:
-            extra = df_jugador[~df_jugador.index.isin(historial.index)].tail(1)
-            historial = pd.concat([historial, extra])
-            fuente = "1 partido exacto + 1 de respaldo reciente"
-        else:
-            fuente = "Solo 1 partido exacto disponible"
+    if len(df_nativos) >= umbral_minimo:
+        for _, row in df_nativos.tail(5).iterrows():
+            r = row.to_dict()
+            r["Factor_Ajuste"] = 1.0
+            r["Tipo_Uso"] = "Nativo (Suficiente)"
+            r["Peso_Contexto"] = 1.0
+            historial_list.append(r)
+        fuente = f"Nativo ({condicion_sel}) - {len(df_nativos)} partidos"
     else:
-        if len(df_jugador) >= 2:
-            historial = df_jugador.tail(5).copy()
-            fuente = f"Sin exactos -> ultimos {len(historial)} partidos"
-        else:
-            st.warning("No hay suficientes registros para este jugador.")
-            st.stop()
+        for _, row in df_nativos.iterrows():
+            r = row.to_dict()
+            r["Factor_Ajuste"] = 1.0
+            r["Tipo_Uso"] = "Nativo (Insuficiente, retenido)"
+            r["Peso_Contexto"] = 1.0
+            historial_list.append(r)
+
+        opuesto_lower = "local" if condicion_sel_lower == "visitante" else "visitante"
+        df_contrarios = df_jugador[df_jugador["Condición"] == opuesto_lower].copy()
+        
+        faltantes = umbral_minimo - len(df_nativos)
+        comodines = df_contrarios.tail(faltantes)
+
+        for _, row in comodines.iterrows():
+            r = row.to_dict()
+            if condicion_sel_lower == "visitante" and opuesto_lower == "local":
+                factor_ajuste = 0.90  # Castigo por localía previa al evaluar visitante
+                tipo_uso = "Comodín (Ajuste a la baja por localía previa)"
+            elif condicion_sel_lower == "local" and opuesto_lower == "visitante":
+                factor_ajuste = 1.05  # Impulso por rendimiento previo de visitante
+                tipo_uso = "Comodín (Aumento por rendimiento de visitante)"
+            else:
+                factor_ajuste = 1.0
+                tipo_uso = "Comodín Estándar"
+
+            r["Factor_Ajuste"] = factor_ajuste
+            r["Tipo_Uso"] = tipo_uso
+            r["Peso_Contexto"] = 0.75  # Menor peso de confianza al ser comodín cruzado
+            historial_list.append(r)
+
+        fuente = f"Nativo ({len(df_nativos)}) + Comodín de respaldo ({len(comodines)}) con ajuste"
+
+    historial = pd.DataFrame(historial_list)
+
+    # Aplicar el factor de ajuste a las métricas del historial
+    for col in ["Goles", "Asistencias", "Tiros", "A Puerta", "Faltas"]:
+        if col in historial.columns:
+            historial[col] = historial[col] * historial["Factor_Ajuste"]
 
     n_obs = len(historial)
     muestra_pequena = n_obs <= 3
 
     st.markdown(f'<div class="header-box">{jugador_sel.upper()} | {condicion_sel} vs {nivel_sel}</div>', unsafe_allow_html=True)
     st.caption(f"Base: {n_obs} partidos | {fuente}")
-    st.caption(f"Modelo: Poisson {'+ Shrinkage (k=' + str(int(k_shrink)) + ')' if usar_shrinkage else 'puro (Shrinkage OFF)'}")
+    st.caption(f"Modelo: Poisson {'+ Shrinkage (k=' + str(int(k_shrink)) + ')' if usar_shrinkage else 'puro'}")
 
     if muestra_pequena:
-        st.warning("Muestra pequena. Interpreta Kelly con cautela.")
+        st.warning("Muestra pequeña. Interpreta Kelly con cautela.")
 
     hoy = pd.Timestamp.today().normalize()
     if "Fecha" in historial.columns:
         historial["Dias_Pasados"] = (hoy - pd.to_datetime(historial["Fecha"])).dt.days.replace(0, 0.1)
-        historial["Peso"] = 1 / (1 + (historial["Dias_Pasados"] / 30))
+        historial["Peso_Temporal"] = 1 / (1 + (historial["Dias_Pasados"] / 30))
     else:
-        historial["Peso"] = 1.0
-    pesos = historial["Peso"] / historial["Peso"].sum()
+        historial["Peso_Temporal"] = 1.0
+
+    # Combinar peso temporal y peso contextual del comodín
+    historial["Peso_Total"] = historial["Peso_Temporal"] * historial["Peso_Contexto"]
+    pesos = historial["Peso_Total"] / historial["Peso_Total"].sum()
 
     def prom_w(col):
         return float(np.average(historial[col].fillna(0), weights=pesos))
@@ -324,10 +347,7 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
 
         st.markdown("##### Lambda del modelo")
         l1, l2, l3, l4, l5 = st.columns(5)
-        if usar_shrinkage:
-            l1.metric("Goles", f"{lam_g:.2f}", delta=f"raw {lam_g_raw:.2f}")
-        else:
-            l1.metric("Goles", f"{lam_g:.2f}")
+        l1.metric("Goles", f"{lam_g:.2f}", delta=f"raw {lam_g_raw:.2f}" if usar_shrinkage else None)
         l2.metric("Tiros", f"{lam_t:.2f}")
         l3.metric("Puerta", f"{lam_p:.2f}")
         l4.metric("Asist", f"{lam_a:.2f}")
@@ -377,13 +397,15 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
             st.plotly_chart(fig, use_container_width=True)
 
     with tab4:
-        st.subheader("Partidos usados")
+        st.subheader("Partidos usados y auditoría de contexto")
         h_mostrar = historial.copy()
         if "Fecha" in h_mostrar.columns:
             h_mostrar["Fecha"] = pd.to_datetime(h_mostrar["Fecha"]).dt.strftime("%Y-%m-%d")
-        if "Peso" in h_mostrar.columns:
-            h_mostrar["Peso"] = h_mostrar["Peso"].round(3)
-        cols = [c for c in ["Fecha", "Condición", "Rival", "Nivel Rival", "Goles", "Asistencias", "Tiros", "A Puerta", "Faltas", "Peso"] if c in h_mostrar.columns]
+        if "Peso_Total" in h_mostrar.columns:
+            h_mostrar["Peso_Total"] = h_mostrar["Peso_Total"].round(3)
+        if "Factor_Ajuste" in h_mostrar.columns:
+            h_mostrar["Factor_Ajuste"] = h_mostrar["Factor_Ajuste"].round(2)
+        cols = [c for c in ["Fecha", "Condición", "Rival", "Nivel Rival", "Goles", "Asistencias", "Tiros", "A Puerta", "Faltas", "Tipo_Uso", "Factor_Ajuste", "Peso_Total"] if c in h_mostrar.columns]
         st.dataframe(h_mostrar[cols], hide_index=True, use_container_width=True)
 else:
     st.info("Elige jugador, lineas y cuotas, luego Analizar.")
