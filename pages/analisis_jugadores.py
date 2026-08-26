@@ -25,6 +25,8 @@ def cargar_datos_jugadores():
         df = df.rename(columns={"Condicion": "Condición"})
     if "Condición" in df.columns:
         df["Condición"] = df["Condición"].astype(str).str.strip().str.lower()
+    if "Nivel Rival" in df.columns:
+        df["Nivel Rival"] = df["Nivel Rival"].astype(str).str.strip()
     return df
 
 def shrinkage_lambda(lam_obs, lam_prior, n_obs, k=5.0):
@@ -99,7 +101,7 @@ with st.sidebar.expander("Modelo", expanded=True):
     )
     st.caption("Recomendado ON en 5.0")
 
-# Diagnóstico rápido de partidos exactos
+# Comprobación rápida de partidos exactos
 if not df_jugador.empty and "Condición" in df_jugador.columns and "Nivel Rival" in df_jugador.columns:
     exactos_check = df_jugador[
         (df_jugador["Condición"] == condicion_sel_lower)
@@ -112,9 +114,9 @@ else:
 if num_exactos >= 3:
     st.sidebar.success(f"{num_exactos} partidos exactos (Suficientes)")
 elif num_exactos > 0:
-    st.sidebar.warning(f"{num_exactos} partido(s) exacto(s) -> Activará comodín de respaldo")
+    st.sidebar.warning(f"{num_exactos} partido(s) exacto(s) -> Respaldo aplicado")
 else:
-    st.sidebar.error("0 partidos exactos -> Usará respaldo cruzado")
+    st.sidebar.error("0 partidos exactos -> Respaldo cruzado")
 
 st.markdown("""
 <style>
@@ -162,13 +164,14 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, real=None):
     )
 
 st.markdown("### Centro de Analisis Individual de Jugadores")
-st.caption("Props orientativas con control de sesgo de localía, ajuste por comodines y gestión de bank.")
+st.caption("Props orientativas con filtrado específico por condición y nivel de rival, control de sesgo y gestión de bank.")
 
 with st.expander("Como interpretar este analisis", expanded=False):
     st.markdown("""
 ### 📊 Configuracion y Modelo Estadistico
-- **Ajuste de Localía y Comodines:** Si el jugador no cuenta con el umbral mínimo de partidos nativos en el contexto seleccionado (Local/Visitante), el modelo integra partidos del contexto contrario aplicándoles un factor de corrección estricto (penalización a la baja si se usa casa para evaluar fuera, o impulso si se usa fuera para evaluar casa) y un peso menor (`0.75`).
-- **Shrinkage (Recomendado: ON en 5.0):** Estabiliza las proyecciones combinando la muestra filtrada con la media histórica global del jugador.
+- **Filtrado por Escenario (Condición + Nivel de Rival):** El modelo evalúa partidos exactos contra el tier de rival seleccionado en la condición indicada, aplicando respaldos inteligentes si faltan datos.
+- **Promedios del Escenario:** Las métricas principales muestran estrictamente los promedios ponderados del subconjunto analizado para evitar confusiones con totales globales de su carrera.
+- **Shrinkage (Recomendado: ON en 5.0):** Estabiliza las proyecciones combinando la muestra específica con la media histórica global.
 """)
 
 if "analizado_jugadores" not in st.session_state:
@@ -188,55 +191,84 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
     if "Fecha" in df_jugador.columns:
         df_jugador = df_jugador.sort_values("Fecha")
 
-    # --- LÓGICA AVANZADA DE UMBRAL Y COMODÍN CRUZADO ---
+    # --- LÓGICA DE FILTRADO ESPECÍFICO (CONDICIÓN + NIVEL RIVAL) CON RESPALDO ---
     umbral_minimo = 3
-    if "Condición" in df_jugador.columns:
-        df_nativos = df_jugador[df_jugador["Condición"] == condicion_sel_lower].copy()
+    
+    # 1. Buscar partidos exactos (Condición + Nivel Rival)
+    if "Condición" in df_jugador.columns and "Nivel Rival" in df_jugador.columns:
+        df_exactos = df_jugador[
+            (df_jugador["Condición"] == condicion_sel_lower)
+            & (df_jugador["Nivel Rival"] == nivel_sel)
+        ].copy()
     else:
-        df_nativos = df_jugador.copy()
+        df_exactos = pd.DataFrame()
 
     historial_list = []
 
-    if len(df_nativos) >= umbral_minimo:
-        for _, row in df_nativos.tail(5).iterrows():
+    if len(df_exactos) >= umbral_minimo:
+        for _, row in df_exactos.tail(5).iterrows():
             r = row.to_dict()
             r["Factor_Ajuste"] = 1.0
-            r["Tipo_Uso"] = "Nativo (Suficiente)"
+            r["Tipo_Uso"] = "Exacto (Condición + Rival)"
             r["Peso_Contexto"] = 1.0
             historial_list.append(r)
-        fuente = f"Nativo ({condicion_sel}) - {len(df_nativos)} partidos"
+        fuente = f"Exactos ({condicion_sel} vs {nivel_sel}) - {len(df_exactos)} partidos"
     else:
-        for _, row in df_nativos.iterrows():
+        for _, row in df_exactos.iterrows():
             r = row.to_dict()
             r["Factor_Ajuste"] = 1.0
-            r["Tipo_Uso"] = "Nativo (Insuficiente, retenido)"
+            r["Tipo_Uso"] = "Exacto (Insuficiente, retenido)"
             r["Peso_Contexto"] = 1.0
             historial_list.append(r)
 
-        opuesto_lower = "local" if condicion_sel_lower == "visitante" else "visitante"
-        df_contrarios = df_jugador[df_jugador["Condición"] == opuesto_lower].copy()
-        
-        faltantes = umbral_minimo - len(df_nativos)
-        comodines = df_contrarios.tail(faltantes)
+        # Rellenar con otros partidos de la misma condición (diferente rival)
+        if "Condición" in df_jugador.columns:
+            df_resto_condicion = df_jugador[
+                (df_jugador["Condición"] == condicion_sel_lower)
+                & (df_jugador["Nivel Rival"] != nivel_sel)
+            ].copy()
+        else:
+            df_resto_condicion = pd.DataFrame()
 
-        for _, row in comodines.iterrows():
+        faltantes = umbral_minimo - len(df_exactos)
+        comodines_nivel = df_resto_condicion.tail(faltantes)
+
+        for _, row in comodines_nivel.iterrows():
             r = row.to_dict()
-            if condicion_sel_lower == "visitante" and opuesto_lower == "local":
-                factor_ajuste = 0.90  # Castigo por localía previa al evaluar visitante
-                tipo_uso = "Comodín (Ajuste a la baja por localía previa)"
-            elif condicion_sel_lower == "local" and opuesto_lower == "visitante":
-                factor_ajuste = 1.05  # Impulso por rendimiento previo de visitante
-                tipo_uso = "Comodín (Aumento por rendimiento de visitante)"
-            else:
-                factor_ajuste = 1.0
-                tipo_uso = "Comodín Estándar"
-
-            r["Factor_Ajuste"] = factor_ajuste
-            r["Tipo_Uso"] = tipo_uso
-            r["Peso_Contexto"] = 0.75  # Menor peso de confianza al ser comodín cruzado
+            r["Factor_Ajuste"] = 1.0
+            r["Tipo_Uso"] = "Respaldo (Misma condición, diferente rival)"
+            r["Peso_Contexto"] = 0.85
             historial_list.append(r)
 
-        fuente = f"Nativo ({len(df_nativos)}) + Comodín de respaldo ({len(comodines)}) con ajuste"
+        # Si aún faltan, usar contexto opuesto con ajuste cruzado de localía
+        if len(historial_list) < umbral_minimo:
+            opuesto_lower = "local" if condicion_sel_lower == "visitante" else "visitante"
+            if "Condición" in df_jugador.columns:
+                df_contrarios = df_jugador[df_jugador["Condición"] == opuesto_lower].copy()
+            else:
+                df_contrarios = pd.DataFrame()
+
+            faltantes_cruzados = umbral_minimo - len(historial_list)
+            comodines_cruzados = df_contrarios.tail(faltantes_cruzados)
+
+            for _, row in comodines_cruzados.iterrows():
+                r = row.to_dict()
+                if condicion_sel_lower == "visitante" and opuesto_lower == "local":
+                    factor_ajuste = 0.90  # Castigo por localía previa
+                    tipo_uso = "Comodín Cruzado (Ajuste a la baja por localía)"
+                elif condicion_sel_lower == "local" and opuesto_lower == "visitante":
+                    factor_ajuste = 1.05  # Impulso por rendimiento previo de visitante
+                    tipo_uso = "Comodín Cruzado (Aumento por visitante)"
+                else:
+                    factor_ajuste = 1.0
+                    tipo_uso = "Comodín Estándar"
+
+                r["Factor_Ajuste"] = factor_ajuste
+                r["Tipo_Uso"] = tipo_uso
+                r["Peso_Contexto"] = 0.75
+                historial_list.append(r)
+
+        fuente = f"Muestra adaptada al escenario ({len(historial_list)} partidos)"
 
     historial = pd.DataFrame(historial_list)
 
@@ -249,7 +281,7 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
     muestra_pequena = n_obs <= 3
 
     st.markdown(f'<div class="header-box">{jugador_sel.upper()} | {condicion_sel} vs {nivel_sel}</div>', unsafe_allow_html=True)
-    st.caption(f"Base: {n_obs} partidos | {fuente}")
+    st.caption(f"Base analizada: {n_obs} partidos | Fuente: {fuente}")
     st.caption(f"Modelo: Poisson {'+ Shrinkage (k=' + str(int(k_shrink)) + ')' if usar_shrinkage else 'puro'}")
 
     if muestra_pequena:
@@ -262,7 +294,6 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
     else:
         historial["Peso_Temporal"] = 1.0
 
-    # Combinar peso temporal y peso contextual del comodín
     historial["Peso_Total"] = historial["Peso_Temporal"] * historial["Peso_Contexto"]
     pesos = historial["Peso_Total"] / historial["Peso_Total"].sum()
 
@@ -313,15 +344,15 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
     real_faltas = (historial["Faltas"] > linea_faltas).mean() * 100
     real_contrib = ((historial["Goles"] + historial["Asistencias"]) > linea_contrib).mean() * 100
 
-    total_partidos = len(df_jugador)
-    goles_tot = df_jugador["Goles"].sum()
-    asist_tot = df_jugador["Asistencias"].sum()
-    tiros_prom = df_jugador["Tiros"].mean()
-    puerta_prom = df_jugador["A Puerta"].mean()
-    faltas_prom = df_jugador["Faltas"].mean()
-
-    contribuciones = goles_tot + asist_tot
-    ratio_contribucion = total_partidos / contribuciones if contribuciones > 0 else 99.0
+    # Promedios específicos del escenario analizado
+    prom_goles_escenario = historial["Goles"].mean()
+    prom_asist_escenario = historial["Asistencias"].mean()
+    prom_tiros_escenario = historial["Tiros"].mean()
+    prom_puerta_escenario = historial["A Puerta"].mean()
+    prom_faltas_escenario = historial["Faltas"].mean()
+    
+    contribuciones_escenario = historial["Goles"].sum() + historial["Asistencias"].sum()
+    ratio_contrib_escenario = n_obs / contribuciones_escenario if contribuciones_escenario > 0 else 99.0
 
     racha_seca = 0
     df_ordenado = df_jugador.sort_values(by="Fecha", ascending=False) if "Fecha" in df_jugador.columns else df_jugador.iloc[::-1]
@@ -334,31 +365,34 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
     tab1, tab2, tab3, tab4 = st.tabs(["Resumen y Racha", "Value Bet Props", "Probabilidades", "Detalle"])
 
     with tab1:
-        st.subheader("Metricas globales")
+        st.subheader(f"Métricas promedio en el escenario: {condicion_sel} vs {nivel_sel}")
+        st.caption("Valores calculados exclusivamente sobre la muestra filtrada y adaptada para este análisis.")
+        
         k1, k2, k3, k4 = st.columns(4)
-        k1.metric("Goles totales", int(goles_tot))
-        k2.metric("Asistencias", int(asist_tot))
-        k3.metric("Prom. tiros", f"{tiros_prom:.1f}")
-        k4.metric("Prom. a puerta", f"{puerta_prom:.1f}")
+        k1.metric("Prom. Goles", f"{prom_goles_escenario:.2f}")
+        k2.metric("Prom. Asistencias", f"{prom_asist_escenario:.2f}")
+        k3.metric("Prom. Tiros", f"{prom_tiros_escenario:.1f}")
+        k4.metric("Prom. a Puerta", f"{prom_puerta_escenario:.1f}")
+        
         k5, k6, k7 = st.columns(3)
-        k5.metric("Prom. faltas", f"{faltas_prom:.1f}")
-        k6.metric("Partidos", total_partidos)
-        k7.metric("Ratio contribucion", f"1 / {ratio_contribucion:.1f}")
+        k5.metric("Prom. Faltas", f"{prom_faltas_escenario:.1f}")
+        k6.metric("Partidos en Muestra", n_obs)
+        k7.metric("Ratio Contribución", f"1 / {ratio_contrib_escenario:.1f}")
 
-        st.markdown("##### Lambda del modelo")
+        st.markdown("##### Lambda del modelo (Poisson)")
         l1, l2, l3, l4, l5 = st.columns(5)
-        l1.metric("Goles", f"{lam_g:.2f}", delta=f"raw {lam_g_raw:.2f}" if usar_shrinkage else None)
-        l2.metric("Tiros", f"{lam_t:.2f}")
-        l3.metric("Puerta", f"{lam_p:.2f}")
-        l4.metric("Asist", f"{lam_a:.2f}")
-        l5.metric("Faltas", f"{lam_f:.2f}")
+        l1.metric("Goles ($\lambda$)", f"{lam_g:.2f}", delta=f"raw {lam_g_raw:.2f}" if usar_shrinkage else None)
+        l2.metric("Tiros ($\lambda$)", f"{lam_t:.2f}")
+        l3.metric("Puerta ($\lambda$)", f"{lam_p:.2f}")
+        l4.metric("Asist ($\lambda$)", f"{lam_a:.2f}")
+        l5.metric("Faltas ($\lambda$)", f"{lam_f:.2f}")
 
         st.markdown("---")
         st.subheader("Racha")
-        if racha_seca >= ratio_contribucion:
-            st.success(f"Alta probabilidad de aporte: {racha_seca} partidos seguidos sin gol ni asistencia (media: 1 cada {ratio_contribucion:.1f}).")
+        if racha_seca >= ratio_contrib_escenario:
+            st.success(f"Alta probabilidad de aporte: {racha_seca} partidos seguidos sin gol ni asistencia (media en escenario: 1 cada {ratio_contrib_escenario:.1f}).")
         else:
-            st.info(f"Estado normal: {racha_seca} partidos sin aporte directo.")
+            st.info(f"Estado normal: {racha_seca} partidos sin aporte directo reciente.")
 
     with tab2:
         st.subheader("Value Bet y Half-Kelly")
