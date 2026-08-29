@@ -135,6 +135,7 @@ st.markdown("""
 .value-box { padding: 14px 16px; border-radius: 10px; margin-bottom: 10px; font-size: 14px; }
 .value-yes { background-color: #064e3b; border-left: 4px solid #10b981; }
 .value-no { background-color: #1f2937; border-left: 4px solid #4b5563; }
+.top-pick-box { background: linear-gradient(135deg, #065f46 0%, #111827 100%); padding: 20px; border-radius: 12px; border: 2px solid #10b981; margin-bottom: 20px; }
 div[data-testid="stMetric"] { background-color: #1F2937; padding: 12px 16px; border-radius: 10px; }
 </style>
 """, unsafe_allow_html=True)
@@ -144,32 +145,22 @@ def calcular_ev(prob, cuota):
         return 0.0
     return round((prob / 100 * cuota) - 1, 4)
 
-def calcular_kelly(prob, cuota):
-    if cuota <= 1.0 or prob <= 0:
-        return 0.0
-    p = prob / 100.0
-    b = cuota - 1.0
-    if b <= 0:
-        return 0.0
-    return round(max(0.0, ((p * cuota - 1.0) / b) * 0.5 * 100), 2)
-
 def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, real=None):
     es_value = ev > 0
     clase = "value-yes" if es_value else "value-no"
     color_ev = "#10b981" if es_value else "#9ca3af"
-    stake_kelly = calcular_kelly(prob, cuota_casa) if es_value else 0.0
-    kelly_text = f" | Half-Kelly: <b>{stake_kelly}% bank</b>" if es_value else ""
+    stake_text = f" | Stake Plano Recomendado: <b>1 Unidad (0.5% - 1% Bank)</b>" if es_value else ""
     real_txt = f" | Acierto real: <b>{real:.0f}%</b>" if real is not None else ""
     st.markdown(
         f'<div class="value-box {clase}"><b>{nombre}</b><br>'
-        f"Modelo: <b>{prob:.1f}%</b>{real_txt} | Justa: <b>{cuota_justa}</b> | Casa: <b>{cuota_casa}</b>{kelly_text}<br>"
+        f"Modelo: <b>{prob:.1f}%</b>{real_txt} | Justa: <b>{cuota_justa}</b> | Casa: <b>{cuota_casa}</b>{stake_text}<br>"
         f'<span style="color:{color_ev}; font-weight:bold; font-size:15px;">'
-        f"EV: {ev:+.2%} -> {'VALUE BET' if es_value else 'Sin valor'}</span></div>",
+        f"EV: {ev:+.2%} -> {'VALUE BET (Stake Plano)' if es_value else 'Sin valor'}</span></div>",
         unsafe_allow_html=True,
     )
 
 st.markdown("### Centro de Analisis Individual de Jugadores")
-st.caption("Props orientativas con control de dificultad de rival y selección exclusiva de variables.")
+st.caption("Asistente inteligente de apuestas con control de dificultad de rival y análisis de valor matemático.")
 
 if "analizado_jugadores" not in st.session_state:
     st.session_state.analizado_jugadores = False
@@ -333,13 +324,23 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
     prob_faltas = (sim_faltas > linea_faltas).mean() * 100
     prob_contrib = (sim_contrib > linea_contrib).mean() * 100
 
-    tab1, tab2, tab3, tab4 = st.tabs(["Resumen Dinámico", "Value Bet Props", "Probabilidades", "Detalle"])
+    def cj(p): return round(100 / p, 2) if p > 0 else 99.0
+    
+    lista_mercados = [
+        {"nombre": f"Over {linea_goles} Goles", "prob": prob_goles, "cuota": cuota_casa_goles, "ev": calcular_ev(prob_goles, cuota_casa_goles)},
+        {"nombre": f"Over {linea_tiros} Tiros", "prob": prob_tiros, "cuota": cuota_casa_tiros, "ev": calcular_ev(prob_tiros, cuota_casa_tiros)},
+        {"nombre": f"Over {linea_puerta} a Puerta", "prob": prob_puerta, "cuota": cuota_casa_puerta, "ev": calcular_ev(prob_puerta, cuota_casa_puerta)},
+        {"nombre": f"Over {linea_asist} Asistencias", "prob": prob_asist, "cuota": cuota_casa_asist, "ev": calcular_ev(prob_asist, cuota_casa_asist)},
+        {"nombre": f"Over {linea_faltas} Faltas", "prob": prob_faltas, "cuota": cuota_casa_faltas, "ev": calcular_ev(prob_faltas, cuota_casa_faltas)},
+        {"nombre": f"Over {linea_contrib} Gol/Asist", "prob": prob_contrib, "cuota": cuota_casa_contrib, "ev": calcular_ev(prob_contrib, cuota_casa_contrib)}
+    ]
+
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Resumen Dinámico", "Value Bet Props", "🤖 Panel Inteligente & Parlay", "Probabilidades", "Detalle"])
 
     with tab1:
         st.subheader(f"Métricas promedio y eficiencia en el escenario: {condicion_sel} vs {nivel_sel}")
         st.caption("Valores calculados estrictamente sobre la muestra adaptada para este análisis y filtrados por tus variables.")
         
-        # Diccionario de métricas para renderizado dinámico de variables seleccionadas
         metrics_data = {
             "Goles": {"prom": historial["Goles"].mean() if "Goles" in historial else 0, "lam": lam_g},
             "Asistencias": {"prom": historial["Asistencias"].mean() if "Asistencias" in historial else 0, "lam": lam_a},
@@ -349,7 +350,6 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
             "Gol o Asistencia": {"prom": (historial["Goles"] + historial["Asistencias"]).mean() if "Goles" in historial else 0, "lam": lam_g + lam_a}
         }
 
-        # Mostrar métricas solo si fueron seleccionadas por el usuario
         if variables_sel:
             cols = st.columns(min(len(variables_sel), 4))
             for i, var in enumerate(variables_sel):
@@ -359,7 +359,6 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
         else:
             st.info("Selecciona al menos una variable en la barra lateral para ver sus promedios.")
 
-        # --- SECCIÓN NUEVA: EFICIENCIA Y RATIO DE CONVERSIÓN ---
         st.markdown("---")
         st.subheader("🎯 Eficiencia y Conversión en el Escenario")
         
@@ -381,8 +380,8 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
         e3.metric("Partidos en Muestra", n_obs, "Filtro aplicado OK")
 
     with tab2:
-        st.subheader("Value Bet Props (Variables Seleccionadas)")
-        def cj(p): return round(100 / p, 2) if p > 0 else 99.0
+        st.subheader("Value Bet Props (Estrategia de Stakes Planos)")
+        st.markdown("💡 *Todas las apuestas con EV positivo están optimizadas para operar bajo una estrategia de stake plano (unidad fija).*")
         
         if "Goles" in variables_sel:
             mostrar_value(f"Over {linea_goles} Goles", cj(prob_goles), cuota_casa_goles, calcular_ev(prob_goles, cuota_casa_goles), prob_goles, (historial["Goles"] > linea_goles).mean() * 100)
@@ -401,6 +400,65 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
             st.warning("No has seleccionado ninguna variable en la barra lateral.")
 
     with tab3:
+        st.subheader("🤖 Panel de Inteligencia & Value Bets")
+        st.caption("Selección automática de la mejor oportunidad y constructor de combinadas (Parlay) con criterio matemático y stakes planos.")
+
+        value_bets_disponibles = [m for m in lista_mercados if m["ev"] > 0]
+        
+        if value_bets_disponibles:
+            top_pick = max(value_bets_disponibles, key=lambda x: x["ev"])
+            cuota_justa_top = cj(top_pick["prob"])
+            
+            st.markdown(
+                f'<div class="top-pick-box">'
+                f'<h3>🏆 La Joya del Partido (Top Value Bet)</h3>'
+                f'<p style="font-size: 16px; margin-bottom: 8px;">Mercado recomendado: <b>{top_pick["nombre"]}</b></p>'
+                f'<ul>'
+                f'<li>Probabilidad del Modelo: <b>{top_pick["prob"]:.1f}%</b></li>'
+                f'<li>Cuota Justa Calculada: <b>{cuota_justa_top}</b> | Cuota Casa: <b>{top_pick["cuota"]}</b></li>'
+                f'<li><b>EV Matemático: {top_pick["ev"]:+.2%}</b> (Rentabilidad positiva a largo plazo)</li>'
+                f'</ul>'
+                f'<p style="color: #10b981; font-weight: bold; margin-top: 10px;">👉 Sugerencia: Stake Plano (1 Unidad fija)</p>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+        else:
+            st.info("ℹ️ En este momento no hay mercados con EV positivo estricto (> 0) para las líneas configuradas.")
+
+        st.markdown("---")
+        st.subheader("🔗 Constructor de Combinada Inteligente (Parlay)")
+        st.markdown("Selecciona mercados para calcular la probabilidad conjunta, su cuota justa y verificar si la combinada tiene **EV positivo** real frente al margen de la casa.")
+
+        nombres_mercados = [m["nombre"] for m in lista_mercados]
+        parlay_elegidos = st.multiselect("Elige los mercados para tu combinada:", options=nombres_mercados, key="parlay_jugador_input")
+
+        if parlay_elegidos:
+            prob_conjunta = 1.0
+            for nombre in parlay_elegidos:
+                m_info = next(m for m in lista_mercados if m["nombre"] == nombre)
+                prob_conjunta *= (m_info["prob"] / 100.0)
+            
+            prob_conjunta_pct = prob_conjunta * 100.0
+            cuota_justa_combinada = round(100 / prob_conjunta_pct, 2) if prob_conjunta_pct > 0 else 99.0
+
+            st.markdown(f"**Probabilidad Conjunta del Modelo:** `{prob_conjunta_pct:.2f}%`")
+            st.markdown(f"**Cuota Justa Combinada:** `{cuota_justa_combinada}`")
+
+            cuota_casa_parlay = st.number_input("Introduce la cuota total que te paga la casa por esta combinada:", min_value=1.01, value=cuota_justa_combinada * 0.95, step=0.05, format="%.2f", key="cuota_parlay_jug_input")
+
+            ev_parlay = calcular_ev(prob_conjunta_pct, cuota_casa_parlay)
+            
+            col_p1, col_p2 = st.columns(2)
+            col_p1.metric("EV de la Combinada", f"{ev_parlay:+.2%}", "Matemática de valor")
+            
+            if ev_parlay > 0:
+                col_p2.metric("Stake Sugerido", "1 Unidad Plana", "Combinada con EV positivo ✅")
+                st.success("🎉 ¡Esta combinada tiene EV positivo! Supera el margen de la casa de apuestas.")
+            else:
+                col_p2.metric("Stake Sugerido", "0 Unidades", "EV Negativo ❌")
+                st.warning("⚠️ Cuidado: Esta combinada tiene EV negativo debido al acumulado de margen que cobra la casa de apuestas.")
+
+    with tab4:
         st.subheader("Probabilidades del Modelo")
         for var in variables_sel:
             if var == "Goles":
@@ -416,7 +474,7 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
             elif var == "Gol o Asistencia":
                 st.metric(f"Prob. Gol/Asist > {linea_contrib}", f"{prob_contrib:.1f}%")
 
-    with tab4:
+    with tab5:
         st.subheader("Detalle y Auditoría")
         h_mostrar = historial.copy()
         if "Fecha" in h_mostrar.columns:
