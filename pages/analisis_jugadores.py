@@ -123,6 +123,10 @@ st.markdown("""
     padding: 22px 28px; border-radius: 14px; color: white;
     font-weight: 700; font-size: 24px; margin-bottom: 20px; text-align: center;
 }
+.veredicto-box {
+    padding: 16px 20px; border-radius: 12px; background-color: #1F2937;
+    border-left: 5px solid #3B82F6; margin-bottom: 20px; font-size: 16px;
+}
 .value-box { padding: 14px 16px; border-radius: 10px; margin-bottom: 10px; font-size: 14px; }
 .value-yes { background-color: #064e3b; border-left: 4px solid #10b981; }
 .value-no { background-color: #1f2937; border-left: 4px solid #4b5563; }
@@ -341,6 +345,19 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
         st.subheader(f"Métricas promedio y eficiencia en el escenario: {condicion_sel} vs {nivel_sel}")
         st.caption("Valores calculados estrictamente sobre la muestra adaptada para este análisis.")
         
+        # Análisis de Frecuencia y Veredicto para el próximo partido
+        lam_contrib = lam_g + lam_a
+        partidos_por_contrib = 1.0 / lam_contrib if lam_contrib > 0 else 0
+        
+        if prob_contrib >= 55:
+            analisis_tendencia = f"Tendencia alta: El jugador muestra un ritmo sólido de aportación, participando en promedio **cada {partidos_por_contrib:.1f} partidos** en este escenario. Las simulaciones de Poisson proyectan una probabilidad sólida ({prob_contrib:.1f}%) de influir directamente en el marcador (Gol o Asistencia) en este próximo encuentro."
+        elif prob_contrib >= 35:
+            analisis_tendencia = f"Tendencia moderada: Registra una contribución en promedio **cada {partidos_por_contrib:.1f} partidos**. El encuentro presenta paridad, con una probabilidad estimada del {prob_contrib:.1f}% de sumar al menos una contribución."
+        else:
+            analisis_tendencia = f"Alerta de baja producción: Su frecuencia en este escenario se diluye a una contribución **cada {partidos_por_contrib:.1f} partidos**, arrojando una probabilidad reducida ({prob_contrib:.1f}%) de ver portería o asistir."
+
+        st.markdown(f'<div class="veredicto-box"><b>📊 Análisis de Frecuencia y Próximo Partido:</b><br>{analisis_tendencia}</div>', unsafe_allow_html=True)
+
         metrics_data = {
             "Goles": {"prom": historial["Goles"].mean() if "Goles" in historial else 0, "lam": lam_g},
             "Asistencias": {"prom": historial["Asistencias"].mean() if "Asistencias" in historial else 0, "lam": lam_a},
