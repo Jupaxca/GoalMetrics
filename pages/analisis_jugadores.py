@@ -145,17 +145,26 @@ def calcular_ev(prob, cuota):
         return 0.0
     return round((prob / 100 * cuota) - 1, 4)
 
+def calcular_kelly(prob, cuota):
+    if cuota <= 1.0 or prob <= 0:
+        return 0.0
+    p, b = prob / 100.0, cuota - 1.0
+    if b <= 0:
+        return 0.0
+    return round(max(0.0, ((p * cuota - 1.0) / b) * 0.5 * 100), 2)
+
 def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, real=None):
     es_value = ev > 0
     clase = "value-yes" if es_value else "value-no"
     color_ev = "#10b981" if es_value else "#9ca3af"
-    stake_text = f" | Stake Plano Recomendado: <b>1 Unidad (0.5% - 1% Bank)</b>" if es_value else ""
+    stake = calcular_kelly(prob, cuota_casa) if es_value else 0.0
+    kelly_txt = f" | Half-Kelly: <b>{stake}% bank</b>" if es_value else ""
     real_txt = f" | Acierto real: <b>{real:.0f}%</b>" if real is not None else ""
     st.markdown(
         f'<div class="value-box {clase}"><b>{nombre}</b><br>'
-        f"Modelo: <b>{prob:.1f}%</b>{real_txt} | Justa: <b>{cuota_justa}</b> | Casa: <b>{cuota_casa}</b>{stake_text}<br>"
+        f"Modelo: <b>{prob:.1f}%</b>{real_txt} | Justa: <b>{cuota_justa}</b> | Casa: <b>{cuota_casa}</b>{kelly_txt}<br>"
         f'<span style="color:{color_ev}; font-weight:bold; font-size:15px;">'
-        f"EV: {ev:+.2%} -> {'VALUE BET (Stake Plano)' if es_value else 'Sin valor'}</span></div>",
+        f"EV: {ev:+.2%} -> {'VALUE BET' if es_value else 'Sin valor'}</span></div>",
         unsafe_allow_html=True,
     )
 
@@ -380,8 +389,8 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
         e3.metric("Partidos en Muestra", n_obs, "Filtro aplicado OK")
 
     with tab2:
-        st.subheader("Value Bet Props (Estrategia de Stakes Planos)")
-        st.markdown("💡 *Todas las apuestas con EV positivo están optimizadas para operar bajo una estrategia de stake plano (unidad fija).*")
+        st.subheader("Value Bet Props (Gestión Half-Kelly)")
+        st.markdown("💡 *Todas las apuestas con EV positivo están optimizadas para operar bajo el criterio de Half-Kelly (% de bank).*")
         
         if "Goles" in variables_sel:
             mostrar_value(f"Over {linea_goles} Goles", cj(prob_goles), cuota_casa_goles, calcular_ev(prob_goles, cuota_casa_goles), prob_goles, (historial["Goles"] > linea_goles).mean() * 100)
@@ -401,13 +410,14 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
 
     with tab3:
         st.subheader("🤖 Panel de Inteligencia & Value Bets")
-        st.caption("Selección automática de la mejor oportunidad y constructor de combinadas (Parlay) con criterio matemático y stakes planos.")
+        st.caption("Selección automática de la mejor oportunidad y constructor de combinadas (Parlay) con criterio matemático y gestión de bank.")
 
         value_bets_disponibles = [m for m in lista_mercados if m["ev"] > 0]
         
         if value_bets_disponibles:
             top_pick = max(value_bets_disponibles, key=lambda x: x["ev"])
             cuota_justa_top = cj(top_pick["prob"])
+            stake_top = calcular_kelly(top_pick["prob"], top_pick["cuota"])
             
             st.markdown(
                 f'<div class="top-pick-box">'
@@ -418,7 +428,7 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
                 f'<li>Cuota Justa Calculada: <b>{cuota_justa_top}</b> | Cuota Casa: <b>{top_pick["cuota"]}</b></li>'
                 f'<li><b>EV Matemático: {top_pick["ev"]:+.2%}</b> (Rentabilidad positiva a largo plazo)</li>'
                 f'</ul>'
-                f'<p style="color: #10b981; font-weight: bold; margin-top: 10px;">👉 Sugerencia: Stake Plano (1 Unidad fija)</p>'
+                f'<p style="color: #10b981; font-weight: bold; margin-top: 10px;">👉 Sugerencia de Stake: <b>{stake_top}% del Bank (Half-Kelly)</b></p>'
                 f'</div>',
                 unsafe_allow_html=True
             )
@@ -447,15 +457,16 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
             cuota_casa_parlay = st.number_input("Introduce la cuota total que te paga la casa por esta combinada:", min_value=1.01, value=cuota_justa_combinada * 0.95, step=0.05, format="%.2f", key="cuota_parlay_jug_input")
 
             ev_parlay = calcular_ev(prob_conjunta_pct, cuota_casa_parlay)
+            stake_parlay = calcular_kelly(prob_conjunta_pct, cuota_casa_parlay)
             
             col_p1, col_p2 = st.columns(2)
             col_p1.metric("EV de la Combinada", f"{ev_parlay:+.2%}", "Matemática de valor")
             
             if ev_parlay > 0:
-                col_p2.metric("Stake Sugerido", "1 Unidad Plana", "Combinada con EV positivo ✅")
-                st.success("🎉 ¡Esta combinada tiene EV positivo! Supera el margen de la casa de apuestas.")
+                col_p2.metric("Stake Sugerido", f"{stake_parlay}% del Bank", "Combinada con EV positivo ✅")
+                st.success(f"🎉 ¡Esta combinada tiene EV positivo! Stake sugerido: {stake_parlay}% del Bankroll (Half-Kelly).")
             else:
-                col_p2.metric("Stake Sugerido", "0 Unidades", "EV Negativo ❌")
+                col_p2.metric("Stake Sugerido", "0%", "EV Negativo ❌")
                 st.warning("⚠️ Cuidado: Esta combinada tiene EV negativo debido al acumulado de margen que cobra la casa de apuestas.")
 
     with tab4:
@@ -482,4 +493,4 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
         cols_mostrar = [c for c in ["Fecha", "Condición", "Rival", "Nivel Rival"] + [v for v in variables_sel if v != "Gol o Asistencia"] + ["Tipo_Uso", "Factor_Ajuste"] if c in h_mostrar.columns]
         st.dataframe(h_mostrar[cols_mostrar], hide_index=True, use_container_width=True)
 else:
-    st.info("Configura las variables en la barra lateral, elige jugador y haz clic en Analizar.")
+    st.info("Configura las variables in la barra lateral, elige jugador y haz clic en Analizar.")
