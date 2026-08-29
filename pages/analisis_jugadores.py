@@ -79,15 +79,6 @@ else:
     df_jugador = pd.DataFrame()
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("Variables de Estudio")
-variables_disponibles = ["Goles", "Asistencias", "Tiros", "A Puerta", "Faltas", "Gol o Asistencia"]
-variables_sel = st.sidebar.multiselect(
-    "Selecciona qué variables analizar:",
-    options=variables_disponibles,
-    default=["Goles", "Tiros", "A Puerta", "Asistencias"]
-)
-
-st.sidebar.markdown("---")
 with st.sidebar.expander("Lineas de Estudio (Player Props)", expanded=False):
     linea_goles = st.slider("Linea de Goles", 0.0, 3.0, 0.5, 0.5)
     linea_tiros = st.slider("Linea de Tiros Totales", 0.0, 10.0, 2.5, 0.5)
@@ -348,7 +339,7 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
 
     with tab1:
         st.subheader(f"Métricas promedio y eficiencia en el escenario: {condicion_sel} vs {nivel_sel}")
-        st.caption("Valores calculados estrictamente sobre la muestra adaptada para este análisis y filtrados por tus variables.")
+        st.caption("Valores calculados estrictamente sobre la muestra adaptada para este análisis.")
         
         metrics_data = {
             "Goles": {"prom": historial["Goles"].mean() if "Goles" in historial else 0, "lam": lam_g},
@@ -359,14 +350,10 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
             "Gol o Asistencia": {"prom": (historial["Goles"] + historial["Asistencias"]).mean() if "Goles" in historial else 0, "lam": lam_g + lam_a}
         }
 
-        if variables_sel:
-            cols = st.columns(min(len(variables_sel), 4))
-            for i, var in enumerate(variables_sel):
-                if var in metrics_data:
-                    col_target = cols[i % len(cols)]
-                    col_target.metric(f"Prom. {var}", f"{metrics_data[var]['prom']:.2f}", f"λ: {metrics_data[var]['lam']:.2f}")
-        else:
-            st.info("Selecciona al menos una variable en la barra lateral para ver sus promedios.")
+        cols = st.columns(3)
+        for i, (var, datos) in enumerate(metrics_data.items()):
+            col_target = cols[i % 3]
+            col_target.metric(f"Prom. {var}", f"{datos['prom']:.2f}", f"λ: {datos['lam']:.2f}")
 
         st.markdown("---")
         st.subheader("🎯 Eficiencia y Conversión en el Escenario")
@@ -392,21 +379,12 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
         st.subheader("Value Bet Props (Gestión Half-Kelly)")
         st.markdown("💡 *Todas las apuestas con EV positivo están optimizadas para operar bajo el criterio de Half-Kelly (% de bank).*")
         
-        if "Goles" in variables_sel:
-            mostrar_value(f"Over {linea_goles} Goles", cj(prob_goles), cuota_casa_goles, calcular_ev(prob_goles, cuota_casa_goles), prob_goles, (historial["Goles"] > linea_goles).mean() * 100)
-        if "Tiros" in variables_sel:
-            mostrar_value(f"Over {linea_tiros} Tiros", cj(prob_tiros), cuota_casa_tiros, calcular_ev(prob_tiros, cuota_casa_tiros), prob_tiros, (historial["Tiros"] > linea_tiros).mean() * 100)
-        if "A Puerta" in variables_sel:
-            mostrar_value(f"Over {linea_puerta} a Puerta", cj(prob_puerta), cuota_casa_puerta, calcular_ev(prob_puerta, cuota_casa_puerta), prob_puerta, (historial["A Puerta"] > linea_puerta).mean() * 100)
-        if "Asistencias" in variables_sel:
-            mostrar_value(f"Over {linea_asist} Asistencias", cj(prob_asist), cuota_casa_asist, calcular_ev(prob_asist, cuota_casa_asist), prob_asist, (historial["Asistencias"] > linea_asist).mean() * 100)
-        if "Faltas" in variables_sel:
-            mostrar_value(f"Over {linea_faltas} Faltas", cj(prob_faltas), cuota_casa_faltas, calcular_ev(prob_faltas, cuota_casa_faltas), prob_faltas, (historial["Faltas"] > linea_faltas).mean() * 100)
-        if "Gol o Asistencia" in variables_sel:
-            mostrar_value(f"Over {linea_contrib} Gol/Asist", cj(prob_contrib), cuota_casa_contrib, calcular_ev(prob_contrib, cuota_casa_contrib), prob_contrib, ((historial["Goles"] + historial["Asistencias"]) > linea_contrib).mean() * 100)
-
-        if not variables_sel:
-            st.warning("No has seleccionado ninguna variable en la barra lateral.")
+        mostrar_value(f"Over {linea_goles} Goles", cj(prob_goles), cuota_casa_goles, calcular_ev(prob_goles, cuota_casa_goles), prob_goles, (historial["Goles"] > linea_goles).mean() * 100)
+        mostrar_value(f"Over {linea_tiros} Tiros", cj(prob_tiros), cuota_casa_tiros, calcular_ev(prob_tiros, cuota_casa_tiros), prob_tiros, (historial["Tiros"] > linea_tiros).mean() * 100)
+        mostrar_value(f"Over {linea_puerta} a Puerta", cj(prob_puerta), cuota_casa_puerta, calcular_ev(prob_puerta, cuota_casa_puerta), prob_puerta, (historial["A Puerta"] > linea_puerta).mean() * 100)
+        mostrar_value(f"Over {linea_asist} Asistencias", cj(prob_asist), cuota_casa_asist, calcular_ev(prob_asist, cuota_casa_asist), prob_asist, (historial["Asistencias"] > linea_asist).mean() * 100)
+        mostrar_value(f"Over {linea_faltas} Faltas", cj(prob_faltas), cuota_casa_faltas, calcular_ev(prob_faltas, cuota_casa_faltas), prob_faltas, (historial["Faltas"] > linea_faltas).mean() * 100)
+        mostrar_value(f"Over {linea_contrib} Gol/Asist", cj(prob_contrib), cuota_casa_contrib, calcular_ev(prob_contrib, cuota_casa_contrib), prob_contrib, ((historial["Goles"] + historial["Asistencias"]) > linea_contrib).mean() * 100)
 
     with tab3:
         st.subheader("🤖 Panel de Inteligencia & Value Bets")
@@ -471,26 +449,19 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
 
     with tab4:
         st.subheader("Probabilidades del Modelo")
-        for var in variables_sel:
-            if var == "Goles":
-                st.metric(f"Prob. Goles > {linea_goles}", f"{prob_goles:.1f}%")
-            elif var == "Tiros":
-                st.metric(f"Prob. Tiros > {linea_tiros}", f"{prob_tiros:.1f}%")
-            elif var == "A Puerta":
-                st.metric(f"Prob. a Puerta > {linea_puerta}", f"{prob_puerta:.1f}%")
-            elif var == "Asistencias":
-                st.metric(f"Prob. Asistencias > {linea_asist}", f"{prob_asist:.1f}%")
-            elif var == "Faltas":
-                st.metric(f"Prob. Faltas > {linea_faltas}", f"{prob_faltas:.1f}%")
-            elif var == "Gol o Asistencia":
-                st.metric(f"Prob. Gol/Asist > {linea_contrib}", f"{prob_contrib:.1f}%")
+        st.metric(f"Prob. Goles > {linea_goles}", f"{prob_goles:.1f}%")
+        st.metric(f"Prob. Tiros > {linea_tiros}", f"{prob_tiros:.1f}%")
+        st.metric(f"Prob. a Puerta > {linea_puerta}", f"{prob_puerta:.1f}%")
+        st.metric(f"Prob. Asistencias > {linea_asist}", f"{prob_asist:.1f}%")
+        st.metric(f"Prob. Faltas > {linea_faltas}", f"{prob_faltas:.1f}%")
+        st.metric(f"Prob. Gol/Asist > {linea_contrib}", f"{prob_contrib:.1f}%")
 
     with tab5:
         st.subheader("Detalle y Auditoría")
         h_mostrar = historial.copy()
         if "Fecha" in h_mostrar.columns:
             h_mostrar["Fecha"] = pd.to_datetime(h_mostrar["Fecha"]).dt.strftime("%Y-%m-%d")
-        cols_mostrar = [c for c in ["Fecha", "Condición", "Rival", "Nivel Rival"] + [v for v in variables_sel if v != "Gol o Asistencia"] + ["Tipo_Uso", "Factor_Ajuste"] if c in h_mostrar.columns]
+        cols_mostrar = [c for c in ["Fecha", "Condición", "Rival", "Nivel Rival", "Goles", "Asistencias", "Tiros", "A Puerta", "Faltas", "Tipo_Uso", "Factor_Ajuste"] if c in h_mostrar.columns]
         st.dataframe(h_mostrar[cols_mostrar], hide_index=True, use_container_width=True)
 else:
-    st.info("Configura las variables in la barra lateral, elige jugador y haz clic en Analizar.")
+    st.info("Configura las opciones en la barra lateral, elige jugador y haz clic en Analizar.")
