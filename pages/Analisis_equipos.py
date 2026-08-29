@@ -253,22 +253,31 @@ def calcular_ev(prob, cuota):
         return 0.0
     return round((prob / 100 * cuota) - 1, 4)
 
+def calcular_kelly(prob, cuota):
+    if cuota <= 1.0 or prob <= 0:
+        return 0.0
+    p, b = prob / 100.0, cuota - 1.0
+    if b <= 0:
+        return 0.0
+    return round(max(0.0, ((p * cuota - 1.0) / b) * 0.5 * 100), 2)
+
 def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, muestra_pequena=False):
     es_value = ev > 0
     clase = "value-yes" if es_value else "value-no"
     color_ev = "#10b981" if es_value else "#9ca3af"
-    stake_text = f" | Stake Plano: <b>1 Unidad (0.5% - 1% Bank)</b>" if es_value else ""
+    stake = calcular_kelly(prob, cuota_casa) if es_value else 0.0
+    kelly_txt = f" | Half-Kelly: <b>{stake}% bank</b>" if es_value else ""
     caution = " (muestra pequena)" if muestra_pequena and es_value else ""
     st.markdown(
         f'<div class="value-box {clase}"><b>{nombre}</b>{caution}<br>'
-        f"Prob: <b>{prob:.1f}%</b> | Justa: <b>{cuota_justa}</b> | Casa: <b>{cuota_casa}</b>{stake_text}<br>"
+        f"Prob: <b>{prob:.1f}%</b> | Justa: <b>{cuota_justa}</b> | Casa: <b>{cuota_casa}</b>{kelly_txt}<br>"
         f'<span style="color:{color_ev}; font-weight:bold; font-size:15px;">'
-        f"EV: {ev:+.2%} -> {'VALUE (Stake Plano)' if es_value else 'Sin valor'}</span></div>",
+        f"EV: {ev:+.2%} -> {'VALUE' if es_value else 'Sin valor'}</span></div>",
         unsafe_allow_html=True,
     )
 
 st.markdown("### GoalMetrics - Analisis de Equipos")
-st.caption("Simulacion orientativa. EV no son tips garantizados.")
+st.caption("Simulacion orientativa. EV y Kelly no son tips garantizados.")
 
 with st.expander("Como interpretar este analisis", expanded=False):
     st.markdown("""
@@ -478,6 +487,7 @@ if st.session_state.analizado_equipos:
 
         if value_bets_eq:
             top_eq = max(value_bets_eq, key=lambda x: x["ev"])
+            stake_top_eq = calcular_kelly(top_eq["prob"], top_eq["cuota"])
             st.markdown(
                 f'<div class="top-pick-box">'
                 f'<h3>🏆 La Joya del Partido (Top Value Bet)</h3>'
@@ -487,7 +497,7 @@ if st.session_state.analizado_equipos:
                 f'<li>Cuota Casa: <b>{top_eq["cuota"]}</b></li>'
                 f'<li><b>EV Matemático: {top_eq["ev"]:+.2%}</b> (Rentabilidad positiva a largo plazo)</li>'
                 f'</ul>'
-                f'<p style="color: #10b981; font-weight: bold; margin-top: 10px;">👉 Sugerencia: Stake Plano (1 Unidad fija)</p>'
+                f'<p style="color: #10b981; font-weight: bold; margin-top: 10px;">👉 Sugerencia de Stake: <b>{stake_top_eq}% del Bank (Half-Kelly)</b></p>'
                 f'</div>',
                 unsafe_allow_html=True
             )
@@ -515,15 +525,16 @@ if st.session_state.analizado_equipos:
 
             cuota_casa_parlay_eq = st.number_input("Introduce la cuota total que te paga la casa por esta combinada:", min_value=1.01, value=c_justa_parlay * 0.95, step=0.05, format="%.2f", key="cuota_parlay_eq_input")
             ev_parlay_eq = calcular_ev(p_conj_pct, cuota_casa_parlay_eq)
+            stake_parlay_eq = calcular_kelly(p_conj_pct, cuota_casa_parlay_eq)
             
             col_ep1, col_ep2 = st.columns(2)
             col_ep1.metric("EV de la Combinada", f"{ev_parlay_eq:+.2%}", "Matemática de valor")
             
             if ev_parlay_eq > 0:
-                col_ep2.metric("Stake Sugerido", "1 Unidad Plana", "Combinada con EV positivo ✅")
-                st.success("🎉 ¡Esta combinada tiene EV positivo! Supera el margen de la casa de apuestas.")
+                col_ep2.metric("Stake Sugerido", f"{stake_parlay_eq}% del Bank", "Combinada con EV positivo ✅")
+                st.success(f"🎉 ¡Esta combinada tiene EV positivo! Stake sugerido: {stake_parlay_eq}% del Bankroll.")
             else:
-                col_ep2.metric("Stake Sugerido", "0 Unidades", "EV Negativo ❌")
+                col_ep2.metric("Stake Sugerido", "0%", "EV Negativo ❌")
                 st.warning("⚠️ Cuidado: Esta combinada tiene EV negativo debido al acumulado de margen que cobra la casa de apuestas.")
 
     with tab4:
