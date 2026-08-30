@@ -458,10 +458,11 @@ if st.session_state.analizado_jugadores:
     else:
         lam_g, lam_t, lam_p, lam_a, lam_f = lam_g_raw, lam_t_raw, lam_p_raw, lam_a_raw, lam_f_raw
 
-    # Topes de seguridad lógicos
+    # Topes y jerarquía de seguridad lógicos
     lam_g = min(lam_g, 2.0)
     lam_t = min(lam_t, 10.0)
-    lam_p = min(lam_p, lam_t)
+    lam_p = min(lam_p, lam_t)  # A puerta nunca puede superar a tiros totales
+    lam_g = min(lam_g, lam_p)  # Goles nunca puede superar a tiros a puerta
     lam_a = min(lam_a, 1.5)
     lam_f = min(lam_f, 6.0)
 
@@ -562,25 +563,22 @@ if st.session_state.analizado_jugadores:
         with col_res1:
             st.subheader("🕸️ Perfil de Atributos (Radar - Promedio Histórico)")
             
-            # Obtener los promedios reales del historial filtrado para graficar
-            avg_g = historial["Goles"].mean() if "Goles" in historial else 0.0
-            avg_t = historial["Tiros"].mean() if "Tiros" in historial else 0.0
-            avg_p = historial["A Puerta"].mean() if "A Puerta" in historial else 0.0
-            avg_a = historial["Asistencias"].mean() if "Asistencias" in historial else 0.0
-            avg_f = historial["Faltas"].mean() if "Faltas" in historial else 0.0
-            
-            # Validación de seguridad: A puerta no puede superar a los tiros totales
-            avg_p = min(avg_p, avg_t)
+            # Usar los promedios reales suavizados (lam) pero con escala balanceada (Techos: Goles 2.5, Tiros 10.0, A Puerta 6.0, Asistencias 1.5, Faltas 5.0)
+            r_g = min(lam_g, 2.5)
+            r_t = min(lam_t, 10.0)
+            r_p = min(lam_p, r_t)
+            r_g = min(r_g, r_p)
+            r_a = min(lam_a, 1.5)
+            r_f = min(lam_f, 5.0)
 
             categories = ['Goles', 'Tiros', 'A Puerta', 'Asistencias', 'Faltas']
             
-            # Escala proporcional basada en los promedios reales (Techados para la visualización del radar 0-10)
             vals = [
-                min((avg_g / 1.2) * 10, 10),
-                min((avg_t / 5.0) * 10, 10),
-                min((avg_p / 2.5) * 10, 10),
-                min((avg_a / 0.8) * 10, 10),
-                min((avg_f / 3.0) * 10, 10)
+                min((r_g / 2.5) * 10, 10),
+                min((r_t / 10.0) * 10, 10),
+                min((r_p / 6.0) * 10, 10),
+                min((r_a / 1.5) * 10, 10),
+                min((r_f / 5.0) * 10, 10)
             ]
             
             fig_radar = go.Figure(go.Scatterpolar(
