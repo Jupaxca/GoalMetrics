@@ -24,7 +24,6 @@ def cargar_datos_jugadores():
     df = pd.read_csv(url)
     df.columns = df.columns.astype(str).str.strip()
     
-    # Detección flexible de Liga / Competición
     col_ligaencontrada = None
     for col in df.columns:
         col_lower = col.lower()
@@ -339,7 +338,6 @@ if st.session_state.analizado_jugadores:
     else:
         df_exactos = pd.DataFrame()
 
-    # REGLA ESTRICTA: Si hay 0 partidos exactos, se detiene y muestra error.
     if len(df_exactos) == 0:
         st.error(f"❌ No se puede realizar el análisis: Hay 0 partidos exactos registrados para **{jugador_sel}** como **{condicion_sel}** contra rivales nivel **{nivel_sel}** en la liga **{liga_sel}**.")
         st.stop()
@@ -348,7 +346,6 @@ if st.session_state.analizado_jugadores:
     t_target = obtener_peso_tier(nivel_sel)
     historial_list = []
 
-    # 1. Agregar los partidos exactos que existan
     for _, row in df_exactos.iterrows():
         r = row.to_dict()
         r["Factor_Ajuste"] = 1.0
@@ -358,7 +355,6 @@ if st.session_state.analizado_jugadores:
         
     fuente = f"Exactos ({len(historial_list)} partidos)"
 
-    # 2. Si hay menos del mínimo (1 partido), activar respaldo inteligente
     if len(historial_list) < UMBRAL_MINIMO:
         if "Condición" in df_jugador.columns:
             df_misma_cond = df_jugador[(df_jugador["Condición"] == condicion_sel_lower) & (df_jugador["Nivel Rival"] != nivel_sel)].copy()
@@ -378,7 +374,6 @@ if st.session_state.analizado_jugadores:
         if len(historial_list) > len(df_exactos):
             fuente = "Muestra mixta (1 Exacto + Respaldo ajustado por Tier)"
 
-    # 3. Si aún faltan, buscar en condición opuesta
     if len(historial_list) < UMBRAL_MINIMO:
         opuesto_lower = "local" if condicion_sel_lower == "visitante" else "visitante"
         if "Condición" in df_jugador.columns:
@@ -400,7 +395,6 @@ if st.session_state.analizado_jugadores:
 
     historial = pd.DataFrame(historial_list)
 
-    # Aplicar factor de ajuste a las métricas numéricas del respaldo
     for col in ["Goles", "Asistencias", "Tiros", "A Puerta", "Faltas"]:
         if col in historial.columns:
             historial[col] = historial[col] * historial["Factor_Ajuste"]
@@ -495,17 +489,41 @@ if st.session_state.analizado_jugadores:
         st.subheader(f"Métricas promedio y eficiencia en el escenario: {condicion_sel} vs {nivel_sel}")
         st.caption("Valores calculados estrictamente sobre la muestra adaptada para este análisis.")
         
-        lam_contrib = lam_g + lam_a
-        partidos_por_contrib = 1.0 / lam_contrib if lam_contrib > 0 else 0
+        # --- NUEVA LÓGICA PROFESIONAL DE FRECUENCIA Y MOMENTUM ---
+        partidos_por_gol = 1.0 / lam_g if lam_g > 0 else 0.0
+        partidos_por_asist = 1.0 / lam_a if lam_a > 0 else 0.0
         
-        if prob_contrib >= 55:
-            analisis_tendencia = f"Tendencia alta: El jugador muestra un ritmo sólido de aportación, participando en promedio <b>cada {partidos_por_contrib:.1f} partidos</b> en este escenario. Las simulaciones y el modelo híbrido proyectan una probabilidad sólida ({prob_contrib:.1f}%) de influir directamente en el marcador (Gol o Asistencia) en este próximo encuentro."
-        elif prob_contrib >= 35:
-            analisis_tendencia = f"Tendencia moderada: Registra una contribución en promedio <b>cada {partidos_por_contrib:.1f} partidos</b>. El encuentro presenta paridad, con una probabilidad estimada del {prob_contrib:.1f}% de sumar al menos una contribución."
+        # Porcentaje real de partidos con contribución en la muestra
+        if len(historial) > 0:
+            partidos_con_contrib = ((historial["Goles"] + historial["Asistencias"]) > 0).sum()
+            pct_contribucion_real = (partidos_con_contrib / len(historial)) * 100.0
         else:
-            analisis_tendencia = f"Alerta de baja producción: Su frecuencia en este escenario se diluye a una contribución <b>cada {partidos_por_contrib:.1f} partidos</b>, arrojando una probabilidad reducida ({prob_contrib:.1f}%) de ver portería o asistir."
+            pct_contribucion_real = 0.0
 
-        st.markdown(f'<div class="veredicto-box"><b>📊 Análisis de Frecuencia y Próximo Partido:</b><br>{analisis_tendencia}</div>', unsafe_allow_html=True)
+        # Análisis de Momentum Reciente (últimos 3 partidos)
+        ultimos_partidos = historial.tail(min(3, len(historial)))
+        goles_recientes = ultimos_partidos["Goles"].mean() if "Goles" in ultimos_partidos else 0.0
+        asist_recientes = ultimos_partidos["Asistencias"].mean() if "Asistencias" in ultimos_partidos else 0.0
+        
+        if goles_recientes > lam_g or asist_recientes > lam_a:
+            estado_momentum = "🔥 <b>Momentum al alza:</b> Su producción en los últimos encuentros supera su media histórica para este contexto."
+        elif goles_recientes < lam_g * 0.5 and asist_recientes < lam_a * 0.5:
+            estado_momentum = "❄️ <b>Momentum a la baja:</b> Su rendimiento reciente se encuentra por debajo de su estándar habitual."
+        else:
+            estado_momentum = "⚖️ <b>Momentum estable:</b> Su dinámica actual se alinea con su promedio histórico."
+
+        freq_gol_txt = f"anota un gol cada <b>{partidos_por_gol:.1f} partidos</b>" if partidos_por_gol > 0 else "baja incidencia goleadora"
+        freq_asist_txt = f"reparte una asistencia cada <b>{partidos_por_asist:.1f} partidos</b>" if partidos_por_asist > 0 else "baja incidencia en pases de gol"
+
+        analisis_tendencia = (
+            f"<b>Desglose de Frecuencia y Producción Pura:</b><br>"
+            f"• En este escenario, el jugador {freq_gol_txt} y {freq_asist_txt}.<br>"
+            f"• <b>Porcentaje de Contribución Real:</b> Aporta al menos un gol o asistencia en el <b>{pct_contribucion_real:.1f}%</b> de sus encuentros bajo este contexto.<br>"
+            f"• <b>Evaluación frente a línea elegida (Over {linea_contrib}):</b> La probabilidad híbrida proyectada es del <b>{prob_contrib:.1f}%</b>.<br>"
+            f"• {estado_momentum}"
+        )
+
+        st.markdown(f'<div class="veredicto-box"><b>📊 Análisis Profesional de Frecuencia:</b><br>{analisis_tendencia}</div>', unsafe_allow_html=True)
 
         metrics_data = {
             "Goles": {"prom": historial["Goles"].mean() if "Goles" in historial else 0, "lam": lam_g},
