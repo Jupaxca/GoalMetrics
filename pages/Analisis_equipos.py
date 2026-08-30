@@ -837,20 +837,25 @@ if st.session_state.analizado_equipos:
         st.plotly_chart(fig_matrix, use_container_width=True)
 
         st.markdown("---")
-        st.subheader("⛳ Probabilidad de Córners (Distribución)")
-        st.caption("Distribución de probabilidad del número de córners simulados para el equipo.")
+        st.subheader("📈 Probabilidad Acumulada de Goles (Over X)")
+        st.caption("Probabilidad de que el equipo anote más de X goles (Over acumulado).")
 
-        unique_corners, counts_corners = np.unique(s_corn, return_counts=True)
-        probs_corners = (counts_corners / len(s_corn)) * 100
+        max_g_sim = int(max(sg_fav)) + 2
+        goal_vals = [i + 0.5 for i in range(max_g_sim)]
+        cum_probs_goles = [float((sg_fav > g).mean() * 100) for g in goal_vals]
 
-        fig_corners = go.Figure(data=go.Bar(
-            x=unique_corners,
-            y=probs_corners,
-            marker_color=color_equipo
+        fig_cum_goles = go.Figure(data=go.Scatter(
+            x=[str(g) for g in goal_vals],
+            y=cum_probs_goles,
+            mode='lines+markers+text',
+            text=[f"{p:.1f}%" for p in cum_probs_goles],
+            textposition="top center",
+            line=dict(color="#10b981", width=3),
+            marker=dict(size=8)
         ))
-        fig_corners.update_layout(
-            title=f"Probabilidad de Córners - {equipo_sel}",
-            xaxis_title="Número de Córners",
+        fig_cum_goles.update_layout(
+            title=f"Probabilidad Acumulada de Goles (Over X) - {equipo_sel}",
+            xaxis_title="Línea de Goles (Over)",
             yaxis_title="Probabilidad (%)",
             paper_bgcolor="#0B0F19",
             plot_bgcolor="#0B0F19",
@@ -858,36 +863,58 @@ if st.session_state.analizado_equipos:
             height=350,
             margin=dict(l=40, r=40, t=40, b=40)
         )
-        st.plotly_chart(fig_corners, use_container_width=True)
+        st.plotly_chart(fig_cum_goles, use_container_width=True)
 
         st.markdown("---")
-        st.subheader("📈 Gráfico de Dispersión Avanzado: Tiros, Tiros a Puerta y Goles")
-        st.caption("Relación partido a partido: Tiros Totales (Eje X) vs Goles (Eje Y), con tamaño de marcador proporcional a los Tiros a Puerta.")
+        st.subheader("⛳ Probabilidad Acumulada de Córners (Over X)")
+        st.caption("Probabilidad acumulada de superar cada línea de córners simulada para el equipo.")
 
-        if not historial.empty and "Tiros" in historial.columns and "Goles" in historial.columns:
-            # Tamaño proporcional a Tiros a Puerta para enriquecer el gráfico
-            tp_vals = historial["A Puerta"] if "A Puerta" in historial.columns else pd.Series([2]*len(historial))
-            marker_sizes = tp_vals * 4 + 10
+        max_c = int(max(s_corn)) + 2
+        corner_vals = list(range(0, max_c))
+        cum_probs_corners = [float((s_corn > c).mean() * 100) for c in corner_vals]
 
+        fig_cum_corners = go.Figure(data=go.Scatter(
+            x=corner_vals,
+            y=cum_probs_corners,
+            mode='lines+markers',
+            line=dict(color=color_equipo, width=3),
+            marker=dict(size=8)
+        ))
+        fig_cum_corners.update_layout(
+            title=f"Probabilidad Acumulada de Córners (Over X) - {equipo_sel}",
+            xaxis_title="Línea de Córners (> X)",
+            yaxis_title="Probabilidad (%)",
+            paper_bgcolor="#0B0F19",
+            plot_bgcolor="#0B0F19",
+            font=dict(color="#F3F4F6"),
+            height=350,
+            margin=dict(l=40, r=40, t=40, b=40)
+        )
+        st.plotly_chart(fig_cum_corners, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("📈 Gráfico de Dispersión: Tiros a Puerta vs Goles")
+        st.caption("Relación partido a partido entre los Tiros a Puerta (Eje X) y los Goles Anotados (Eje Y) en la muestra.")
+
+        if not historial.empty and "A Puerta" in historial.columns and "Goles" in historial.columns:
             fig_scatter = go.Figure()
             fig_scatter.add_trace(go.Scatter(
-                x=historial["Tiros"],
+                x=historial["A Puerta"],
                 y=historial["Goles"],
                 mode="markers+text",
                 text=historial.get("Rival", ""),
                 textposition="top center",
                 marker=dict(
-                    size=marker_sizes,
+                    size=12,
                     color=color_equipo,
                     line=dict(width=2, color="white"),
                     opacity=0.85
                 ),
-                customdata=tp_vals,
-                hovertemplate="<b>Rival:</b> %{text}<br><b>Tiros Totales:</b> %{x}<br><b>Goles Anotados:</b> %{y}<br><b>Tiros a Puerta:</b> %{customdata:.0f}<extra></extra>"
+                hovertemplate="<b>Rival:</b> %{text}<br><b>Tiros a Puerta:</b> %{x}<br><b>Goles Anotados:</b> %{y}<extra></extra>"
             ))
             fig_scatter.update_layout(
-                title="Tiros Totales vs Goles (Tamaño de burbuja = Tiros a Puerta)",
-                xaxis_title="Tiros Totales",
+                title="Tiros a Puerta vs Goles por Partido",
+                xaxis_title="Tiros a Puerta",
                 yaxis_title="Goles Anotados",
                 paper_bgcolor="#0B0F19",
                 plot_bgcolor="#0B0F19",
