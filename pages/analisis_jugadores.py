@@ -313,7 +313,6 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, real=None):
 st.markdown("### Centro de Analisis Individual de Jugadores (Híbrido)")
 st.caption("Asistente inteligente de apuestas con control de dificultad de rival, ensemble XGBoost y análisis de valor matemático.")
 
-# Guía detallada que explica cómo funciona todo hasta la parte de shrinkage en jugadores
 with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis de Jugadores?", expanded=False):
     st.markdown("""
     Bienvenido al **Centro de Análisis de Jugadores de GoalMetrics**. Esta herramienta combina estadística avanzada y Machine Learning enfocado en rendimiento individual (*Player Props*). Aquí te detallamos cómo opera cada módulo interno:
@@ -459,6 +458,9 @@ if st.session_state.analizado_jugadores:
     else:
         lam_g, lam_t, lam_p, lam_a, lam_f = lam_g_raw, lam_t_raw, lam_p_raw, lam_a_raw, lam_f_raw
 
+    # Corrección de seguridad: Garantiza que los tiros a puerta nunca superen a los tiros totales
+    lam_p = min(lam_p, lam_t)
+
     rng = np.random.default_rng(42)
     num_sim = 10000
     sim_goles = rng.poisson(max(lam_g, 0.01), num_sim)
@@ -556,12 +558,13 @@ if st.session_state.analizado_jugadores:
         with col_res1:
             st.subheader("🕸️ Perfil de Atributos (Radar)")
             categories = ['Goles', 'Tiros', 'A Puerta', 'Asistencias', 'Faltas']
+            # Escala proporcional compartida para que A Puerta nunca sea visualmente mayor que Tiros
             vals = [
-                min(lam_g * 3.33, 10),
-                min(lam_t / 1.0, 10),
-                min(lam_p * 3.33, 10),
-                min(lam_a * 5.0, 10),
-                min(lam_f * 2.0, 10)
+                min((lam_g / 1.5) * 10, 10),
+                min((lam_t / 5.0) * 10, 10),
+                min((lam_p / 5.0) * 10, 10),
+                min((lam_a / 1.0) * 10, 10),
+                min((lam_f / 3.0) * 10, 10)
             ]
             fig_radar = go.Figure(go.Scatterpolar(
                 r=vals + [vals[0]],
