@@ -20,6 +20,14 @@ def cargar_datos():
     df["Condición"] = df["Condición"].astype(str).str.strip().str.lower()
     df["Nivel Rival"] = df["Nivel Rival"].astype(str).str.strip()
     
+    # Soporte para columna Liga o Competición
+    if "Competición" in df.columns and "Liga" not in df.columns:
+        df = df.rename(columns={"Competición": "Liga"})
+    if "Liga" in df.columns:
+        df["Liga"] = df["Liga"].astype(str).str.strip()
+    else:
+        df["Liga"] = "General"
+    
     cols_numericas = ["Goles", "Goles Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Atajadas", "Amarillas", "Rojas", "Corners Rival"]
     for col in cols_numericas:
         if col in df.columns:
@@ -117,9 +125,14 @@ def generar_color_equipo(nombre):
 st.sidebar.header("Configuracion")
 
 with st.sidebar.expander("Partido", expanded=True):
-    lista_equipos = sorted([str(x) for x in df["Equipo"].unique() if pd.notna(x)])
+    ligas_disponibles = sorted([str(x) for x in df["Liga"].dropna().unique() if pd.notna(x)])
+    liga_sel = st.selectbox("Liga", ligas_disponibles)
+    
+    df_liga = df[df["Liga"] == liga_sel]
+    lista_equipos = sorted([str(x) for x in df_liga["Equipo"].unique() if pd.notna(x)])
     equipo_sel = st.selectbox("Equipo", lista_equipos)
-    df_equipo = df[df["Equipo"] == equipo_sel]
+    
+    df_equipo = df_liga[df_liga["Equipo"] == equipo_sel]
     lista_niveles = sorted([str(x) for x in df_equipo["Nivel Rival"].unique() if pd.notna(x)])
     condicion_label = st.selectbox("Condicion", ["Local", "Visitante"])
     condicion_sel = condicion_label.lower()
@@ -193,6 +206,7 @@ with st.sidebar.expander("Modelo estadistico", expanded=True):
 color_equipo = generar_color_equipo(equipo_sel)
 equipo_sel_html = html.escape(equipo_sel)
 nivel_sel_html = html.escape(nivel_sel)
+liga_sel_html = html.escape(liga_sel)
 
 st.markdown(f"""
 <style>
@@ -288,7 +302,7 @@ st.caption("Simulacion orientativa. EV y Kelly no son tips garantizados.")
 with st.expander("Como interpretar este analisis", expanded=False):
     st.markdown("""
 ### 🧠 Modelos Estadisticos Avanzados (Sidebar)
-- **Shrinkage (Recomendado: ON en 5.0):** Evita espejismos mezclando el rendimiento observado con la media general de ese nivel.
+- **Shrinkage (Recomendado: ON en 5.0):** Evita espejismos mezclando el rendimiento observado con la media general de ese nivel en su liga.
 - **Dixon-Coles (Recomendado: ON en -0.10):** Ajuste matemático profesional para corregir la probabilidad de marcadores cerrados.
 
 ### 🤖 Panel Inteligente & Parlay
@@ -309,7 +323,7 @@ with c2:
         st.rerun()
 
 if st.session_state.analizado_equipos:
-    df_base = df[df["Equipo"] == equipo_sel].sort_values(by="Fecha", ascending=False)
+    df_base = df[(df["Liga"] == liga_sel) & (df["Equipo"] == equipo_sel)].sort_values(by="Fecha", ascending=False)
     df_exactos = df_base[(df_base["Condición"] == condicion_sel) & (df_base["Nivel Rival"] == nivel_sel)]
     historial = pd.DataFrame()
     fuente_datos = ""
@@ -334,7 +348,7 @@ if st.session_state.analizado_equipos:
             historial = partido_1.copy()
             fuente_datos = "Solo 1 partido exacto"
     else:
-        st.error(f"No hay datos suficientes para {equipo_sel}.")
+        st.error(f"No hay datos suficientes para {equipo_sel} en la liga {liga_sel}.")
         st.stop()
 
     muestra_pequena = len(historial) <= 3
@@ -352,7 +366,11 @@ if st.session_state.analizado_equipos:
     lam_t_raw, lam_tp_raw = prom("Tiros"), prom("A Puerta")
     lam_co_raw, lam_fa_raw = prom("Corners"), prom("Faltas")
 
-    df_nivel = df[df["Nivel Rival"] == nivel_sel]
+    # Prior dentro de la misma liga y nivel de rival
+    df_nivel = df[(df["Liga"] == liga_sel) & (df["Nivel Rival"] == nivel_sel)]
+    if len(df_nivel) == 0:
+        df_nivel = df[df["Nivel Rival"] == nivel_sel]  # Respaldo global si la liga no tiene suficientes datos de ese tier
+
     prior_f = float(df_nivel["Goles"].mean()) if len(df_nivel) else lam_f_raw
     prior_c = float(df_nivel["Goles Rival"].mean()) if len(df_nivel) and "Goles Rival" in df_nivel.columns else lam_c_raw
     prior_t = float(df_nivel["Tiros"].mean()) if len(df_nivel) and "Tiros" in df_nivel.columns else lam_t_raw
@@ -406,7 +424,7 @@ if st.session_state.analizado_equipos:
     else:
         veredicto = f"Partido Muy Parejo - Marcador proyectado {marcador_mas_comun}"
 
-    st.markdown(f'<div class="header-box">{equipo_sel_html.upper()} - {condicion_label.upper()} vs {nivel_sel_html.upper()}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="header-box">{liga_sel_html.upper()} | {equipo_sel_html.upper()} - {condicion_label.upper()} vs {nivel_sel_html.upper()}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="veredicto-box"><b>Veredicto:</b> {html.escape(veredicto)}</div>', unsafe_allow_html=True)
     st.caption(f"Base: {n_obs} partidos - {fuente_datos}")
 
@@ -519,16 +537,6 @@ if st.session_state.analizado_equipos:
         nombres_mercados_eq = [m["nombre"] for m in lista_mercados_eq_dict]
         parlay_eq = st.multiselect("Elige los mercados para tu combinada:", options=nombres_mercados_eq, key="parlay_eq_input")
 
-        # ------------------------------------------------------------------
-        # Mercados derivados de goles (sg_fav / sg_con). Estos DOS arrays
-        # vienen de la MISMA simulación pareada: la posición i de sg_fav y
-        # la posición i de sg_con representan el mismo partido hipotético.
-        # Por eso, para combinaciones ENTRE estos mercados, podemos calcular
-        # la probabilidad conjunta EXACTA contando en cuántas simulaciones
-        # se cumplen todas las condiciones a la vez, en vez de multiplicar
-        # probabilidades individuales (que asume independencia y no lo son:
-        # p.ej. "Victoria (1)" y "Over 2.5 goles del partido" están
-        # correlacionados porque una goleada implica ambos).
         mercados_goles_bool = {
             "Victoria (1)": sg_fav > sg_con,
             "Empate (X)": sg_fav == sg_con,
@@ -545,7 +553,6 @@ if st.session_state.analizado_equipos:
             legs_goles = [n for n in parlay_eq if n in mercados_goles_bool]
             legs_independientes = [n for n in parlay_eq if n not in mercados_goles_bool]
 
-            # Paso 1: probabilidad conjunta EXACTA entre las patas de goles
             if legs_goles:
                 mask_conjunta = np.ones(num_sim, dtype=bool)
                 for n in legs_goles:
@@ -554,10 +561,6 @@ if st.session_state.analizado_equipos:
             else:
                 p_goles_conjunta = 1.0
 
-            # Paso 2: patas sin modelo conjunto (tiros, corners, faltas, DNB)
-            # se combinan multiplicando, que sigue siendo una aproximación
-            # por independencia porque no tenemos una simulación conjunta
-            # de tiros/corners junto con los goles todavía.
             p_indep = 1.0
             for n in legs_independientes:
                 m_info = next(m for m in lista_mercados_eq_dict if m["nombre"] == n)
@@ -571,15 +574,9 @@ if st.session_state.analizado_equipos:
             st.markdown(f"**Cuota Justa Combinada:** `{c_justa_parlay}`")
 
             if len(legs_goles) > 1 and not legs_independientes:
-                st.caption("✅ Probabilidad calculada de forma EXACTA a partir de la simulación conjunta de goles (no se asume independencia entre estas patas).")
+                st.caption("✅ Probabilidad calculada de forma EXACTA a partir de la simulación conjunta de goles.")
             elif legs_goles and legs_independientes:
-                st.caption(
-                    "⚠️ Nota: las patas de goles (1X2, BTTS, Over goles...) se combinaron con probabilidad conjunta EXACTA. "
-                    "Las patas de tiros/corners/faltas/DNB se combinaron asumiendo independencia estadística (aún no existe un modelo conjunto "
-                    "de tiros y goles), lo que puede subestimar o sobrestimar levemente la probabilidad real si están correlacionadas."
-                )
-            elif legs_independientes and len(legs_independientes) > 1:
-                st.caption("⚠️ Estas patas se combinaron asumiendo independencia estadística entre ellas — la probabilidad real podría diferir si están correlacionadas.")
+                st.caption("⚠️ Las patas de goles se combinaron con probabilidad conjunta exacta; las demás asumiendo independencia.")
 
             cuota_casa_parlay_eq = st.number_input("Introduce la cuota total que te paga la casa por esta combinada:", min_value=1.01, value=c_justa_parlay * 0.95, step=0.05, format="%.2f", key="cuota_parlay_eq_input")
             ev_parlay_eq = calcular_ev(p_conj_pct, cuota_casa_parlay_eq)
@@ -679,7 +676,7 @@ if st.session_state.analizado_equipos:
         h_mostrar = historial.copy().sort_values(by="Fecha", ascending=False)
         h_mostrar["Fecha"] = pd.to_datetime(h_mostrar["Fecha"]).dt.strftime("%Y-%m-%d")
         h_mostrar["Peso"] = h_mostrar["Peso"].round(3)
-        cols = [c for c in ["Fecha", "Condición", "Rival", "Nivel Rival", "Goles", "Goles Rival", "Atajadas", "Tiros a Puerta Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Amarillas", "Rojas", "Peso"] if c in h_mostrar.columns]
+        cols = [c for c in ["Fecha", "Liga", "Condición", "Rival", "Nivel Rival", "Goles", "Goles Rival", "Atajadas", "Tiros a Puerta Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Amarillas", "Rojas", "Peso"] if c in h_mostrar.columns]
         st.dataframe(h_mostrar[cols], hide_index=True, use_container_width=True)
 else:
     st.info("Configura el partido y pulsa Analizar.")
