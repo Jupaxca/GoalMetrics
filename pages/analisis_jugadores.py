@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 from collections import Counter
 
 try:
@@ -483,7 +484,7 @@ if st.session_state.analizado_jugadores:
         {"nombre": f"Over {linea_contrib} Gol/Asist", "prob": prob_contrib, "cuota": cuota_casa_contrib, "ev": calcular_ev(prob_contrib, cuota_casa_contrib)}
     ]
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Resumen Dinámico", "Value Bet Props", "🤖 Panel Inteligente & Parlay", "Probabilidades", "Detalle"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Resumen Dinámico", "Value Bet Props", "🤖 Panel Inteligente & Parlay", "Probabilidades", "Líneas y Gráficos", "Detalle"])
 
     with tab1:
         st.subheader(f"Métricas promedio y eficiencia en el escenario: {condicion_sel} vs {nivel_sel}")
@@ -618,9 +619,9 @@ if st.session_state.analizado_jugadores:
             cuota_justa_combinada = round(100 / prob_conjunta_pct, 2) if prob_conjunta_pct > 0 else 99.0
 
             st.markdown(f"**Probabilidad Conjunta Real (Simulada):** `{prob_conjunta_pct:.2f}%`")
-            st.markdown(f"**Cuota Justa Combinada:** `{cuota_justa_combinada}`")
+            st.markdown(f"**Cuota Justa Combinada:** `{c_justa_combinada}`")
 
-            cuota_casa_parlay = st.number_input("Introduce la cuota total que te paga la casa por esta combinada:", min_value=1.01, value=cuota_justa_combinada * 0.95, step=0.05, format="%.2f", key="cuota_parlay_jug_input")
+            cuota_casa_parlay = st.number_input("Introduce la cuota total que te paga la casa por esta combinada:", min_value=1.01, value=c_justa_combinada * 0.95, step=0.05, format="%.2f", key="cuota_parlay_jug_input")
 
             ev_parlay = calcular_ev(prob_conjunta_pct, cuota_casa_parlay)
             stake_parlay = calcular_kelly(prob_conjunta_pct, cuota_casa_parlay)
@@ -645,6 +646,70 @@ if st.session_state.analizado_jugadores:
         st.metric(f"Prob. Gol/Asist > {linea_contrib}", f"{prob_contrib:.1f}%")
 
     with tab5:
+        st.subheader("📊 Líneas y Gráficos del Jugador")
+        st.caption("Visualización compacta del perfil de atributos (Radar) y badges de rendimiento reciente (sin desbordar la interfaz).")
+
+        col_g1, col_g2 = st.columns([1.2, 1])
+
+        with col_g1:
+            st.markdown("##### 🕸️ Perfil de Atributos (Radar Chart)")
+            # Gráfico de Radar compacto de tamaño fijo
+            categories = ['Goles', 'Tiros', 'A Puerta', 'Asistencias', 'Faltas']
+            vals = [
+                min(lam_g * 3.33, 10),
+                min(lam_t / 1.0, 10),
+                min(lam_p * 3.33, 10),
+                min(lam_a * 5.0, 10),
+                min(lam_f * 2.0, 10)
+            ]
+            fig_radar = go.Figure(go.Scatterpolar(
+                r=vals + [vals[0]],
+                theta=categories + [categories[0]],
+                fill='toself',
+                marker=dict(color='#3B82F6'),
+                line=dict(color='#60A5FA', width=2)
+            ))
+            fig_radar.update_layout(
+                polar=dict(
+                    radialaxis=dict(visible=True, range=[0, 10], color="#9ca3af"),
+                    bgcolor="#111827"
+                ),
+                showlegend=False,
+                paper_bgcolor="#0B0F19",
+                plot_bgcolor="#0B0F19",
+                font=dict(color="#F3F4F6", size=11),
+                height=320,
+                margin=dict(l=30, r=30, t=20, b=20)
+            )
+            st.plotly_chart(fig_radar, use_container_width=True)
+
+        with col_g2:
+            st.markdown("##### 🔥 Forma Reciente (Últimos Partidos)")
+            ultimos_5 = historial.tail(5)
+            if not ultimos_5.empty:
+                for _, row_m in ultimos_5.iterrows():
+                    g = int(row_m.get("Goles", 0))
+                    a = int(row_m.get("Asistencias", 0))
+                    t = int(row_m.get("Tiros", 0))
+                    rival_n = row_m.get("Rival", "Rival")
+                    fecha_m = pd.to_datetime(row_m.get("Fecha", "")).strftime("%d/%m") if pd.notna(row_m.get("Fecha")) else ""
+                    
+                    badge_html = ""
+                    if g > 0: badge_html += f" ⚽x{g}" if g > 1 else " ⚽ Gol"
+                    if a > 0: badge_html += f" 🅰️x{a}" if a > 1 else " 🅰️ Asist"
+                    if badge_html == "": badge_html = " ❌ Sin aporte"
+                    
+                    st.markdown(
+                        f'<div style="background-color: #1F2937; padding: 8px 12px; border-radius: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 13px;">'
+                        f'<span><b>{fecha_m}</b> <span style="color:#9ca3af; font-size:11px;">vs {rival_n}</span></span>'
+                        f'<span style="color: #10b981; font-weight: bold;">{badge_html} (Tiros: {t})</span>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+            else:
+                st.info("Sin registros recientes.")
+
+    with tab6:
         st.subheader("Detalle y Auditoría")
         h_mostrar = historial.copy()
         if "Fecha" in h_mostrar.columns:
