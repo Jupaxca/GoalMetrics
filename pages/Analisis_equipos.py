@@ -33,7 +33,6 @@ def cargar_datos():
         df["Liga"] = df["Liga"].astype(str).str.strip()
         df["Liga"] = df["Liga"].replace(["nan", "None", ""], "Sin Liga")
     else:
-        st.warning(f"⚠️ No se encontró la columna 'Liga'. Columnas detectadas: {list(df.columns)}")
         df["Liga"] = "General"
 
     df = df.dropna(subset=["Equipo", "Fecha", "Condición", "Nivel Rival"])
@@ -52,6 +51,8 @@ def cargar_datos():
 
     if "Tiros a Puerta Rival" not in df.columns:
         df["Tiros a Puerta Rival"] = df["Goles Rival"] + df["Atajadas"]
+    if "Corners Rival" not in df.columns:
+        df["Corners Rival"] = 0.0
     
     return df
 
@@ -259,7 +260,6 @@ with st.sidebar.expander("Partido", expanded=True):
     condicion_sel = condicion_label.lower()
     nivel_sel = st.selectbox("Nivel del Rival", lista_niveles)
 
-# Validación de partidos exactos en el filtro seleccionado
 df_diagnostico = df_equipo.sort_values(by="Fecha", ascending=False)
 exactos_check = df_diagnostico[
     (df_diagnostico["Condición"] == condicion_sel) & (df_diagnostico["Nivel Rival"] == nivel_sel)
@@ -371,18 +371,6 @@ def renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa):
     ).properties(height=220)
     st.altair_chart(chart, use_container_width=True)
 
-def crear_grafico(serie, titulo):
-    serie = pd.Series(serie).dropna().astype(int)
-    if len(serie) == 0:
-        return None
-    conteo = serie.value_counts().sort_index()
-    df_c = pd.DataFrame({titulo: conteo.index.astype(str), "Prob (%)": (conteo / len(serie) * 100).round(1)})
-    return alt.Chart(df_c).mark_bar(color=color_equipo).encode(
-        x=alt.X(f"{titulo}:N", sort=None, title=titulo),
-        y=alt.Y("Prob (%):Q", title="Probabilidad (%)"),
-        tooltip=[f"{titulo}:N", "Prob (%):Q"],
-    ).properties(height=280)
-
 def calcular_ev(prob, cuota):
     if cuota <= 1.0 or prob <= 0:
         return 0.0
@@ -436,7 +424,6 @@ if st.session_state.analizado_equipos:
     else:
         df_exactos = pd.DataFrame()
 
-    # REGLA ESTRICTA: Si hay 0 partidos exactos, se detiene y muestra error.
     if len(df_exactos) == 0:
         st.error(f"❌ No se puede realizar el análisis: Hay 0 partidos exactos registrados para **{equipo_sel}** como **{condicion_label}** contra rivales nivel **{nivel_sel}** en la liga **{liga_sel}**.")
         st.stop()
@@ -454,7 +441,6 @@ if st.session_state.analizado_equipos:
         
     fuente_datos = f"Exactos ({len(historial_list)} partidos)"
 
-    # Respaldo si hay 1 solo partido exacto
     if len(historial_list) < UMBRAL_MINIMO:
         if "Condición" in df_equipo.columns:
             df_misma_cond = df_equipo[(df_equipo["Condición"] == condicion_sel) & (df_equipo["Nivel Rival"] != nivel_sel)].copy()
@@ -528,6 +514,7 @@ if st.session_state.analizado_equipos:
     lam_f_raw, lam_c_raw = prom("Goles"), prom("Goles Rival")
     lam_t_raw, lam_tp_raw = prom("Tiros"), prom("A Puerta")
     lam_co_raw, lam_fa_raw = prom("Corners"), prom("Faltas")
+    lam_co_rival_raw = prom("Corners Rival") if "Corners Rival" in historial.columns else prom("Corners")
 
     df_nivel = df[(df["Liga"] == liga_sel) & (df["Nivel Rival"] == nivel_sel)]
     if len(df_nivel) == 0:
@@ -538,6 +525,7 @@ if st.session_state.analizado_equipos:
     prior_t = float(df_nivel["Tiros"].mean()) if len(df_nivel) and "Tiros" in df_nivel.columns else lam_t_raw
     prior_tp = float(df_nivel["A Puerta"].mean()) if len(df_nivel) and "A Puerta" in df_nivel.columns else lam_tp_raw
     prior_co = float(df_nivel["Corners"].mean()) if len(df_nivel) and "Corners" in df_nivel.columns else lam_co_raw
+    prior_co_rival = float(df_nivel["Corners Rival"].mean()) if len(df_nivel) and "Corners Rival" in df_nivel.columns else lam_co_rival_raw
     prior_fa = float(df_nivel["Faltas"].mean()) if len(df_nivel) and "Faltas" in df_nivel.columns else lam_fa_raw
 
     if usar_shrinkage:
@@ -546,9 +534,10 @@ if st.session_state.analizado_equipos:
         lam_t = shrinkage_lambda(lam_t_raw, prior_t, n_obs, k_shrink)
         lam_tp = shrinkage_lambda(lam_tp_raw, prior_tp, n_obs, k_shrink)
         lam_co = shrinkage_lambda(lam_co_raw, prior_co, n_obs, k_shrink)
+        lam_co_rival = shrinkage_lambda(lam_co_rival_raw, prior_co_rival, n_obs, k_shrink)
         lam_fa = shrinkage_lambda(lam_fa_raw, prior_fa, n_obs, k_shrink)
     else:
-        lam_f, lam_c, lam_t, lam_tp, lam_co, lam_fa = lam_f_raw, lam_c_raw, lam_t_raw, lam_tp_raw, lam_co_raw, lam_fa_raw
+        lam_f, lam_c, lam_t, lam_tp, lam_co, lam_co_rival, lam_fa = lam_f_raw, lam_c_raw, lam_t_raw, lam_tp_raw, lam_co_raw, lam_co_rival_raw, lam_fa_raw
 
     num_sim = 10000
     if usar_dc:
@@ -559,6 +548,7 @@ if st.session_state.analizado_equipos:
         sg_con = rng.poisson(max(lam_c, 0.01), num_sim)
 
     s_tir, s_tpuerta, s_corn, s_faltas = simular_stats_poisson(lam_t, lam_tp, lam_co, lam_fa, num_sim=num_sim)
+    s_corn_rival = np.random.default_rng(42).poisson(max(lam_co_rival, 0.01), num_sim)
 
     triunfos_base = (sg_fav > sg_con).mean() * 100
     empates = (sg_fav == sg_con).mean() * 100
@@ -808,7 +798,6 @@ if st.session_state.analizado_equipos:
         st.subheader("🎯 Matriz de Probabilidad del Resultado Exacto")
         st.caption("Distribución de probabilidad cruzada entre goles del equipo y del rival según la simulación estocástica.")
 
-        # Construcción de la matriz de calor (Heatmap 6x6 de 0 a 5 goles)
         max_g = 5
         matriz_probs = np.zeros((max_g + 1, max_g + 1))
         text_data = []
@@ -848,13 +837,67 @@ if st.session_state.analizado_equipos:
         st.plotly_chart(fig_matrix, use_container_width=True)
 
         st.markdown("---")
-        g1, g2 = st.columns(2)
-        with g1:
-            ch = crear_grafico(pd.Series(sg_fav), "Goles")
-            if ch: st.altair_chart(ch, use_container_width=True)
-        with g2:
-            ch2 = crear_grafico(pd.Series(s_corn), "Corners")
-            if ch2: st.altair_chart(ch2, use_container_width=True)
+        st.subheader("⛳ Matriz de Calor de Corners (Favor vs Contra)")
+        st.caption("Distribución de probabilidad cruzada de saques de esquina (Equipo vs Rival).")
+
+        max_c = 8
+        matriz_corners = np.zeros((max_c + 1, max_c + 1))
+        text_corners = []
+        for f_c in range(max_c + 1):
+            fila_c = []
+            for c_c in range(max_c + 1):
+                prob_c = float(((s_corn == f_c) & (s_corn_rival == c_c)).mean() * 100.0)
+                matriz_corners[f_c, c_c] = prob_c
+                fila_c.append(f"{prob_c:.1f}%" if prob_c >= 0.1 else "<0.1%")
+            text_corners.append(fila_c)
+
+        fig_corners = go.Figure(data=go.Heatmap(
+            z=matriz_corners,
+            x=[str(i) for i in range(max_c + 1)],
+            y=[str(i) for i in range(max_c + 1)],
+            text=text_corners,
+            texttemplate="%{text}",
+            textfont={"size": 11, "color": "white"},
+            colorscale=[[0, "#111827"], [0.5, "#3b82f6"], [1, "#10b981"]],
+            showscale=False
+        ))
+        fig_corners.update_layout(
+            title="Corners Rival (Eje X) vs Corners Propios (Eje Y)",
+            xaxis_title="Corners Rival",
+            yaxis_title=f"Corners {equipo_sel}",
+            paper_bgcolor="#0B0F19",
+            plot_bgcolor="#0B0F19",
+            font=dict(color="#F3F4F6"),
+            height=380,
+            margin=dict(l=40, r=40, t=40, b=40)
+        )
+        st.plotly_chart(fig_corners, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("📈 Gráfico de Dispersión: Eficiencia y Conversión (Tiros vs Goles)")
+        st.caption("Relación partido a partido entre el volumen de disparos totales y los goles convertidos en la muestra.")
+
+        if not historial.empty and "Tiros" in historial.columns and "Goles" in historial.columns:
+            fig_scatter = go.Figure()
+            fig_scatter.add_trace(go.Scatter(
+                x=historial["Tiros"],
+                y=historial["Goles"],
+                mode="markers+text",
+                text=historial.get("Rival", ""),
+                textposition="top center",
+                marker=dict(size=12, color=color_equipo, line=dict(width=2, color="white"))
+            ))
+            fig_scatter.update_layout(
+                title="Tiros Totales vs Goles por Partido",
+                xaxis_title="Tiros Totales",
+                yaxis_title="Goles Anotados",
+                paper_bgcolor="#0B0F19",
+                plot_bgcolor="#0B0F19",
+                font=dict(color="#F3F4F6"),
+                height=380,
+                margin=dict(l=40, r=40, t=40, b=40)
+            )
+            st.plotly_chart(fig_scatter, use_container_width=True)
 
     with tab7:
         h_mostrar = historial.copy().sort_values(by="Fecha", ascending=False)
