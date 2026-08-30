@@ -503,7 +503,6 @@ if st.session_state.analizado_jugadores:
         {"nombre": f"Over {linea_contrib} Gol/Asist", "prob": prob_contrib, "cuota": cuota_casa_contrib, "ev": calcular_ev(prob_contrib, cuota_casa_contrib)}
     ]
 
-    # Nueva distribución de pestañas con "📈 Líneas y Gráficos"
     tab1, tab_graficos, tab2, tab3, tab4, tab5 = st.tabs(["Resumen Dinámico", "📈 Líneas y Gráficos", "Value Bet Props", "🤖 Panel Inteligente & Parlay", "Probabilidades", "Detalle"])
 
     with tab1:
@@ -559,68 +558,58 @@ if st.session_state.analizado_jugadores:
 
         st.markdown("---")
         
-        col_res1, col_res2 = st.columns([1, 1])
+        # Panel de Eficiencia y Volatilidad (con Volatilidad de Goles y Volatilidad de Asistencias)
+        col_ef1, col_ef2 = st.columns([1, 1])
 
-        with col_res1:
-            st.subheader("🕸️ Perfil de Atributos (Radar - Promedio Histórico)")
-            avg_g = historial["Goles"].mean() if "Goles" in historial else 0.0
-            avg_t = historial["Tiros"].mean() if "Tiros" in historial else 0.0
-            avg_p = historial["A Puerta"].mean() if "A Puerta" in historial else 0.0
-            avg_a = historial["Asistencias"].mean() if "Asistencias" in historial else 0.0
-            avg_f = historial["Faltas"].mean() if "Faltas" in historial else 0.0
-            
-            avg_p = min(avg_p, avg_t)
-            avg_g = min(avg_g, avg_p)
-
-            categories = ['Goles', 'Tiros', 'A Puerta', 'Asistencias', 'Faltas']
-            vals = [min(avg_g, 10.0), min(avg_t, 10.0), min(avg_p, 10.0), min(avg_a, 10.0), min(avg_f, 10.0)]
-            
-            fig_radar = go.Figure(go.Scatterpolar(
-                r=vals + [vals[0]],
-                theta=categories + [categories[0]],
-                fill='toself',
-                marker=dict(color='#3B82F6'),
-                line=dict(color='#60A5FA', width=2)
-            ))
-            fig_radar.update_layout(
-                polar=dict(
-                    radialaxis=dict(visible=True, range=[0, 10], color="#9ca3af"),
-                    bgcolor="#111827"
-                ),
-                showlegend=False,
-                paper_bgcolor="#0B0F19",
-                plot_bgcolor="#0B0F19",
-                font=dict(color="#F3F4F6", size=11),
-                height=280,
-                margin=dict(l=20, r=20, t=10, b=10)
-            )
-            st.plotly_chart(fig_radar, use_container_width=True)
-
-        with col_res2:
-            st.subheader("🎯 Eficiencia y Conversión")
+        with col_ef1:
+            st.subheader("🎯 Eficiencia y Conversión Detallada")
             total_goles_escenario = historial["Goles"].sum() if "Goles" in historial else 0
             total_puerta_escenario = historial["A Puerta"].sum() if "A Puerta" in historial else 0
             total_tiros_escenario = historial["Tiros"].sum() if "Tiros" in historial else 0
             
             ratio_puerta_gol = total_puerta_escenario / total_goles_escenario if total_goles_escenario > 0 else 0.0
             ratio_tiros_gol = total_tiros_escenario / total_goles_escenario if total_goles_escenario > 0 else 0.0
-            
+            conv_tiros = (total_goles_escenario / total_tiros_escenario * 100) if total_tiros_escenario > 0 else 0.0
+            conv_puerta = (total_goles_escenario / total_puerta_escenario * 100) if total_puerta_escenario > 0 else 0.0
+
             if total_goles_escenario > 0:
-                st.metric("Tiros a Puerta por Gol", f"{ratio_puerta_gol:.1f} tiros", "Ratio de conversión a puerta")
-                st.metric("Tiros Totales por Gol", f"{ratio_tiros_gol:.1f} tiros", "Eficiencia global de disparo")
+                st.metric("Tiros a Puerta por Gol", f"{ratio_puerta_gol:.1f} tiros", f"Efectividad a puerta: {conv_puerta:.1f}%")
+                st.metric("Tiros Totales por Gol", f"{ratio_tiros_gol:.1f} tiros", f"Conversión global: {conv_tiros:.1f}%")
             else:
                 st.metric("Tiros a Puerta por Gol", "N/A", "Sin goles en esta muestra")
                 st.metric("Tiros Totales por Gol", "N/A", "Sin goles en esta muestra")
                 
-            st.metric("Partidos en Muestra", n_obs, "Filtro aplicado OK")
+            st.metric("Partidos Analizados en Muestra", n_obs, f"Fuente: {fuente}")
+
+        with col_ef2:
+            st.subheader("🛡️ Confiabilidad y Volatilidad")
+            volatilidad_goles = historial["Goles"].std() if "Goles" in historial and len(historial) > 1 else 0.0
+            volatilidad_asistencias = historial["Asistencias"].std() if "Asistencias" in historial and len(historial) > 1 else 0.0
+            volatilidad_tiros = historial["Tiros"].std() if "Tiros" in historial and len(historial) > 1 else 0.0
+            
+            st.metric("Volatilidad Goleadora (Desv. Est.)", f"{volatilidad_goles:.2f}", "Consistencia en anotación")
+            st.metric("Volatilidad de Asistencias", f"{volatilidad_asistencias:.2f}", "Consistencia en pases de gol")
+            st.metric("Volatilidad de Disparos", f"{volatilidad_tiros:.2f}", "Variabilidad en volumen de tiros")
 
     with tab_graficos:
         st.subheader("📈 Líneas y Gráficos de Probabilidad Acumulada")
         st.caption(f"Análisis visual de rendimiento y probabilidad acumulada (Over X) para {jugador_sel} en condición de {condicion_sel} vs {nivel_sel}.")
 
-        # 1. Gráfico Radar en esta sección
         st.markdown("### 🕸️ Perfil de Atributos (Radar)")
         col_gr1, col_gr2 = st.columns(2)
+        
+        avg_g = historial["Goles"].mean() if "Goles" in historial else 0.0
+        avg_t = historial["Tiros"].mean() if "Tiros" in historial else 0.0
+        avg_p = historial["A Puerta"].mean() if "A Puerta" in historial else 0.0
+        avg_a = historial["Asistencias"].mean() if "Asistencias" in historial else 0.0
+        avg_f = historial["Faltas"].mean() if "Faltas" in historial else 0.0
+        
+        avg_p = min(avg_p, avg_t)
+        avg_g = min(avg_g, avg_p)
+
+        categories = ['Goles', 'Tiros', 'A Puerta', 'Asistencias', 'Faltas']
+        vals = [min(avg_g, 10.0), min(avg_t, 10.0), min(avg_p, 10.0), min(avg_a, 10.0), min(avg_f, 10.0)]
+
         with col_gr1:
             fig_radar_tab = go.Figure(go.Scatterpolar(
                 r=vals + [vals[0]],
@@ -654,8 +643,7 @@ if st.session_state.analizado_jugadores:
 
         st.markdown("---")
 
-        # Función auxiliar para crear gráficos de línea acumulados estilo la imagen proporcionada
-        def crear_grafico_acumulado(sim_data, titulo_metrica, color_linea="#10b981", max_linea=4.5):
+        def crear_grafico_acumulado(sim_data, titulo_metrica, color_linea="#10b981"):
             if "Gol" in titulo_metrica:
                 lines = [0.5, 1.5, 2.5, 3.5]
             elif "Puerta" in titulo_metrica:
@@ -689,13 +677,8 @@ if st.session_state.analizado_jugadores:
             )
             return fig
 
-        # 2. Gráfico Acumulado de Goles
         st.plotly_chart(crear_grafico_acumulado(sim_goles, "Goles", color_linea="#10b981"), use_container_width=True)
-        
-        # 3. Gráfico Acumulado de Tiros a Puerta
         st.plotly_chart(crear_grafico_acumulado(sim_puerta, "Tiros a Puerta", color_linea="#3B82F6"), use_container_width=True)
-
-        # 4. Gráfico Acumulado de Tiros Totales
         st.plotly_chart(crear_grafico_acumulado(sim_tiros, "Tiros Totales", color_linea="#F59E0B"), use_container_width=True)
 
     with tab2:
