@@ -841,11 +841,11 @@ if st.session_state.analizado_equipos:
         st.caption("Probabilidad de que el equipo anote más de X goles (Over acumulado).")
 
         max_g_sim = int(max(sg_fav)) + 2
-        goal_vals = [i + 0.5 for i in range(max_g_sim)]
+        goal_vals = [float(i + 0.5) for i in range(max_g_sim)]
         cum_probs_goles = [float((sg_fav > g).mean() * 100) for g in goal_vals]
 
         fig_cum_goles = go.Figure(data=go.Scatter(
-            x=[str(g) for g in goal_vals],
+            x=goal_vals,
             y=cum_probs_goles,
             mode='lines+markers+text',
             text=[f"{p:.1f}%" for p in cum_probs_goles],
@@ -855,15 +855,23 @@ if st.session_state.analizado_equipos:
         ))
         fig_cum_goles.update_layout(
             title=f"Probabilidad Acumulada de Goles (Over X) - {equipo_sel}",
-            xaxis_title="Línea de Goles (Over)",
+            xaxis=dict(
+                title="Línea de Goles (Over)",
+                tickmode='array',
+                tickvals=goal_vals,
+                ticktext=[str(g) for g in goal_vals],
+                color="#F3F4F6"
+            ),
             yaxis_title="Probabilidad (%)",
             paper_bgcolor="#0B0F19",
             plot_bgcolor="#0B0F19",
             font=dict(color="#F3F4F6"),
-            height=350,
+            height=380,
             margin=dict(l=40, r=40, t=40, b=40)
         )
         st.plotly_chart(fig_cum_goles, use_container_width=True)
+        
+        st.info("💡 **Cómo interpretar este gráfico de Goles:** El eje X muestra las líneas de apuestas típicas (0.5, 1.5, 2.5...). Cada punto indica la probabilidad porcentual de que el equipo anote **más** de esa cantidad. Por ejemplo, si en **0.5** ves un 85%, significa que hay un 85% de probabilidad de que el equipo anote al menos 1 gol.")
 
         st.markdown("---")
         st.subheader("⛳ Probabilidad Acumulada de Córners (Over X)")
@@ -876,21 +884,31 @@ if st.session_state.analizado_equipos:
         fig_cum_corners = go.Figure(data=go.Scatter(
             x=corner_vals,
             y=cum_probs_corners,
-            mode='lines+markers',
+            mode='lines+markers+text',
+            text=[f"{p:.1f}%" for p in cum_probs_corners],
+            textposition="top center",
             line=dict(color=color_equipo, width=3),
             marker=dict(size=8)
         ))
         fig_cum_corners.update_layout(
             title=f"Probabilidad Acumulada de Córners (Over X) - {equipo_sel}",
-            xaxis_title="Línea de Córners (> X)",
+            xaxis=dict(
+                title="Línea de Córners (> X)",
+                tickmode='array',
+                tickvals=corner_vals,
+                ticktext=[str(c) for c in corner_vals],
+                color="#F3F4F6"
+            ),
             yaxis_title="Probabilidad (%)",
             paper_bgcolor="#0B0F19",
             plot_bgcolor="#0B0F19",
             font=dict(color="#F3F4F6"),
-            height=350,
+            height=380,
             margin=dict(l=40, r=40, t=40, b=40)
         )
         st.plotly_chart(fig_cum_corners, use_container_width=True)
+
+        st.info("💡 **Cómo interpretar este gráfico de Córners:** El eje X representa el número de córners. Cada punto muestra la probabilidad acumulada de superar estrictamente esa línea (Over). Por ejemplo, si en el número **4** ves un 65%, significa que hay un 65% de probabilidad de que el equipo ejecute 5 o más córners en el encuentro.")
 
         st.markdown("---")
         st.subheader("📈 Gráfico de Dispersión: Tiros a Puerta vs Goles")
