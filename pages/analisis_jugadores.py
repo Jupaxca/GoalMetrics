@@ -1,13 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
-
-st.set_page_config(
-    page_title="GoalMetrics | Análisis de Jugadores",
-    page_icon="⚽",
-    layout="wide"
-)
 
 @st.cache_data(ttl=600)
 def cargar_datos_jugadores():
@@ -329,7 +322,7 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
     prob_contrib = (sim_contrib > linea_contrib).mean() * 100
 
     def cj(p): return round(100 / p, 2) if p > 0 else 99.0
-    
+
     lista_mercados = [
         {"nombre": f"Over {linea_goles} Goles", "prob": prob_goles, "cuota": cuota_casa_goles, "ev": calcular_ev(prob_goles, cuota_casa_goles)},
         {"nombre": f"Over {linea_tiros} Tiros", "prob": prob_tiros, "cuota": cuota_casa_tiros, "ev": calcular_ev(prob_tiros, cuota_casa_tiros)},
@@ -344,11 +337,11 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
     with tab1:
         st.subheader(f"Métricas promedio y eficiencia en el escenario: {condicion_sel} vs {nivel_sel}")
         st.caption("Valores calculados estrictamente sobre la muestra adaptada para este análisis.")
-        
+
         # Análisis de Frecuencia y Veredicto para el próximo partido
         lam_contrib = lam_g + lam_a
         partidos_por_contrib = 1.0 / lam_contrib if lam_contrib > 0 else 0
-        
+
         if prob_contrib >= 55:
             analisis_tendencia = f"Tendencia alta: El jugador muestra un ritmo sólido de aportación, participando en promedio **cada {partidos_por_contrib:.1f} partidos** en este escenario. Las simulaciones de Poisson proyectan una probabilidad sólida ({prob_contrib:.1f}%) de influir directamente en el marcador (Gol o Asistencia) en este próximo encuentro."
         elif prob_contrib >= 35:
@@ -374,14 +367,14 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
 
         st.markdown("---")
         st.subheader("🎯 Eficiencia y Conversión en el Escenario")
-        
+
         total_goles_escenario = historial["Goles"].sum() if "Goles" in historial else 0
         total_puerta_escenario = historial["A Puerta"].sum() if "A Puerta" in historial else 0
         total_tiros_escenario = historial["Tiros"].sum() if "Tiros" in historial else 0
-        
+
         ratio_puerta_gol = total_puerta_escenario / total_goles_escenario if total_goles_escenario > 0 else 0.0
         ratio_tiros_gol = total_tiros_escenario / total_goles_escenario if total_goles_escenario > 0 else 0.0
-        
+
         e1, e2, e3 = st.columns(3)
         if total_goles_escenario > 0:
             e1.metric("Tiros a Puerta por Gol", f"{ratio_puerta_gol:.1f} tiros", "Ratio de conversión a puerta")
@@ -389,13 +382,13 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
         else:
             e1.metric("Tiros a Puerta por Gol", "N/A", "Sin goles en esta muestra")
             e2.metric("Tiros Totales por Gol", "N/A", "Sin goles en esta muestra")
-            
+
         e3.metric("Partidos en Muestra", n_obs, "Filtro aplicado OK")
 
     with tab2:
         st.subheader("Value Bet Props (Gestión Half-Kelly)")
         st.markdown("💡 *Todas las apuestas con EV positivo están optimizadas para operar bajo el criterio de Half-Kelly (% de bank).*")
-        
+
         mostrar_value(f"Over {linea_goles} Goles", cj(prob_goles), cuota_casa_goles, calcular_ev(prob_goles, cuota_casa_goles), prob_goles, (historial["Goles"] > linea_goles).mean() * 100)
         mostrar_value(f"Over {linea_tiros} Tiros", cj(prob_tiros), cuota_casa_tiros, calcular_ev(prob_tiros, cuota_casa_tiros), prob_tiros, (historial["Tiros"] > linea_tiros).mean() * 100)
         mostrar_value(f"Over {linea_puerta} a Puerta", cj(prob_puerta), cuota_casa_puerta, calcular_ev(prob_puerta, cuota_casa_puerta), prob_puerta, (historial["A Puerta"] > linea_puerta).mean() * 100)
@@ -408,12 +401,12 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
         st.caption("Selección automática de la mejor oportunidad y constructor de combinadas (Parlay) con criterio matemático y gestión de bank.")
 
         value_bets_disponibles = [m for m in lista_mercados if m["ev"] > 0]
-        
+
         if value_bets_disponibles:
             top_pick = max(value_bets_disponibles, key=lambda x: x["ev"])
             cuota_justa_top = cj(top_pick["prob"])
             stake_top = calcular_kelly(top_pick["prob"], top_pick["cuota"])
-            
+
             st.markdown(
                 f'<div class="top-pick-box">'
                 f'<h3>🏆 La Joya del Partido (Top Value Bet)</h3>'
@@ -442,7 +435,7 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
             for nombre in parlay_elegidos:
                 m_info = next(m for m in lista_mercados if m["nombre"] == nombre)
                 prob_conjunta *= (m_info["prob"] / 100.0)
-            
+
             prob_conjunta_pct = prob_conjunta * 100.0
             cuota_justa_combinada = round(100 / prob_conjunta_pct, 2) if prob_conjunta_pct > 0 else 99.0
 
@@ -453,10 +446,10 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
 
             ev_parlay = calcular_ev(prob_conjunta_pct, cuota_casa_parlay)
             stake_parlay = calcular_kelly(prob_conjunta_pct, cuota_casa_parlay)
-            
+
             col_p1, col_p2 = st.columns(2)
             col_p1.metric("EV de la Combinada", f"{ev_parlay:+.2%}", "Matemática de valor")
-            
+
             if ev_parlay > 0:
                 col_p2.metric("Stake Sugerido", f"{stake_parlay}% del Bank", "Combinada con EV positivo ✅")
                 st.success(f"🎉 ¡Esta combinada tiene EV positivo! Stake sugerido: {stake_parlay}% del Bankroll (Half-Kelly).")
