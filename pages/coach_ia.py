@@ -2,21 +2,26 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from supabase import create_client, Client
 
 st.set_page_config(page_title="Coach | GoalMetrics", page_icon="🤖", layout="wide")
 
-@st.cache_resource
-def init_supabase() -> Client:
-    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
-
-supabase = init_supabase()
+# ----------------------------------------------------------------------
+# Cliente de Supabase
+# ----------------------------------------------------------------------
+# Igual que en tracker_apuestas.py: reutilizamos el cliente creado por
+# app.py y guardado en st.session_state, en vez de crear uno propio con
+# @st.cache_resource (que se comparte entre todos los usuarios).
 
 user = st.session_state.get("user")
 if not user:
     st.warning("Por favor inicia sesión en la página principal para ver tu Coach.")
     st.stop()
 
+if "supabase_client" not in st.session_state:
+    st.warning("No se encontró la conexión a la base de datos. Vuelve a la página principal.")
+    st.stop()
+
+supabase = st.session_state.supabase_client
 user_id = user.id
 
 st.markdown("## 🤖 Coach de Rendimiento")
@@ -30,19 +35,11 @@ except Exception as e:
     st.error(f"Error al cargar apuestas: {e}")
     st.stop()
 
-st.write(f"**Apuestas encontradas:** {len(raw)}")
-
 if len(raw) == 0:
-    st.warning("No hay apuestas con tu usuario. Revisa el Tracker y que el `user_id` coincida.")
-    with st.expander("🔧 Diagnóstico"):
-        st.code(f"user_id: {user_id}")
+    st.warning("No hay apuestas registradas todavía. Ve al Tracker para añadir tu primera apuesta.")
     st.stop()
 
 df = pd.DataFrame(raw)
-
-with st.expander("👀 Columnas y muestra"):
-    st.write(list(df.columns))
-    st.dataframe(df.head(8), use_container_width=True)
 
 # Renombres flexibles
 cols_lower = {c.lower(): c for c in df.columns}
@@ -64,7 +61,7 @@ if rename_map:
     df = df.rename(columns=rename_map)
 
 if "estado" not in df.columns or "pnl" not in df.columns:
-    st.error("Faltan columnas obligatorias: estado y/o pnl")
+    st.error("Faltan columnas obligatorias en la base de datos: estado y/o pnl.")
     st.stop()
 
 if "mercado" not in df.columns:
@@ -101,15 +98,13 @@ elif "created_at" in df.columns:
 else:
     df["_fecha"] = pd.NaT
 
-st.markdown("### 📋 Estados")
-st.write(df["estado"].value_counts())
-
 df_decididas = df[df["estado"].isin(["Ganada", "Perdida"])].copy()
 df_bank = df[df["estado"].isin(["Ganada", "Perdida", "Nulo"])].copy()
 
 if df_decididas.empty:
-    st.warning("Ninguna apuesta cerrada (Ganada/Perdida). Cierra al menos una en el Tracker.")
-    st.info(f"Pendientes: {len(df[df['estado']=='Pendiente'])}")
+    st.warning("Ninguna apuesta cerrada (Ganada/Perdida) todavía. Cierra al menos una en el Tracker.")
+    pendientes_count = len(df[df["estado"] == "Pendiente"])
+    st.info(f"Apuestas pendientes: {pendientes_count}")
     st.stop()
 
 # ====================== MÉTRICAS GLOBALES ======================
@@ -143,7 +138,6 @@ if total_30 > 0:
     ganadas_30 = len(df_30[df_30["estado"] == "Ganada"])
     winrate_30 = ganadas_30 / total_30 * 100
     stake_30 = df_30["stake"].sum()
-    # PnL 30d: de las mismas filas en bank sense
     pnl_30 = df_30["pnl"].sum()
     roi_30 = (pnl_30 / stake_30 * 100) if stake_30 > 0 else 0.0
 else:
@@ -188,7 +182,7 @@ def consejo_prioritario():
     if total < 8:
         return "ℹ️ **Prioridad:** acumula al menos 10–15 apuestas cerradas antes de cambiar de estrategia. La muestra aún es pequeña."
     if tipo_racha == "Perdida" and racha >= 3:
-        return f"🛑 **Prioridad:** llevas **{racha} pérdidas seguidas**. Baja el stake \~30% esta semana y solo apuesta value claro."
+        return f"🛑 **Prioridad:** llevas **{racha} pérdidas seguidas**. Baja el stake ~30% esta semana y solo apuesta value claro."
     if not np.isnan(edge_vs_be) and edge_vs_be < -5:
         return f"⚠️ **Prioridad:** tu winrate ({winrate:.0f}%) está por debajo del break-even ({break_even:.0f}% con cuota media {cuota_media:.2f}). Reduce volumen o sube la exigencia de value."
     if roi_30 <= -15 and total_30 >= 5:
@@ -274,5 +268,4 @@ st.dataframe(
 st.caption(f"Recomendación de mercado solo con ≥ {MIN_AP} apuestas cerradas.")
 
 if st.button("🔄 Actualizar datos"):
-    st.cache_data.clear()
     st.rerun()
