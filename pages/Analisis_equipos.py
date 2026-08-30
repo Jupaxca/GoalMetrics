@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import altair as alt
+import plotly.graph_objects as go
 from collections import Counter
 import hashlib
 import colorsys
@@ -600,7 +601,7 @@ if st.session_state.analizado_equipos:
     if muestra_pequena:
         st.warning("Muestra pequeña (Respaldo activo con 1 partido exacto). Interpreta con cautela.")
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["Resumen", "Value Bet", "🤖 Panel Inteligente", "Solidez Defensiva", "Fase Ofensiva", "Lineas y Graficos", "Detalle"])
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["Resumen", "Value Bet", "🤖 Panel Inteligente", "Solidez Defensiva", "Fase Ofensiva", "Líneas y Gráficos", "Detalle"])
 
     with tab1:
         st.subheader("ADN del Equipo")
@@ -802,6 +803,51 @@ if st.session_state.analizado_equipos:
         lc1.metric(f"Goles > {linea_goles}", f"{prob_over_goles:.1f}%")
         lc2.metric(f"Total > {linea_total_partido}", f"{prob_over_total:.1f}%")
         lc3.metric(f"Tiros > {linea_tiros}", f"{prob_over_tiros:.1f}%")
+        
+        st.markdown("---")
+        st.subheader("🎯 Matriz de Probabilidad del Resultado Exacto")
+        st.caption("Distribución de probabilidad cruzada entre goles del equipo y del rival según la simulación estocástica.")
+
+        # Construcción de la matriz de calor (Heatmap 6x6 de 0 a 5 goles)
+        max_g = 5
+        matriz_probs = np.zeros((max_g + 1, max_g + 1))
+        text_data = []
+        
+        for f_g in range(max_g + 1):
+            fila_texto = []
+            for c_g in range(max_g + 1):
+                prob = float(((sg_fav == f_g) & (sg_con == c_g)).mean() * 100.0)
+                matriz_probs[f_g, c_g] = prob
+                if prob >= 0.1:
+                    fila_texto.append(f"{prob:.1f}%")
+                else:
+                    fila_texto.append("<0.1%")
+            text_data.append(fila_texto)
+
+        fig_matrix = go.Figure(data=go.Heatmap(
+            z=matriz_probs,
+            x=[str(i) for i in range(max_g + 1)],
+            y=[str(i) for i in range(max_g + 1)],
+            text=text_data,
+            texttemplate="%{text}",
+            textfont={"size": 13, "color": "white"},
+            colorscale=[[0, "#111827"], [0.5, "#1d4ed8"], [1, "#10b981"]],
+            showscale=False
+        ))
+        
+        fig_matrix.update_layout(
+            title=f"Goles Rival (Eje X) vs Goles {equipo_sel} (Eje Y)",
+            xaxis_title="Goles Rival",
+            yaxis_title=f"Goles {equipo_sel}",
+            paper_bgcolor="#0B0F19",
+            plot_bgcolor="#0B0F19",
+            font=dict(color="#F3F4F6"),
+            height=380,
+            margin=dict(l=40, r=40, t=40, b=40)
+        )
+        st.plotly_chart(fig_matrix, use_container_width=True)
+
+        st.markdown("---")
         g1, g2 = st.columns(2)
         with g1:
             ch = crear_grafico(pd.Series(sg_fav), "Goles")
