@@ -489,18 +489,15 @@ if st.session_state.analizado_jugadores:
         st.subheader(f"Métricas promedio y eficiencia en el escenario: {condicion_sel} vs {nivel_sel}")
         st.caption("Valores calculados estrictamente sobre la muestra adaptada para este análisis.")
         
-        # --- NUEVA LÓGICA PROFESIONAL DE FRECUENCIA Y MOMENTUM ---
         partidos_por_gol = 1.0 / lam_g if lam_g > 0 else 0.0
         partidos_por_asist = 1.0 / lam_a if lam_a > 0 else 0.0
         
-        # Porcentaje real de partidos con contribución en la muestra
         if len(historial) > 0:
             partidos_con_contrib = ((historial["Goles"] + historial["Asistencias"]) > 0).sum()
             pct_contribucion_real = (partidos_con_contrib / len(historial)) * 100.0
         else:
             pct_contribucion_real = 0.0
 
-        # Análisis de Momentum Reciente (últimos 3 partidos)
         ultimos_partidos = historial.tail(min(3, len(historial)))
         goles_recientes = ultimos_partidos["Goles"].mean() if "Goles" in ultimos_partidos else 0.0
         asist_recientes = ultimos_partidos["Asistencias"].mean() if "Asistencias" in ultimos_partidos else 0.0
@@ -519,7 +516,7 @@ if st.session_state.analizado_jugadores:
             f"<b>Desglose de Frecuencia y Producción Pura:</b><br>"
             f"• En este escenario, el jugador {freq_gol_txt} y {freq_asist_txt}.<br>"
             f"• <b>Porcentaje de Contribución Real:</b> Aporta al menos un gol o asistencia en el <b>{pct_contribucion_real:.1f}%</b> de sus encuentros bajo este contexto.<br>"
-            f"• <b>Evaluación frente a línea elegida (Over {linea_contrib}):</b> La probabilidad híbrida proyectada es del <b>{prob_contrib:.1f}%</b>.<br>"
+            f"• <b>Evaluación frente a la línea de Gol o Asistencia (Over {linea_contrib}):</b> La probabilidad híbrida proyectada es del <b>{prob_contrib:.1f}%</b>.<br>"
             f"• {estado_momentum}"
         )
 
