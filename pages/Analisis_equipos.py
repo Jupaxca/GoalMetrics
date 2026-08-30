@@ -753,12 +753,12 @@ if st.session_state.analizado_equipos:
         ratio_tp_gol_contra = prom_tp_rival / prom_g_rival if prom_g_rival > 0 else 0.0
 
         d1, d2, d3 = st.columns(3)
-        d1.metric("Tiros a Puerta Permitidos", f"{prom_tp_rival:.1f} por partido")
-        d2.metric("Goles en Contra (Prom.)", f"{prom_g_rival:.2f} por partido")
+        d1.metric("Tiros a Puerta Permitidos", f"{prom_tp_rival:.1f} xG")
+        d2.metric("Goles en Contra (Prom.)", f"{prom_g_rival:.2f} xG")
         d3.metric("Tiros a Puerta por Gol en Contra", f"{ratio_tp_gol_contra:.1f} tiros", "Eficiencia defensiva rival")
 
         d4, _, _ = st.columns(3)
-        d4.metric("Corners Concedidos (Prom.)", f"{prom_corners_rival:.1f}")
+        d4.metric("Corners Concedidos (Prom.)", f"{prom_corners_rival:.1f} xG")
 
         if prom_g_rival > 0:
             feedback_def = f"En la faceta defensiva dentro de este contexto analítico, el equipo permite un promedio de {prom_tp_rival:.1f} tiros a puerta por partido y recibe {prom_g_rival:.2f} goles, lo que equivale a recibir un gol cada {ratio_tp_gol_contra:.1f} tiros a puerta en contra. Asimismo, concede un promedio de {prom_corners_rival:.1f} corners al rival."
@@ -780,17 +780,17 @@ if st.session_state.analizado_equipos:
         ratio_tp_gol = prom_tp / prom_goles if prom_goles > 0 else 0.0
 
         o1, o2, o3 = st.columns(3)
-        o1.metric("Tiros Totales (Prom.)", f"{prom_tiros:.1f}")
-        o2.metric("Tiros a Puerta (Prom.)", f"{prom_tp:.1f}")
-        o3.metric("Goles a Favor (Prom.)", f"{prom_goles:.2f}")
+        o1.metric("Tiros Totales (Prom.)", f"{prom_tiros:.1f} xG")
+        o2.metric("Tiros a Puerta (Prom.)", f"{prom_tp:.1f} xG")
+        o3.metric("Goles a Favor (Prom.)", f"{prom_goles:.2f} xG")
 
         o4, o5, o6 = st.columns(3)
         o4.metric("Tiros Totales por Gol", f"{ratio_tiros_gol:.1f} tiros", "Conversión global")
         o5.metric("Tiros a Puerta por Gol", f"{ratio_tp_gol:.1f} tiros", "Conversión a puerta")
-        o6.metric("Corners a Favor (Prom.)", f"{prom_corners:.1f}")
+        o6.metric("Corners a Favor (Prom.)", f"{prom_corners:.1f} xG")
 
         o7, o8 = st.columns(2)
-        o7.metric("Faltas Propias (Prom.)", f"{prom_faltas:.1f}")
+        o7.metric("Faltas Propias (Prom.)", f"{prom_faltas:.1f} xG")
         o8.metric("Tarjetas (Amarillas / Rojas)", f"{prom_amarillas:.1f} A / {prom_rojas:.1f} R")
 
         if prom_goles > 0:
