@@ -563,22 +563,26 @@ if st.session_state.analizado_jugadores:
         with col_res1:
             st.subheader("🕸️ Perfil de Atributos (Radar - Promedio Histórico)")
             
-            # Usar los promedios reales suavizados (lam) pero con escala balanceada (Techos: Goles 2.5, Tiros 10.0, A Puerta 6.0, Asistencias 1.5, Faltas 5.0)
-            r_g = min(lam_g, 2.5)
-            r_t = min(lam_t, 10.0)
-            r_p = min(lam_p, r_t)
-            r_g = min(r_g, r_p)
-            r_a = min(lam_a, 1.5)
-            r_f = min(lam_f, 5.0)
+            # Usar los promedios reales directos (historial.mean()) para que coincidan 1:1 con los valores numéricos
+            avg_g = historial["Goles"].mean() if "Goles" in historial else 0.0
+            avg_t = historial["Tiros"].mean() if "Tiros" in historial else 0.0
+            avg_p = historial["A Puerta"].mean() if "A Puerta" in historial else 0.0
+            avg_a = historial["Asistencias"].mean() if "Asistencias" in historial else 0.0
+            avg_f = historial["Faltas"].mean() if "Faltas" in historial else 0.0
+            
+            # Jerarquía de seguridad lógica
+            avg_p = min(avg_p, avg_t)
+            avg_g = min(avg_g, avg_p)
 
             categories = ['Goles', 'Tiros', 'A Puerta', 'Asistencias', 'Faltas']
             
+            # Los valores se mapean directamente de forma absoluta al eje 0-10 (coincidiendo con las etiquetas de la malla)
             vals = [
-                min((r_g / 2.5) * 10, 10),
-                min((r_t / 10.0) * 10, 10),
-                min((r_p / 6.0) * 10, 10),
-                min((r_a / 1.5) * 10, 10),
-                min((r_f / 5.0) * 10, 10)
+                min(avg_g, 10.0),
+                min(avg_t, 10.0),
+                min(avg_p, 10.0),
+                min(avg_a, 10.0),
+                min(avg_f, 10.0)
             ]
             
             fig_radar = go.Figure(go.Scatterpolar(
