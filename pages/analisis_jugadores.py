@@ -259,7 +259,7 @@ else:
     elif num_exactos == 1:
         st.sidebar.warning("1 partido exacto -> Respaldo inteligente activo (Mínimo 2)")
     else:
-        st.sidebar.error("0 partidos exactos en este baremo")
+        st.sidebar.error("0 partidos exactos en este filtro")
 
 st.markdown("""
 <style>
@@ -348,7 +348,7 @@ if st.session_state.analizado_jugadores:
     t_target = obtener_peso_tier(nivel_sel)
     historial_list = []
 
-    # 1. Agregar los partidos exactos que existan (si hay 1, se agrega; si hay 2 o más, se agregan)
+    # 1. Agregar los partidos exactos que existan
     for _, row in df_exactos.iterrows():
         r = row.to_dict()
         r["Factor_Ajuste"] = 1.0
@@ -358,7 +358,7 @@ if st.session_state.analizado_jugadores:
         
     fuente = f"Exactos ({len(historial_list)} partidos)"
 
-    # 2. Si hay menos del mínimo (por ejemplo, hay exactamente 1 partido), activar el respaldo inteligente
+    # 2. Si hay menos del mínimo (1 partido), activar respaldo inteligente
     if len(historial_list) < UMBRAL_MINIMO:
         if "Condición" in df_jugador.columns:
             df_misma_cond = df_jugador[(df_jugador["Condición"] == condicion_sel_lower) & (df_jugador["Nivel Rival"] != nivel_sel)].copy()
@@ -378,7 +378,7 @@ if st.session_state.analizado_jugadores:
         if len(historial_list) > len(df_exactos):
             fuente = "Muestra mixta (1 Exacto + Respaldo ajustado por Tier)"
 
-    # 3. Si aún faltan, buscar en condición opuesta aplicando factores de condición y tier
+    # 3. Si aún faltan, buscar en condición opuesta
     if len(historial_list) < UMBRAL_MINIMO:
         opuesto_lower = "local" if condicion_sel_lower == "visitante" else "visitante"
         if "Condición" in df_jugador.columns:
@@ -499,11 +499,11 @@ if st.session_state.analizado_jugadores:
         partidos_por_contrib = 1.0 / lam_contrib if lam_contrib > 0 else 0
         
         if prob_contrib >= 55:
-            analisis_tendencia = f"Tendencia alta: El jugador muestra un ritmo sólido de aportación, participando en promedio **cada {partidos_por_contrib:.1f} partidos** en este escenario. Las simulaciones y el modelo híbrido proyectan una probabilidad sólida ({prob_contrib:.1f}%) de influir directamente en el marcador (Gol o Asistencia) en este próximo encuentro."
+            analisis_tendencia = f"Tendencia alta: El jugador muestra un ritmo sólido de aportación, participando en promedio <b>cada {partidos_por_contrib:.1f} partidos</b> en este escenario. Las simulaciones y el modelo híbrido proyectan una probabilidad sólida ({prob_contrib:.1f}%) de influir directamente en el marcador (Gol o Asistencia) en este próximo encuentro."
         elif prob_contrib >= 35:
-            analisis_tendencia = f"Tendencia moderada: Registra una contribución en promedio **cada {partidos_por_contrib:.1f} partidos**. El encuentro presenta paridad, con una probabilidad estimada del {prob_contrib:.1f}% de sumar al menos una contribución."
+            analisis_tendencia = f"Tendencia moderada: Registra una contribución en promedio <b>cada {partidos_por_contrib:.1f} partidos</b>. El encuentro presenta paridad, con una probabilidad estimada del {prob_contrib:.1f}% de sumar al menos una contribución."
         else:
-            analisis_tendencia = f"Alerta de baja producción: Su frecuencia en este escenario se diluye a una contribución **cada {partidos_por_contrib:.1f} partidos**, arrojando una probabilidad reducida ({prob_contrib:.1f}%) de ver portería o asistir."
+            analisis_tendencia = f"Alerta de baja producción: Su frecuencia en este escenario se diluye a una contribución <b>cada {partidos_por_contrib:.1f} partidos</b>, arrojando una probabilidad reducida ({prob_contrib:.1f}%) de ver portería o asistir."
 
         st.markdown(f'<div class="veredicto-box"><b>📊 Análisis de Frecuencia y Próximo Partido:</b><br>{analisis_tendencia}</div>', unsafe_allow_html=True)
 
