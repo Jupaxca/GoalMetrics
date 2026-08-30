@@ -23,18 +23,9 @@ st.set_page_config(
 def cargar_datos():
     sheet_id = st.secrets.get("EQUIPOS_SHEET_ID", "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg")
     
-    # Intentamos leer el gid de la pestaña desde st.secrets si está configurado, 
-    # de lo contrario intentará con el valor por defecto de la pestaña "Dash Nivel".
-    gid_dash = st.secrets.get("DASH_NIVEL_GID", "0")
-    
-    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid_dash}"
-    
-    try:
-        df = pd.read_csv(url)
-    except Exception:
-        # Fallback de seguridad por si el gid falla
-        url_fallback = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
-        df = pd.read_csv(url_fallback)
+    # Lee por defecto la primera pestaña ("Registro de Partidos")
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+    df = pd.read_csv(url)
     
     # Limpiar espacios en blanco de todos los nombres de columnas
     df.columns = df.columns.astype(str).str.strip()
