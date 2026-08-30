@@ -6,6 +6,8 @@ import altair as alt
 from collections import Counter
 import hashlib
 import colorsys
+import urllib.request
+import re
 
 try:
     import xgboost as xgb
@@ -13,30 +15,47 @@ try:
 except ImportError:
     XGB_DISPONIBLE = False
 
+st.set_page_config(
+    page_title="GoalMetrics | Análisis de Equipos (Híbrido)",
+    page_icon="⚽",
+    layout="wide"
+)
+
 @st.cache_data(ttl=600)
 def cargar_datos():
     sheet_id = st.secrets.get("EQUIPOS_SHEET_ID", "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg")
-    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+    
+    # Detección automática del gid de la pestaña "Dash Nivel" (tercera pestaña)
+    gid = "0"
+    try:
+        url_edit = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
+        req = urllib.request.Request(url_edit, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            html_content = response.read().decode('utf-8')
+            match = re.search(r'["\']Dash Nivel["\'],\s*(\d+)', html_content)
+            if match:
+                gid = match.group(1)
+            else:
+                pos = html_content.find("Dash Nivel")
+                if pos != -1:
+                    nums = re.findall(r'\b\d{6,12}\b', html_content[pos:pos+200])
+                    if nums:
+                        gid = nums[0]
+    except Exception:
+        pass
+    
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
     df = pd.read_csv(url)
     
     # Limpiar espacios en blanco de todos los nombres de columnas
     df.columns = df.columns.astype(str).str.strip()
     
-    # Detección flexible de la columna de Liga / Competición
-    col_ligaencontrada = None
-    for col in df.columns:
-        col_lower = col.lower()
-        if col_lower in ["liga", "competición", "competicion", "torneo"]:
-            col_ligaencontrada = col
-            break
-            
-    if col_ligaencontrada and col_ligaencontrada != "Liga":
-        df = df.rename(columns={col_ligaencontrada: "Liga"})
-        
+    # Detección de la columna Liga en la pestaña Dash Nivel
     if "Liga" in df.columns:
         df["Liga"] = df["Liga"].astype(str).str.strip()
         df["Liga"] = df["Liga"].replace(["nan", "None", ""], "Sin Liga")
     else:
+        st.warning(f"⚠️ No se encontró la columna 'Liga'. Columnas detectadas: {list(df.columns)}")
         df["Liga"] = "General"
 
     df = df.dropna(subset=["Equipo", "Fecha", "Condición", "Nivel Rival"])
@@ -367,7 +386,7 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, muestra_pequena=Fal
     color_ev = "#10b981" if es_value else "#9ca3af"
     stake = calcular_kelly(prob, cuota_casa) if es_value else 0.0
     kelly_txt = f" | Half-Kelly: <b>{stake}% bank</b>" if es_value else ""
-    caution = " (muestra pequena)" if muestra_pequena and es_value else ""
+    caution = " (muestra pequeña)" if muestra_pequena and es_value else ""
     st.markdown(
         f'<div class="value-box {clase}"><b>{html.escape(nombre)}</b>{caution}<br>'
         f"Prob: <b>{prob:.1f}%</b> | Justa: <b>{cuota_justa}</b> | Casa: <b>{cuota_casa}</b>{kelly_txt}<br>"
@@ -376,8 +395,8 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, muestra_pequena=Fal
         unsafe_allow_html=True,
     )
 
-st.markdown("### GoalMetrics - Analisis de Equipos (Híbrido)")
-st.caption("Simulacion con Poisson, Dixon-Coles y Ensemble XGBoost.")
+st.markdown("### GoalMetrics - Análisis de Equipos (Híbrido)")
+st.caption("Simulación con Poisson, Dixon-Coles y Ensemble XGBoost.")
 
 if "analizado_equipos" not in st.session_state:
     st.session_state.analizado_equipos = False
@@ -394,12 +413,11 @@ with c2:
 if st.session_state.analizado_equipos:
     df_base = df[(df["Liga"] == liga_sel) & (df["Equipo"] == equipo_sel)].sort_values(by="Fecha", ascending=False)
     
-    # Sistema de Respaldo Inteligente y Progresivo (Nunca se detiene por falta de exactos)
+    # Sistema de Respaldo Inteligente y Progresivo
     df_exactos = df_base[(df_base["Condición"] == condicion_sel) & (df_base["Nivel Rival"] == nivel_sel)].copy()
     
     historial_list = []
     
-    # 1. Agregar exactos disponibles
     for _, row in df_exactos.iterrows():
         r = row.to_dict()
         r["Tipo_Uso"] = f"Exacto ({condicion_label} vs {nivel_sel})"
@@ -407,7 +425,6 @@ if st.session_state.analizado_equipos:
         
     fuente_datos = f"Exactos ({len(historial_list)} partidos)"
     
-    # 2. Si faltan partidos (menos de 2), buscar en la misma condición contra otros niveles
     if len(historial_list) < 2:
         df_misma_cond = df_base[(df_base["Condición"] == condicion_sel) & (df_base["Nivel Rival"] != nivel_sel)].copy()
         for _, row in df_misma_cond.iterrows():
@@ -419,7 +436,6 @@ if st.session_state.analizado_equipos:
         if len(historial_list) > len(df_exactos):
             fuente_datos = "Muestra mixta (Misma condición + Otros niveles)"
 
-    # 3. Si aún faltan, buscar en la condición opuesta aplicando factor de ajuste
     if len(historial_list) < 2:
         cond_opuesta = "visitante" if condicion_sel == "local" else "local"
         df_opuestos = df_base[df_base["Condición"] == cond_opuesta].copy()
@@ -436,7 +452,6 @@ if st.session_state.analizado_equipos:
             historial_list.append(r)
         fuente_datos = "Muestra adaptada con respaldo cruzado"
 
-    # 4. Si de plano no hay nada en esa liga para el equipo, tomar cualquier registro general
     if len(historial_list) == 0:
         for _, row in df_base.head(3).iterrows():
             r = row.to_dict()
