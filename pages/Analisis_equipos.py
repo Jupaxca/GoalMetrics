@@ -837,47 +837,38 @@ if st.session_state.analizado_equipos:
         st.plotly_chart(fig_matrix, use_container_width=True)
 
         st.markdown("---")
-        st.subheader("⛳ Matriz de Calor de Corners (Favor vs Contra)")
-        st.caption("Distribución de probabilidad cruzada de saques de esquina (Equipo vs Rival).")
+        st.subheader("⛳ Probabilidad de Córners (Distribución)")
+        st.caption("Distribución de probabilidad del número de córners simulados para el equipo.")
 
-        max_c = 8
-        matriz_corners = np.zeros((max_c + 1, max_c + 1))
-        text_corners = []
-        for f_c in range(max_c + 1):
-            fila_c = []
-            for c_c in range(max_c + 1):
-                prob_c = float(((s_corn == f_c) & (s_corn_rival == c_c)).mean() * 100.0)
-                matriz_corners[f_c, c_c] = prob_c
-                fila_c.append(f"{prob_c:.1f}%" if prob_c >= 0.1 else "<0.1%")
-            text_corners.append(fila_c)
+        unique_corners, counts_corners = np.unique(s_corn, return_counts=True)
+        probs_corners = (counts_corners / len(s_corn)) * 100
 
-        fig_corners = go.Figure(data=go.Heatmap(
-            z=matriz_corners,
-            x=[str(i) for i in range(max_c + 1)],
-            y=[str(i) for i in range(max_c + 1)],
-            text=text_corners,
-            texttemplate="%{text}",
-            textfont={"size": 11, "color": "white"},
-            colorscale=[[0, "#111827"], [0.5, "#3b82f6"], [1, "#10b981"]],
-            showscale=False
+        fig_corners = go.Figure(data=go.Bar(
+            x=unique_corners,
+            y=probs_corners,
+            marker_color=color_equipo
         ))
         fig_corners.update_layout(
-            title="Corners Rival (Eje X) vs Corners Propios (Eje Y)",
-            xaxis_title="Corners Rival",
-            yaxis_title=f"Corners {equipo_sel}",
+            title=f"Probabilidad de Córners - {equipo_sel}",
+            xaxis_title="Número de Córners",
+            yaxis_title="Probabilidad (%)",
             paper_bgcolor="#0B0F19",
             plot_bgcolor="#0B0F19",
             font=dict(color="#F3F4F6"),
-            height=380,
+            height=350,
             margin=dict(l=40, r=40, t=40, b=40)
         )
         st.plotly_chart(fig_corners, use_container_width=True)
 
         st.markdown("---")
-        st.subheader("📈 Gráfico de Dispersión: Eficiencia y Conversión (Tiros vs Goles)")
-        st.caption("Relación partido a partido entre el volumen de disparos totales y los goles convertidos en la muestra.")
+        st.subheader("📈 Gráfico de Dispersión Avanzado: Tiros, Tiros a Puerta y Goles")
+        st.caption("Relación partido a partido: Tiros Totales (Eje X) vs Goles (Eje Y), con tamaño de marcador proporcional a los Tiros a Puerta.")
 
         if not historial.empty and "Tiros" in historial.columns and "Goles" in historial.columns:
+            # Tamaño proporcional a Tiros a Puerta para enriquecer el gráfico
+            tp_vals = historial["A Puerta"] if "A Puerta" in historial.columns else pd.Series([2]*len(historial))
+            marker_sizes = tp_vals * 4 + 10
+
             fig_scatter = go.Figure()
             fig_scatter.add_trace(go.Scatter(
                 x=historial["Tiros"],
@@ -885,10 +876,17 @@ if st.session_state.analizado_equipos:
                 mode="markers+text",
                 text=historial.get("Rival", ""),
                 textposition="top center",
-                marker=dict(size=12, color=color_equipo, line=dict(width=2, color="white"))
+                marker=dict(
+                    size=marker_sizes,
+                    color=color_equipo,
+                    line=dict(width=2, color="white"),
+                    opacity=0.85
+                ),
+                customdata=tp_vals,
+                hovertemplate="<b>Rival:</b> %{text}<br><b>Tiros Totales:</b> %{x}<br><b>Goles Anotados:</b> %{y}<br><b>Tiros a Puerta:</b> %{customdata:.0f}<extra></extra>"
             ))
             fig_scatter.update_layout(
-                title="Tiros Totales vs Goles por Partido",
+                title="Tiros Totales vs Goles (Tamaño de burbuja = Tiros a Puerta)",
                 xaxis_title="Tiros Totales",
                 yaxis_title="Goles Anotados",
                 paper_bgcolor="#0B0F19",
