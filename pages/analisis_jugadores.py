@@ -461,8 +461,8 @@ if st.session_state.analizado_jugadores:
     # Topes y jerarquía de seguridad lógicos
     lam_g = min(lam_g, 2.0)
     lam_t = min(lam_t, 10.0)
-    lam_p = min(lam_p, lam_t)  # A puerta nunca puede superar a tiros totales
-    lam_g = min(lam_g, lam_p)  # Goles nunca puede superar a tiros a puerta
+    lam_p = min(lam_p, lam_t)  
+    lam_g = min(lam_g, lam_p)  
     lam_a = min(lam_a, 1.5)
     lam_f = min(lam_f, 6.0)
 
@@ -503,7 +503,8 @@ if st.session_state.analizado_jugadores:
         {"nombre": f"Over {linea_contrib} Gol/Asist", "prob": prob_contrib, "cuota": cuota_casa_contrib, "ev": calcular_ev(prob_contrib, cuota_casa_contrib)}
     ]
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Resumen Dinámico", "Value Bet Props", "🤖 Panel Inteligente & Parlay", "Probabilidades", "Detalle"])
+    # Nueva distribución de pestañas con "📈 Líneas y Gráficos"
+    tab1, tab_graficos, tab2, tab3, tab4, tab5 = st.tabs(["Resumen Dinámico", "📈 Líneas y Gráficos", "Value Bet Props", "🤖 Panel Inteligente & Parlay", "Probabilidades", "Detalle"])
 
     with tab1:
         st.subheader(f"Métricas promedio y eficiencia en el escenario: {condicion_sel} vs {nivel_sel}")
@@ -562,28 +563,17 @@ if st.session_state.analizado_jugadores:
 
         with col_res1:
             st.subheader("🕸️ Perfil de Atributos (Radar - Promedio Histórico)")
-            
-            # Usar los promedios reales directos (historial.mean()) para que coincidan 1:1 con los valores numéricos
             avg_g = historial["Goles"].mean() if "Goles" in historial else 0.0
             avg_t = historial["Tiros"].mean() if "Tiros" in historial else 0.0
             avg_p = historial["A Puerta"].mean() if "A Puerta" in historial else 0.0
             avg_a = historial["Asistencias"].mean() if "Asistencias" in historial else 0.0
             avg_f = historial["Faltas"].mean() if "Faltas" in historial else 0.0
             
-            # Jerarquía de seguridad lógica
             avg_p = min(avg_p, avg_t)
             avg_g = min(avg_g, avg_p)
 
             categories = ['Goles', 'Tiros', 'A Puerta', 'Asistencias', 'Faltas']
-            
-            # Los valores se mapean directamente de forma absoluta al eje 0-10 (coincidiendo con las etiquetas de la malla)
-            vals = [
-                min(avg_g, 10.0),
-                min(avg_t, 10.0),
-                min(avg_p, 10.0),
-                min(avg_a, 10.0),
-                min(avg_f, 10.0)
-            ]
+            vals = [min(avg_g, 10.0), min(avg_t, 10.0), min(avg_p, 10.0), min(avg_a, 10.0), min(avg_f, 10.0)]
             
             fig_radar = go.Figure(go.Scatterpolar(
                 r=vals + [vals[0]],
@@ -623,6 +613,90 @@ if st.session_state.analizado_jugadores:
                 st.metric("Tiros Totales por Gol", "N/A", "Sin goles en esta muestra")
                 
             st.metric("Partidos en Muestra", n_obs, "Filtro aplicado OK")
+
+    with tab_graficos:
+        st.subheader("📈 Líneas y Gráficos de Probabilidad Acumulada")
+        st.caption(f"Análisis visual de rendimiento y probabilidad acumulada (Over X) para {jugador_sel} en condición de {condicion_sel} vs {nivel_sel}.")
+
+        # 1. Gráfico Radar en esta sección
+        st.markdown("### 🕸️ Perfil de Atributos (Radar)")
+        col_gr1, col_gr2 = st.columns(2)
+        with col_gr1:
+            fig_radar_tab = go.Figure(go.Scatterpolar(
+                r=vals + [vals[0]],
+                theta=categories + [categories[0]],
+                fill='toself',
+                marker=dict(color='#3B82F6'),
+                line=dict(color='#60A5FA', width=2)
+            ))
+            fig_radar_tab.update_layout(
+                polar=dict(
+                    radialaxis=dict(visible=True, range=[0, 10], color="#9ca3af"),
+                    bgcolor="#111827"
+                ),
+                showlegend=False,
+                paper_bgcolor="#0B0F19",
+                plot_bgcolor="#0B0F19",
+                font=dict(color="#F3F4F6", size=11),
+                height=320,
+                margin=dict(l=20, r=20, t=10, b=10)
+            )
+            st.plotly_chart(fig_radar_tab, use_container_width=True)
+
+        with col_gr2:
+            st.markdown("""
+            <div style="background-color: #1F2937; padding: 20px; border-radius: 12px; height: 320px; display: flex; flex-direction: column; justify-content: center;">
+                <h4 style="color: #3B82F6; margin-top: 0;">Resumen del Perfil</h4>
+                <p>Este gráfico de radar mapea los promedios históricos directos del jugador en la muestra analizada, permitiendo identificar rápidamente sus fortalezas en goles, generación de disparos y participación en el juego.</p>
+                <p style="color: #10b981; font-weight: bold;">✔ Escala absoluta sincronizada con la malla de referencia (0-10).</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        # Función auxiliar para crear gráficos de línea acumulados estilo la imagen proporcionada
+        def crear_grafico_acumulado(sim_data, titulo_metrica, color_linea="#10b981", max_linea=4.5):
+            if "Gol" in titulo_metrica:
+                lines = [0.5, 1.5, 2.5, 3.5]
+            elif "Puerta" in titulo_metrica:
+                lines = [0.5, 1.5, 2.5, 3.5, 4.5]
+            else:
+                lines = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5]
+
+            probs = [(sim_data > l).mean() * 100 for l in lines]
+
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=[str(l) for l in lines],
+                y=probs,
+                mode='lines+markers+text',
+                text=[f"{p:.1f}%" if p > 0.05 else "0.0%" for p in probs],
+                textposition="top center",
+                line=dict(color=color_linea, width=3),
+                marker=dict(size=8, color=color_linea)
+            ))
+            fig.update_layout(
+                title=f"Probabilidad Acumulada de {titulo_metrica} (Over X) - {jugador_sel}",
+                xaxis_title=f"Línea de {titulo_metrica} (Over)",
+                yaxis_title="Probabilidad (%)",
+                paper_bgcolor="#0B0F19",
+                plot_bgcolor="#111827",
+                font=dict(color="#F3F4F6", size=11),
+                yaxis=dict(range=[0, 115], gridcolor="#1f2937"),
+                xaxis=dict(gridcolor="#1f2937"),
+                height=350,
+                margin=dict(l=30, r=20, t=40, b=30)
+            )
+            return fig
+
+        # 2. Gráfico Acumulado de Goles
+        st.plotly_chart(crear_grafico_acumulado(sim_goles, "Goles", color_linea="#10b981"), use_container_width=True)
+        
+        # 3. Gráfico Acumulado de Tiros a Puerta
+        st.plotly_chart(crear_grafico_acumulado(sim_puerta, "Tiros a Puerta", color_linea="#3B82F6"), use_container_width=True)
+
+        # 4. Gráfico Acumulado de Tiros Totales
+        st.plotly_chart(crear_grafico_acumulado(sim_tiros, "Tiros Totales", color_linea="#F59E0B"), use_container_width=True)
 
     with tab2:
         st.subheader("Value Bet Props (Gestión Half-Kelly)")
@@ -686,9 +760,9 @@ if st.session_state.analizado_jugadores:
             cuota_justa_combinada = round(100 / prob_conjunta_pct, 2) if prob_conjunta_pct > 0 else 99.0
 
             st.markdown(f"**Probabilidad Conjunta Real (Simulada):** `{prob_conjunta_pct:.2f}%`")
-            st.markdown(f"**Cuota Justa Combinada:** `{c_justa_combinada}`")
+            st.markdown(f"**Cuota Justa Combinada:** `{cuota_justa_combinada}`")
 
-            cuota_casa_parlay = st.number_input("Introduce la cuota total que te paga la casa por esta combinada:", min_value=1.01, value=c_justa_combinada * 0.95, step=0.05, format="%.2f", key="cuota_parlay_jug_input")
+            cuota_casa_parlay = st.number_input("Introduce la cuota total que te paga la casa por esta combinada:", min_value=1.01, value=cuota_justa_combinada * 0.95, step=0.05, format="%.2f", key="cuota_parlay_jug_input")
 
             ev_parlay = calcular_ev(prob_conjunta_pct, cuota_casa_parlay)
             stake_parlay = calcular_kelly(prob_conjunta_pct, cuota_casa_parlay)
