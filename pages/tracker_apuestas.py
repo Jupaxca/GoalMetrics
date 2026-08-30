@@ -1,19 +1,26 @@
 import streamlit as st
 import pandas as pd
 import datetime
-from supabase import create_client, Client
 
 st.set_page_config(page_title="Tracker Pro | GoalMetrics", page_icon="📈", layout="wide")
 
-@st.cache_resource
-def init_supabase() -> Client:
-    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
-
-supabase = init_supabase()
+# ----------------------------------------------------------------------
+# Cliente de Supabase
+# ----------------------------------------------------------------------
+# IMPORTANTE: ya NO creamos un cliente propio con @st.cache_resource aquí.
+# Eso generaba un cliente COMPARTIDO entre todos los usuarios de la app
+# (riesgo de mezclar sesiones). En su lugar, reutilizamos el cliente que
+# app.py ya creó y guardó en st.session_state para esta sesión.
 
 if "user" not in st.session_state or st.session_state.user is None:
     st.warning("Sesión no detectada. Regresa a la página principal e inicia sesión.")
     st.stop()
+
+if "supabase_client" not in st.session_state:
+    st.warning("No se encontró la conexión a la base de datos. Vuelve a la página principal.")
+    st.stop()
+
+supabase = st.session_state.supabase_client
 
 user = st.session_state.user
 user_id = user.id
