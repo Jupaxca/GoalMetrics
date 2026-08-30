@@ -130,6 +130,49 @@ def shrinkage_lambda(lam_obs, lam_prior, n_obs, k=5.0):
     n = max(float(n_obs), 0.0)
     return (n * lam_obs + k * lam_prior) / (n + k)
 
+def obtener_peso_tier(tier):
+    t = str(tier).upper().strip()
+    if "TOP" in t or "CHAMPIONS" in t:
+        return 3
+    elif "MEDIA" in t:
+        return 2
+    elif "DESCENSO" in t or "BAJO" in t:
+        return 1
+    else:
+        return 2
+
+def calcular_factores_respaldo(row_data, condicion_buscada, tier_objetivo):
+    cond_partido = str(row_data.get("Condición", "")).lower()
+    tier_partido = str(row_data.get("Nivel Rival", ""))
+    t_match = obtener_peso_tier(tier_partido)
+
+    if cond_partido == condicion_buscada:
+        f_cond = 1.0
+        tipo_cond = "Misma condición"
+    else:
+        if condicion_buscada == "visitante" and cond_partido == "local":
+            f_cond = 0.90
+            tipo_cond = "Cruzado (Casa -> Fuera)"
+        elif condicion_buscada == "local" and cond_partido == "visitante":
+            f_cond = 1.05
+            tipo_cond = "Cruzado (Fuera -> Casa)"
+        else:
+            f_cond = 1.0
+            tipo_cond = "Cruzado Estándar"
+
+    diff = tier_objetivo - t_match
+    if diff == 0:
+        f_tier = 1.0
+        tipo_tier = "Tier equivalente"
+    elif diff > 0:
+        f_tier = max(0.65, 1.0 - (diff * 0.12))
+        tipo_tier = "Ajuste a la baja"
+    else:
+        f_tier = min(1.35, 1.0 + (abs(diff) * 0.10))
+        tipo_tier = "Ajuste al alza"
+
+    return f_cond * f_tier, f"Respaldo | {tipo_cond} | {tipo_tier} ({tier_partido})"
+
 try:
     df_raw = cargar_datos_jugadores()
     df = calcular_feature_engineering_jugadores(df_raw)
@@ -211,8 +254,10 @@ if total_partidos_jugador == 0:
 else:
     exactos_check = df_jugador[(df_jugador["Condición"] == condicion_sel_lower) & (df_jugador["Nivel Rival"] == nivel_sel)]
     num_exactos = len(exactos_check)
-    if num_exactos > 0:
-        st.sidebar.success(f"{num_exactos} partidos exactos en este baremo")
+    if num_exactos >= 2:
+        st.sidebar.success(f"{num_exactos} partidos exactos (Suficientes)")
+    elif num_exactos == 1:
+        st.sidebar.warning("1 partido exacto -> Respaldo inteligente activo (Mínimo 2)")
     else:
         st.sidebar.error("0 partidos exactos en este baremo")
 
@@ -294,21 +339,80 @@ if st.session_state.analizado_jugadores:
     else:
         df_exactos = pd.DataFrame()
 
+    # REGLA ESTRICTA: Si hay 0 partidos exactos, se detiene y muestra error.
     if len(df_exactos) == 0:
-        st.error(f"❌ No se puede realizar el análisis: Hay 0 partidos registrados para **{jugador_sel}** como **{condicion_sel}** contra rivales nivel **{nivel_sel}** en la liga **{liga_sel}**.")
+        st.error(f"❌ No se puede realizar el análisis: Hay 0 partidos exactos registrados para **{jugador_sel}** como **{condicion_sel}** contra rivales nivel **{nivel_sel}** en la liga **{liga_sel}**.")
         st.stop()
 
-    historial = df_exactos
-    fuente = f"Exactos ({len(historial)} partidos)"
+    UMBRAL_MINIMO = 2
+    t_target = obtener_peso_tier(nivel_sel)
+    historial_list = []
+
+    # 1. Agregar los partidos exactos que existan (si hay 1, se agrega; si hay 2 o más, se agregan)
+    for _, row in df_exactos.iterrows():
+        r = row.to_dict()
+        r["Factor_Ajuste"] = 1.0
+        r["Tipo_Uso"] = f"Exacto ({condicion_sel} vs {nivel_sel})"
+        r["Peso_Contexto"] = 1.0
+        historial_list.append(r)
+        
+    fuente = f"Exactos ({len(historial_list)} partidos)"
+
+    # 2. Si hay menos del mínimo (por ejemplo, hay exactamente 1 partido), activar el respaldo inteligente
+    if len(historial_list) < UMBRAL_MINIMO:
+        if "Condición" in df_jugador.columns:
+            df_misma_cond = df_jugador[(df_jugador["Condición"] == condicion_sel_lower) & (df_jugador["Nivel Rival"] != nivel_sel)].copy()
+        else:
+            df_misma_cond = pd.DataFrame()
+
+        faltantes = UMBRAL_MINIMO - len(historial_list)
+        comodines_tier = df_misma_cond.tail(faltantes)
+
+        for _, row in comodines_tier.iterrows():
+            r = row.to_dict()
+            f_tot, desc = calcular_factores_respaldo(r, condicion_sel_lower, t_target)
+            r["Factor_Ajuste"] = f_tot
+            r["Tipo_Uso"] = desc
+            r["Peso_Contexto"] = 0.85
+            historial_list.append(r)
+        if len(historial_list) > len(df_exactos):
+            fuente = "Muestra mixta (1 Exacto + Respaldo ajustado por Tier)"
+
+    # 3. Si aún faltan, buscar en condición opuesta aplicando factores de condición y tier
+    if len(historial_list) < UMBRAL_MINIMO:
+        opuesto_lower = "local" if condicion_sel_lower == "visitante" else "visitante"
+        if "Condición" in df_jugador.columns:
+            df_contrarios = df_jugador[df_jugador["Condición"] == opuesto_lower].copy()
+        else:
+            df_contrarios = pd.DataFrame()
+
+        faltantes_cruzados = UMBRAL_MINIMO - len(historial_list)
+        comodines_cruzados = df_contrarios.tail(faltantes_cruzados)
+
+        for _, row in comodines_cruzados.iterrows():
+            r = row.to_dict()
+            f_tot, desc = calcular_factores_respaldo(r, condicion_sel_lower, t_target)
+            r["Factor_Ajuste"] = f_tot
+            r["Tipo_Uso"] = desc
+            r["Peso_Contexto"] = 0.75
+            historial_list.append(r)
+        fuente = "Muestra adaptada con respaldo cruzado y ajuste de tier"
+
+    historial = pd.DataFrame(historial_list)
+
+    # Aplicar factor de ajuste a las métricas numéricas del respaldo
+    for col in ["Goles", "Asistencias", "Tiros", "A Puerta", "Faltas"]:
+        if col in historial.columns:
+            historial[col] = historial[col] * historial["Factor_Ajuste"]
 
     n_obs = len(historial)
-    muestra_pequena = n_obs <= 3
+    muestra_pequena = n_obs <= 2
 
     st.markdown(f'<div class="header-box">{liga_sel.upper()} | {jugador_sel.upper()} | {condicion_sel} vs {nivel_sel}</div>', unsafe_allow_html=True)
     st.caption(f"Base analizada: {n_obs} partidos | Fuente: {fuente} | Ensemble Híbrido Activo")
 
     if muestra_pequena:
-        st.warning("Muestra pequeña. Interpreta con cautela.")
+        st.warning("Muestra pequeña (Respaldo activo con 1 partido). Interpreta con cautela.")
 
     hoy = pd.Timestamp.today().normalize()
     if "Fecha" in historial.columns:
@@ -317,7 +421,8 @@ if st.session_state.analizado_jugadores:
     else:
         historial["Peso_Temporal"] = 1.0
 
-    pesos = historial["Peso_Temporal"] / historial["Peso_Temporal"].sum()
+    historial["Peso_Total"] = historial["Peso_Temporal"] * historial["Peso_Contexto"]
+    pesos = historial["Peso_Total"] / historial["Peso_Total"].sum()
 
     def prom_w(col):
         return float(np.average(historial[col].fillna(0), weights=pesos)) if col in historial.columns else 0.0
