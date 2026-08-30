@@ -23,14 +23,11 @@ st.set_page_config(
 def cargar_datos():
     sheet_id = st.secrets.get("EQUIPOS_SHEET_ID", "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg")
     
-    # Lee por defecto la primera pestaña ("Registro de Partidos" con la columna Liga incluida)
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
     df = pd.read_csv(url)
     
-    # Limpiar espacios en blanco de todos los nombres de columnas
     df.columns = df.columns.astype(str).str.strip()
     
-    # Detección de la columna Liga
     if "Liga" in df.columns:
         df["Liga"] = df["Liga"].astype(str).str.strip()
         df["Liga"] = df["Liga"].replace(["nan", "None", ""], "Sin Liga")
@@ -119,6 +116,49 @@ def predecir_probabilidad_hibrida(prob_poisson, equipo_actual_df, features_model
 def shrinkage_lambda(lam_obs, lam_prior, n_obs, k=5.0):
     n = max(float(n_obs), 0.0)
     return (n * lam_obs + k * lam_prior) / (n + k)
+
+def obtener_peso_tier(tier):
+    t = str(tier).upper().strip()
+    if "TOP" in t or "CHAMPIONS" in t:
+        return 3
+    elif "MEDIA" in t:
+        return 2
+    elif "DESCENSO" in t or "BAJO" in t:
+        return 1
+    else:
+        return 2
+
+def calcular_factores_respaldo(row_data, condicion_buscada, tier_objetivo):
+    cond_partido = str(row_data.get("Condición", "")).lower()
+    tier_partido = str(row_data.get("Nivel Rival", ""))
+    t_match = obtener_peso_tier(tier_partido)
+
+    if cond_partido == condicion_buscada:
+        f_cond = 1.0
+        tipo_cond = "Misma condición"
+    else:
+        if condicion_buscada == "visitante" and cond_partido == "local":
+            f_cond = 0.90
+            tipo_cond = "Cruzado (Casa -> Fuera)"
+        elif condicion_buscada == "local" and cond_partido == "visitante":
+            f_cond = 1.05
+            tipo_cond = "Cruzado (Fuera -> Casa)"
+        else:
+            f_cond = 1.0
+            tipo_cond = "Cruzado Estándar"
+
+    diff = tier_objetivo - t_match
+    if diff == 0:
+        f_tier = 1.0
+        tipo_tier = "Tier equivalente"
+    elif diff > 0:
+        f_tier = max(0.65, 1.0 - (diff * 0.12))
+        tipo_tier = "Ajuste a la baja"
+    else:
+        f_tier = min(1.35, 1.0 + (abs(diff) * 0.10))
+        tipo_tier = "Ajuste al alza"
+
+    return f_cond * f_tier, f"Respaldo | {tipo_cond} | {tipo_tier} ({tier_partido})"
 
 def dixon_coles_tau(x, y, lam_x, lam_y, rho):
     if x == 0 and y == 0:
@@ -224,8 +264,10 @@ exactos_check = df_diagnostico[
 ]
 num_exactos = len(exactos_check)
 
-if num_exactos > 0:
-    st.sidebar.success(f"{num_exactos} partidos exactos en este baremo")
+if num_exactos >= 2:
+    st.sidebar.success(f"{num_exactos} partidos exactos (Suficientes)")
+elif num_exactos == 1:
+    st.sidebar.warning("1 partido exacto -> Respaldo inteligente activo (Mínimo 2)")
 else:
     st.sidebar.error("0 partidos exactos en este baremo")
 
@@ -391,28 +433,103 @@ with c2:
         st.rerun()
 
 if st.session_state.analizado_equipos:
-    # Validar estrictamente si hay partidos en el baremo seleccionado
-    df_exactos = df_diagnostico[
-        (df_diagnostico["Condición"] == condicion_sel) & (df_diagnostico["Nivel Rival"] == nivel_sel)
-    ].copy()
+    df_equipo = df_liga[df_liga["Equipo"] == equipo_sel].copy()
+    if "Fecha" in df_equipo.columns:
+        df_equipo = df_equipo.sort_values("Fecha")
 
+    if "Condición" in df_equipo.columns and "Nivel Rival" in df_equipo.columns:
+        df_exactos = df_equipo[(df_equipo["Condición"] == condicion_sel) & (df_equipo["Nivel Rival"] == nivel_sel)].copy()
+    else:
+        df_exactos = pd.DataFrame()
+
+    # REGLA ESTRICTA: Si hay 0 partidos exactos, se detiene y muestra error.
     if len(df_exactos) == 0:
-        st.error(f"❌ No se puede realizar el análisis: Hay 0 partidos registrados para **{equipo_sel}** como **{condicion_label}** contra rivales nivel **{nivel_sel}** en la liga **{liga_sel}**.")
+        st.error(f"❌ No se puede realizar el análisis: Hay 0 partidos exactos registrados para **{equipo_sel}** como **{condicion_label}** contra rivales nivel **{nivel_sel}** en la liga **{liga_sel}**.")
         st.stop()
 
-    historial = df_exactos
-    fuente_datos = f"Exactos ({len(historial)} partidos)"
+    UMBRAL_MINIMO = 2
+    t_target = obtener_peso_tier(nivel_sel)
+    historial_list = []
+
+    for _, row in df_exactos.iterrows():
+        r = row.to_dict()
+        r["Factor_Ajuste"] = 1.0
+        r["Tipo_Uso"] = f"Exacto ({condicion_label} vs {nivel_sel})"
+        r["Peso_Contexto"] = 1.0
+        historial_list.append(r)
+        
+    fuente_datos = f"Exactos ({len(historial_list)} partidos)"
+
+    # Respaldo si hay 1 solo partido exacto
+    if len(historial_list) < UMBRAL_MINIMO:
+        if "Condición" in df_equipo.columns:
+            df_misma_cond = df_equipo[(df_equipo["Condición"] == condicion_sel) & (df_equipo["Nivel Rival"] != nivel_sel)].copy()
+        else:
+            df_misma_cond = pd.DataFrame()
+
+        faltantes = UMBRAL_MINIMO - len(historial_list)
+        comodines_tier = df_misma_cond.tail(faltantes)
+
+        for _, row in comodines_tier.iterrows():
+            r = row.to_dict()
+            f_tot, desc = calcular_factores_respaldo(r, condicion_sel, t_target)
+            r["Factor_Ajuste"] = f_tot
+            r["Tipo_Uso"] = desc
+            r["Peso_Contexto"] = 0.85
+            historial_list.append(r)
+        if len(historial_list) > len(df_exactos):
+            fuente_datos = "Muestra mixta (1 Exacto + Respaldo ajustado por Tier)"
+
+    if len(historial_list) < UMBRAL_MINIMO:
+        opuesto_lower = "local" if condicion_sel == "visitante" else "visitante"
+        if "Condición" in df_equipo.columns:
+            df_contrarios = df_equipo[df_equipo["Condición"] == opuesto_lower].copy()
+        else:
+            df_contrarios = pd.DataFrame()
+
+        faltantes_cruzados = UMBRAL_MINIMO - len(historial_list)
+        comodines_cruzados = df_contrarios.tail(faltantes_cruzados)
+
+        for _, row in comodines_cruzados.iterrows():
+            r = row.to_dict()
+            f_tot, desc = calcular_factores_respaldo(r, condicion_sel, t_target)
+            r["Factor_Ajuste"] = f_tot
+            r["Tipo_Uso"] = desc
+            r["Peso_Contexto"] = 0.75
+            historial_list.append(r)
+        fuente_datos = "Muestra adaptada con respaldo cruzado y ajuste de tier"
+
+    historial = pd.DataFrame(historial_list)
+
+    cols_numericas_ajustar = ["Goles", "Goles Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Atajadas", "Amarillas", "Rojas", "Corners Rival"]
+    for col in cols_numericas_ajustar:
+        if col in historial.columns:
+            historial[col] = historial[col] * historial["Factor_Ajuste"]
+
+    if "Goles" in historial.columns and "Goles Rival" in historial.columns:
+        historial["Diff_Goles"] = historial["Goles"] - historial["Goles Rival"]
+    if "Goles Rival" in historial.columns and "Atajadas" in historial.columns:
+        historial["Tiros a Puerta Rival"] = historial["Goles Rival"] + historial["Atajadas"]
 
     n_obs = len(historial)
-    muestra_pequena = n_obs <= 3
+    muestra_pequena = n_obs <= 2
     hoy = pd.Timestamp.today().normalize()
-    historial["Dias_Pasados"] = (hoy - pd.to_datetime(historial["Fecha"])).dt.days.replace(0, 0.1)
-    historial["Peso"] = 1 / (1 + (historial["Dias_Pasados"] / 30))
+    if "Fecha" in historial.columns:
+        historial["Dias_Pasados"] = (hoy - pd.to_datetime(historial["Fecha"])).dt.days.replace(0, 0.1)
+        historial["Peso_Temporal"] = 1 / (1 + (historial["Dias_Pasados"] / 30))
+    else:
+        historial["Peso_Temporal"] = 1.0
+
+    if "Peso_Contexto" not in historial.columns:
+        historial["Peso_Contexto"] = 1.0
+
+    historial["Peso_Total"] = historial["Peso_Temporal"] * historial["Peso_Contexto"]
+    pesos = historial["Peso_Total"] / historial["Peso_Total"].sum()
 
     def prom(col):
         if col not in historial.columns or len(historial) == 0:
             return 0.05
-        return round(float(np.average(historial[col].fillna(0), weights=historial["Peso"])), 4)
+        return round(float(np.average(historial[col].fillna(0), weights=pesos)), 4)
 
     lam_f_raw, lam_c_raw = prom("Goles"), prom("Goles Rival")
     lam_t_raw, lam_tp_raw = prom("Tiros"), prom("A Puerta")
@@ -486,6 +603,9 @@ if st.session_state.analizado_equipos:
     st.markdown(f'<div class="header-box">{liga_sel_html.upper()} | {equipo_sel_html.upper()} - {condicion_label.upper()} vs {nivel_sel_html.upper()}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="veredicto-box"><b>Veredicto:</b> {html.escape(veredicto)}</div>', unsafe_allow_html=True)
     st.caption(f"Base: {n_obs} partidos - {fuente_datos} | Ensemble Híbrido Activo")
+
+    if muestra_pequena:
+        st.warning("Muestra pequeña (Respaldo activo con 1 partido exacto). Interpreta con cautela.")
 
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["Resumen", "Value Bet", "🤖 Panel Inteligente", "Solidez Defensiva", "Fase Ofensiva", "Lineas y Graficos", "Detalle"])
 
@@ -665,7 +785,7 @@ if st.session_state.analizado_equipos:
     with tab7:
         h_mostrar = historial.copy().sort_values(by="Fecha", ascending=False)
         h_mostrar["Fecha"] = pd.to_datetime(h_mostrar["Fecha"]).dt.strftime("%Y-%m-%d")
-        cols = [c for c in ["Fecha", "Liga", "Condición", "Rival", "Nivel Rival", "Goles", "Goles Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Tipo_Uso"] if c in h_mostrar.columns]
+        cols = [c for c in ["Fecha", "Liga", "Condición", "Rival", "Nivel Rival", "Goles", "Goles Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Tipo_Uso", "Factor_Ajuste"] if c in h_mostrar.columns]
         st.dataframe(h_mostrar[cols], hide_index=True, use_container_width=True)
 else:
     st.info("Configura el partido en la barra lateral y pulsa Analizar.")
