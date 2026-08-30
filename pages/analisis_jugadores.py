@@ -313,6 +313,18 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, real=None):
 st.markdown("### Centro de Analisis Individual de Jugadores (Híbrido)")
 st.caption("Asistente inteligente de apuestas con control de dificultad de rival, ensemble XGBoost y análisis de valor matemático.")
 
+# Guía detallada que explica cómo funciona todo hasta la parte de shrinkage en jugadores
+with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis de Jugadores?", expanded=False):
+    st.markdown("""
+    Bienvenido al **Centro de Análisis de Jugadores de GoalMetrics**. Esta herramienta combina estadística avanzada y Machine Learning enfocado en rendimiento individual (*Player Props*). Aquí te detallamos cómo opera cada módulo interno:
+    
+    * **1. Filtros y Contexto:** Seleccionas la Liga, el Jugador, la Condición (Local/Visitante) y el Nivel del Rival para aislar el escenario correcto.
+    * **2. Respaldo Inteligente (Muestra Pequeña):** Si el jugador cuenta con pocos registros exactos en ese filtro, el sistema activa automáticamente un respaldo cruzado o por Tier con factores de ponderación para asegurar una muestra robusta sin bloquearse.
+    * **3. Modelo Estadístico Base (Poisson):** Calcula la tasa esperada de ocurrencia ($\lambda$) de goles, tiros, tiros a puerta, asistencias y faltas ponderando la cercanía temporal de los partidos (dando mayor peso a los encuentros recientes).
+    * **4. Shrinkage (Regresión a la Media):** Cuando está activado (**ON**), toma las estadísticas observadas del jugador y las ajusta empujándolas levemente hacia el promedio general de su categoría según la fuerza del prior (*k*). Esto evita sobreestimaciones causadas por rachas cortas o partidos atípicos.
+    * **5. Ensemble XGBoost y Valor Matemático (EV / Kelly):** Combina el modelo estocástico con Machine Learning (XGBoost) para refinar las probabilidades en goles y contribuciones, calculando el valor esperado (EV) y el porcentaje de bank recomendado mediante el criterio de Half-Kelly.
+    """)
+
 if "analizado_jugadores" not in st.session_state:
     st.session_state.analizado_jugadores = False
 
@@ -539,7 +551,6 @@ if st.session_state.analizado_jugadores:
 
         st.markdown("---")
         
-        # Diseño de 2 columnas: Gráfico de Radar (Perfil de Atributos) + Eficiencia y Conversión
         col_res1, col_res2 = st.columns([1, 1])
 
         with col_res1:
