@@ -258,7 +258,7 @@ with st.sidebar.expander("Partido", expanded=True):
     condicion_sel = condicion_label.lower()
     nivel_sel = st.selectbox("Nivel del Rival", lista_niveles)
 
-# Validación de partidos exactos en el baremo seleccionado
+# Validación de partidos exactos en el filtro seleccionado
 df_diagnostico = df_equipo.sort_values(by="Fecha", ascending=False)
 exactos_check = df_diagnostico[
     (df_diagnostico["Condición"] == condicion_sel) & (df_diagnostico["Nivel Rival"] == nivel_sel)
@@ -270,7 +270,7 @@ if num_exactos >= 2:
 elif num_exactos == 1:
     st.sidebar.warning("1 partido exacto -> Respaldo inteligente activo (Mínimo 2)")
 else:
-    st.sidebar.error("0 partidos exactos en este baremo")
+    st.sidebar.error("0 partidos exactos en este filtro")
 
 with st.sidebar.expander("Lineas de Estudio"):
     linea_goles = st.slider("Goles (equipo)", 0.5, 3.5, 1.5, 0.5)
@@ -761,9 +761,9 @@ if st.session_state.analizado_equipos:
         d4.metric("Corners Concedidos (Prom.)", f"{prom_corners_rival:.1f}")
 
         if prom_g_rival > 0:
-            feedback_def = f"En faceta defensiva dentro de este baremo, el equipo permite un promedio de **{prom_tp_rival:.1f} tiros a puerta** por partido y recibe **{prom_g_rival:.2f} goles**, lo que equivale a recibir un gol cada **{ratio_tp_gol_contra:.1f} tiros a puerta** en contra. Asimismo, concede un promedio de **{prom_corners_rival:.1f} corners** al rival."
+            feedback_def = f"En la faceta defensiva dentro de este contexto analítico, el equipo permite un promedio de {prom_tp_rival:.1f} tiros a puerta por partido y recibe {prom_g_rival:.2f} goles, lo que equivale a recibir un gol cada {ratio_tp_gol_contra:.1f} tiros a puerta en contra. Asimismo, concede un promedio de {prom_corners_rival:.1f} corners al rival."
         else:
-            feedback_def = f"El equipo mantiene una defensa sólida en esta muestra, permitiendo **{prom_tp_rival:.1f} tiros a puerta** en promedio sin encajar goles en contra."
+            feedback_def = f"El equipo mantiene una defensa sólida en esta muestra, permitiendo {prom_tp_rival:.1f} tiros a puerta en promedio sin encajar goles en contra."
         st.markdown(f'<div class="veredicto-box"><b>🔍 Retroalimentación Defensiva:</b><br>{feedback_def}</div>', unsafe_allow_html=True)
 
     with tab5:
@@ -794,9 +794,9 @@ if st.session_state.analizado_equipos:
         o8.metric("Tarjetas (Amarillas / Rojas)", f"{prom_amarillas:.1f} A / {prom_rojas:.1f} R")
 
         if prom_goles > 0:
-            feedback_of = f"En la faceta ofensiva dentro de este baremo, el equipo genera **{prom_tiros:.1f} tiros totales** y **{prom_tp:.1f} tiros a puerta** por encuentro, anotando **{prom_goles:.2f} goles**. Necesita en promedio **{ratio_tiros_gol:.1f} tiros totales** (o **{ratio_tp_gol:.1f} a puerta**) para convertir un gol. Además, cobra un promedio de **{prom_corners:.1f} corners**, comete **{prom_faltas:.1f} faltas** y recibe **{prom_amarillas:.1f} amarillas** y **{prom_rojas:.1f} rojas**."
+            feedback_of = f"En la faceta ofensiva dentro de este contexto analítico, el equipo genera {prom_tiros:.1f} tiros totales y {prom_tp:.1f} tiros a puerta por encuentro, anotando {prom_goles:.2f} goles. Necesita en promedio {ratio_tiros_gol:.1f} tiros totales (o {ratio_tp_gol:.1f} a puerta) para convertir un gol. Además, cobra un promedio de {prom_corners:.1f} corners, comete {prom_faltas:.1f} faltas y recibe {prom_amarillas:.1f} amarillas y {prom_rojas:.1f} rojas."
         else:
-            feedback_of = f"El equipo registra una producción ofensiva de **{prom_tiros:.1f} tiros** y **{prom_tp:.1f} a puerta**, sin goles anotados en esta muestra específica."
+            feedback_of = f"El equipo registra una producción ofensiva de {prom_tiros:.1f} tiros y {prom_tp:.1f} a puerta, sin goles anotados en esta muestra específica."
         st.markdown(f'<div class="veredicto-box"><b>🔍 Retroalimentación Ofensiva:</b><br>{feedback_of}</div>', unsafe_allow_html=True)
 
     with tab6:
