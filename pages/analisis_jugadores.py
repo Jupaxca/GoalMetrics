@@ -319,9 +319,10 @@ with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis de Jugador
     
     * **1. Filtros y Contexto:** Seleccionas la Liga, el Jugador, la Condición (Local/Visitante) y el Nivel del Rival para aislar el escenario correcto.
     * **2. Respaldo Inteligente (Muestra Pequeña):** Si el jugador cuenta con pocos registros exactos en ese filtro, el sistema activa automáticamente un respaldo cruzado o por Tier con factores de ponderación para asegurar una muestra robusta sin bloquearse.
-    * **3. Modelo Estadístico Base (Poisson):** Calcula la tasa esperada de ocurrencia ($\lambda$) de goles, tiros, tiros a puerta, asistencias y faltas ponderando la cercanía temporal de los partidos (dando mayor peso a los encuentros recientes).
-    * **4. Shrinkage (Regresión a la Media):** Cuando está activado (**ON**), toma las estadísticas observadas del jugador y las ajusta empujándolas levemente hacia el promedio general de su categoría según la fuerza del prior (*k*). Esto evita sobreestimaciones causadas por rachas cortas o partidos atípicos.
-    * **5. Ensemble XGBoost y Valor Matemático (EV / Kelly):** Combina el modelo estocástico con Machine Learning (XGBoost) para refinar las probabilidades en goles y contribuciones, calculando el valor esperado (EV) y el porcentaje de bank recomendado mediante el criterio de Half-Kelly.
+    * **3. Modelo Estadístico Base (Poisson):** Calcula la tasa esperada de ocurrencia ($\lambda$) de goles, tiros, tiros a puerta, asistencias y faltas ponderando la cercanía temporal de los partidos.
+    * **4. Shrinkage (Regresión a la Media):** Cuando está activado (**ON**), toma las estadísticas observadas y las ajusta empujándolas levemente hacia el promedio general de su categoría según la fuerza del prior (*k*).
+    * **5. Eficiencia, Conversión y Volatilidad:** El Resumen Dinámico evalúa ratios de conversión a gol y la **Volatilidad (Desviación Estándar)** en goles, asistencias y tiros a puerta. Una volatilidad baja indica constancia y fiabilidad partido a partido; una volatilidad alta señala a un jugador irregular o dependiente de rachas.
+    * **6. Ensemble XGBoost y Valor Matemático (EV / Kelly):** Combina el modelo estocástico con Machine Learning (XGBoost) para refinar probabilidades, calculando el valor esperado (EV) y el porcentaje de bank recomendado mediante Half-Kelly.
     """)
 
 if "analizado_jugadores" not in st.session_state:
@@ -529,6 +530,13 @@ if st.session_state.analizado_jugadores:
         else:
             estado_momentum = "⚖️ <b>Momentum estable:</b> Su dinámica actual se alinea con su promedio histórico."
 
+        # Evaluamos la volatilidad de forma automática para el texto descriptivo
+        volatilidad_goles_val = historial["Goles"].std() if "Goles" in historial and len(historial) > 1 else 0.0
+        volatilidad_puerta_val = historial["A Puerta"].std() if "A Puerta" in historial and len(historial) > 1 else 0.0
+
+        desc_vol_goles = "baja (jugador consistente de cara al gol)" if volatilidad_goles_val < 0.6 else "alta (jugador de rachas o montaña rusa)"
+        desc_vol_puerta = "baja (garantiza remates al arco estables partido a partido)" if volatilidad_puerta_val < 0.8 else "alta (rendimiento irregular en disparos al arco)"
+
         freq_gol_txt = f"anota un gol cada <b>{partidos_por_gol:.1f} partidos</b>" if partidos_por_gol > 0 else "baja incidencia goleadora"
         freq_asist_txt = f"reparte una asistencia cada <b>{partidos_por_asist:.1f} partidos</b>" if partidos_por_asist > 0 else "baja incidencia en pases de gol"
 
@@ -537,6 +545,7 @@ if st.session_state.analizado_jugadores:
             f"• En este escenario, el jugador {freq_gol_txt} y {freq_asist_txt}.<br>"
             f"• <b>Porcentaje de Contribución Real:</b> Aporta al menos un gol o asistencia en el <b>{pct_contribucion_real:.1f}%</b> de sus encuentros bajo este contexto.<br>"
             f"• <b>Evaluación frente a la línea de Gol o Asistencia (Over {linea_contrib}):</b> La probabilidad híbrida proyectada es del <b>{prob_contrib:.1f}%</b>.<br>"
+            f"• <b>Lectura de Confiabilidad:</b> Su volatilidad en goles es <b>{desc_vol_goles}</b> y en tiros a puerta es <b>{desc_vol_puerta}</b>.<br>"
             f"• {estado_momentum}"
         )
 
@@ -558,7 +567,7 @@ if st.session_state.analizado_jugadores:
 
         st.markdown("---")
         
-        # Panel de Eficiencia y Volatilidad (con Volatilidad de Goles y Volatilidad de Asistencias)
+        # Panel de Eficiencia y Volatilidad
         col_ef1, col_ef2 = st.columns([1, 1])
 
         with col_ef1:
@@ -583,13 +592,11 @@ if st.session_state.analizado_jugadores:
 
         with col_ef2:
             st.subheader("🛡️ Confiabilidad y Volatilidad")
-            volatilidad_goles = historial["Goles"].std() if "Goles" in historial and len(historial) > 1 else 0.0
             volatilidad_asistencias = historial["Asistencias"].std() if "Asistencias" in historial and len(historial) > 1 else 0.0
-            volatilidad_tiros = historial["Tiros"].std() if "Tiros" in historial and len(historial) > 1 else 0.0
             
-            st.metric("Volatilidad Goleadora (Desv. Est.)", f"{volatilidad_goles:.2f}", "Consistencia en anotación")
+            st.metric("Volatilidad Goleadora (Desv. Est.)", f"{volatilidad_goles_val:.2f}", "Consistencia en anotación")
             st.metric("Volatilidad de Asistencias", f"{volatilidad_asistencias:.2f}", "Consistencia en pases de gol")
-            st.metric("Volatilidad de Disparos", f"{volatilidad_tiros:.2f}", "Variabilidad en volumen de tiros")
+            st.metric("Volatilidad de Tiros a Puerta", f"{volatilidad_puerta_val:.2f}", "Variabilidad en remates al arco")
 
     with tab_graficos:
         st.subheader("📈 Líneas y Gráficos de Probabilidad Acumulada")
