@@ -619,9 +619,9 @@ if st.session_state.analizado_jugadores:
             cuota_justa_combinada = round(100 / prob_conjunta_pct, 2) if prob_conjunta_pct > 0 else 99.0
 
             st.markdown(f"**Probabilidad Conjunta Real (Simulada):** `{prob_conjunta_pct:.2f}%`")
-            st.markdown(f"**Cuota Justa Combinada:** `{c_justa_combinada}`")
+            st.markdown(f"**Cuota Justa Combinada:** `{cuota_justa_combinada}`")
 
-            cuota_casa_parlay = st.number_input("Introduce la cuota total que te paga la casa por esta combinada:", min_value=1.01, value=c_justa_combinada * 0.95, step=0.05, format="%.2f", key="cuota_parlay_jug_input")
+            cuota_casa_parlay = st.number_input("Introduce la cuota total que te paga la casa por esta combinada:", min_value=1.01, value=cuota_justa_combinada * 0.95, step=0.05, format="%.2f", key="cuota_parlay_jug_input")
 
             ev_parlay = calcular_ev(prob_conjunta_pct, cuota_casa_parlay)
             stake_parlay = calcular_kelly(prob_conjunta_pct, cuota_casa_parlay)
@@ -647,13 +647,12 @@ if st.session_state.analizado_jugadores:
 
     with tab5:
         st.subheader("📊 Líneas y Gráficos del Jugador")
-        st.caption("Visualización compacta del perfil de atributos (Radar) y badges de rendimiento reciente (sin desbordar la interfaz).")
+        st.caption("Visualización compacta del perfil de atributos (Radar) y mapa de densidad / distribución de rendimiento.")
 
         col_g1, col_g2 = st.columns([1.2, 1])
 
         with col_g1:
             st.markdown("##### 🕸️ Perfil de Atributos (Radar Chart)")
-            # Gráfico de Radar compacto de tamaño fijo
             categories = ['Goles', 'Tiros', 'A Puerta', 'Asistencias', 'Faltas']
             vals = [
                 min(lam_g * 3.33, 10),
@@ -684,30 +683,29 @@ if st.session_state.analizado_jugadores:
             st.plotly_chart(fig_radar, use_container_width=True)
 
         with col_g2:
-            st.markdown("##### 🔥 Forma Reciente (Últimos Partidos)")
-            ultimos_5 = historial.tail(5)
-            if not ultimos_5.empty:
-                for _, row_m in ultimos_5.iterrows():
-                    g = int(row_m.get("Goles", 0))
-                    a = int(row_m.get("Asistencias", 0))
-                    t = int(row_m.get("Tiros", 0))
-                    rival_n = row_m.get("Rival", "Rival")
-                    fecha_m = pd.to_datetime(row_m.get("Fecha", "")).strftime("%d/%m") if pd.notna(row_m.get("Fecha")) else ""
-                    
-                    badge_html = ""
-                    if g > 0: badge_html += f" ⚽x{g}" if g > 1 else " ⚽ Gol"
-                    if a > 0: badge_html += f" 🅰️x{a}" if a > 1 else " 🅰️ Asist"
-                    if badge_html == "": badge_html = " ❌ Sin aporte"
-                    
-                    st.markdown(
-                        f'<div style="background-color: #1F2937; padding: 8px 12px; border-radius: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 13px;">'
-                        f'<span><b>{fecha_m}</b> <span style="color:#9ca3af; font-size:11px;">vs {rival_n}</span></span>'
-                        f'<span style="color: #10b981; font-weight: bold;">{badge_html} (Tiros: {t})</span>'
-                        f'</div>',
-                        unsafe_allow_html=True
-                    )
+            st.markdown("##### 📈 Mapa de Densidad / Dispersión (Tiros vs Goles)")
+            if not historial.empty and "Tiros" in historial.columns and "Goles" in historial.columns:
+                fig_density = px.density_heatmap(
+                    historial,
+                    x="Tiros",
+                    y="Goles",
+                    color_continuous_scale=["#111827", "#1d4ed8", "#10b981"],
+                    nbinsx=6,
+                    nbinsy=4
+                )
+                fig_density.update_layout(
+                    paper_bgcolor="#0B0F19",
+                    plot_bgcolor="#0B0F19",
+                    font=dict(color="#F3F4F6", size=11),
+                    height=320,
+                    margin=dict(l=30, r=30, t=20, b=20),
+                    xaxis_title="Tiros Totales",
+                    yaxis_title="Goles Anotados",
+                    coloraxis_showscale=False
+                )
+                st.plotly_chart(fig_density, use_container_width=True)
             else:
-                st.info("Sin registros recientes.")
+                st.info("Sin registros suficientes para el mapa de densidad.")
 
     with tab6:
         st.subheader("Detalle y Auditoría")
