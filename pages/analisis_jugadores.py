@@ -484,7 +484,7 @@ if st.session_state.analizado_jugadores:
         {"nombre": f"Over {linea_contrib} Gol/Asist", "prob": prob_contrib, "cuota": cuota_casa_contrib, "ev": calcular_ev(prob_contrib, cuota_casa_contrib)}
     ]
 
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Resumen Dinámico", "Value Bet Props", "🤖 Panel Inteligente & Parlay", "Probabilidades", "Líneas y Gráficos", "Detalle"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Resumen Dinámico", "Value Bet Props", "🤖 Panel Inteligente & Parlay", "Probabilidades", "Detalle"])
 
     with tab1:
         st.subheader(f"Métricas promedio y eficiencia en el escenario: {condicion_sel} vs {nivel_sel}")
@@ -538,24 +538,58 @@ if st.session_state.analizado_jugadores:
             col_target.metric(f"Prom. {var}", f"{datos['prom']:.2f}", f"λ: {datos['lam']:.2f}")
 
         st.markdown("---")
-        st.subheader("🎯 Eficiencia y Conversión en el Escenario")
         
-        total_goles_escenario = historial["Goles"].sum() if "Goles" in historial else 0
-        total_puerta_escenario = historial["A Puerta"].sum() if "A Puerta" in historial else 0
-        total_tiros_escenario = historial["Tiros"].sum() if "Tiros" in historial else 0
-        
-        ratio_puerta_gol = total_puerta_escenario / total_goles_escenario if total_goles_escenario > 0 else 0.0
-        ratio_tiros_gol = total_tiros_escenario / total_goles_escenario if total_goles_escenario > 0 else 0.0
-        
-        e1, e2, e3 = st.columns(3)
-        if total_goles_escenario > 0:
-            e1.metric("Tiros a Puerta por Gol", f"{ratio_puerta_gol:.1f} tiros", "Ratio de conversión a puerta")
-            e2.metric("Tiros Totales por Gol", f"{ratio_tiros_gol:.1f} tiros", "Eficiencia global de disparo")
-        else:
-            e1.metric("Tiros a Puerta por Gol", "N/A", "Sin goles en esta muestra")
-            e2.metric("Tiros Totales por Gol", "N/A", "Sin goles en esta muestra")
+        # Diseño de 2 columnas: Gráfico de Radar (Perfil de Atributos) + Eficiencia y Conversión
+        col_res1, col_res2 = st.columns([1, 1])
+
+        with col_res1:
+            st.subheader("🕸️ Perfil de Atributos (Radar)")
+            categories = ['Goles', 'Tiros', 'A Puerta', 'Asistencias', 'Faltas']
+            vals = [
+                min(lam_g * 3.33, 10),
+                min(lam_t / 1.0, 10),
+                min(lam_p * 3.33, 10),
+                min(lam_a * 5.0, 10),
+                min(lam_f * 2.0, 10)
+            ]
+            fig_radar = go.Figure(go.Scatterpolar(
+                r=vals + [vals[0]],
+                theta=categories + [categories[0]],
+                fill='toself',
+                marker=dict(color='#3B82F6'),
+                line=dict(color='#60A5FA', width=2)
+            ))
+            fig_radar.update_layout(
+                polar=dict(
+                    radialaxis=dict(visible=True, range=[0, 10], color="#9ca3af"),
+                    bgcolor="#111827"
+                ),
+                showlegend=False,
+                paper_bgcolor="#0B0F19",
+                plot_bgcolor="#0B0F19",
+                font=dict(color="#F3F4F6", size=11),
+                height=280,
+                margin=dict(l=20, r=20, t=10, b=10)
+            )
+            st.plotly_chart(fig_radar, use_container_width=True)
+
+        with col_res2:
+            st.subheader("🎯 Eficiencia y Conversión")
+            total_goles_escenario = historial["Goles"].sum() if "Goles" in historial else 0
+            total_puerta_escenario = historial["A Puerta"].sum() if "A Puerta" in historial else 0
+            total_tiros_escenario = historial["Tiros"].sum() if "Tiros" in historial else 0
             
-        e3.metric("Partidos en Muestra", n_obs, "Filtro aplicado OK")
+            ratio_puerta_gol = total_puerta_escenario / total_goles_escenario if total_goles_escenario > 0 else 0.0
+            ratio_tiros_gol = total_tiros_escenario / total_goles_escenario if total_goles_escenario > 0 else 0.0
+            
+            if total_goles_escenario > 0:
+                st.metric("Tiros a Puerta por Gol", f"{ratio_puerta_gol:.1f} tiros", "Ratio de conversión a puerta")
+                st.metric("Tiros Totales por Gol", f"{ratio_tiros_gol:.1f} tiros", "Eficiencia global de disparo")
+            else:
+                st.metric("Tiros a Puerta por Gol", "N/A", "Sin goles en esta muestra")
+                st.metric("Tiros Totales por Gol", "N/A", "Sin goles en esta muestra")
+                
+            st.metric("Partidos en Muestra", n_obs, "Filtro aplicado OK")
 
     with tab2:
         st.subheader("Value Bet Props (Gestión Half-Kelly)")
@@ -619,9 +653,9 @@ if st.session_state.analizado_jugadores:
             cuota_justa_combinada = round(100 / prob_conjunta_pct, 2) if prob_conjunta_pct > 0 else 99.0
 
             st.markdown(f"**Probabilidad Conjunta Real (Simulada):** `{prob_conjunta_pct:.2f}%`")
-            st.markdown(f"**Cuota Justa Combinada:** `{cuota_justa_combinada}`")
+            st.markdown(f"**Cuota Justa Combinada:** `{c_justa_combinada}`")
 
-            cuota_casa_parlay = st.number_input("Introduce la cuota total que te paga la casa por esta combinada:", min_value=1.01, value=cuota_justa_combinada * 0.95, step=0.05, format="%.2f", key="cuota_parlay_jug_input")
+            cuota_casa_parlay = st.number_input("Introduce la cuota total que te paga la casa por esta combinada:", min_value=1.01, value=c_justa_combinada * 0.95, step=0.05, format="%.2f", key="cuota_parlay_jug_input")
 
             ev_parlay = calcular_ev(prob_conjunta_pct, cuota_casa_parlay)
             stake_parlay = calcular_kelly(prob_conjunta_pct, cuota_casa_parlay)
@@ -646,68 +680,6 @@ if st.session_state.analizado_jugadores:
         st.metric(f"Prob. Gol/Asist > {linea_contrib}", f"{prob_contrib:.1f}%")
 
     with tab5:
-        st.subheader("📊 Líneas y Gráficos del Jugador")
-        st.caption("Visualización compacta del perfil de atributos (Radar) y mapa de densidad / distribución de rendimiento.")
-
-        col_g1, col_g2 = st.columns([1.2, 1])
-
-        with col_g1:
-            st.markdown("##### 🕸️ Perfil de Atributos (Radar Chart)")
-            categories = ['Goles', 'Tiros', 'A Puerta', 'Asistencias', 'Faltas']
-            vals = [
-                min(lam_g * 3.33, 10),
-                min(lam_t / 1.0, 10),
-                min(lam_p * 3.33, 10),
-                min(lam_a * 5.0, 10),
-                min(lam_f * 2.0, 10)
-            ]
-            fig_radar = go.Figure(go.Scatterpolar(
-                r=vals + [vals[0]],
-                theta=categories + [categories[0]],
-                fill='toself',
-                marker=dict(color='#3B82F6'),
-                line=dict(color='#60A5FA', width=2)
-            ))
-            fig_radar.update_layout(
-                polar=dict(
-                    radialaxis=dict(visible=True, range=[0, 10], color="#9ca3af"),
-                    bgcolor="#111827"
-                ),
-                showlegend=False,
-                paper_bgcolor="#0B0F19",
-                plot_bgcolor="#0B0F19",
-                font=dict(color="#F3F4F6", size=11),
-                height=320,
-                margin=dict(l=30, r=30, t=20, b=20)
-            )
-            st.plotly_chart(fig_radar, use_container_width=True)
-
-        with col_g2:
-            st.markdown("##### 📈 Mapa de Densidad / Dispersión (Tiros vs Goles)")
-            if not historial.empty and "Tiros" in historial.columns and "Goles" in historial.columns:
-                fig_density = px.density_heatmap(
-                    historial,
-                    x="Tiros",
-                    y="Goles",
-                    color_continuous_scale=["#111827", "#1d4ed8", "#10b981"],
-                    nbinsx=6,
-                    nbinsy=4
-                )
-                fig_density.update_layout(
-                    paper_bgcolor="#0B0F19",
-                    plot_bgcolor="#0B0F19",
-                    font=dict(color="#F3F4F6", size=11),
-                    height=320,
-                    margin=dict(l=30, r=30, t=20, b=20),
-                    xaxis_title="Tiros Totales",
-                    yaxis_title="Goles Anotados",
-                    coloraxis_showscale=False
-                )
-                st.plotly_chart(fig_density, use_container_width=True)
-            else:
-                st.info("Sin registros suficientes para el mapa de densidad.")
-
-    with tab6:
         st.subheader("Detalle y Auditoría")
         h_mostrar = historial.copy()
         if "Fecha" in h_mostrar.columns:
