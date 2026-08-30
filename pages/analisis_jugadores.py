@@ -130,17 +130,6 @@ def shrinkage_lambda(lam_obs, lam_prior, n_obs, k=5.0):
     n = max(float(n_obs), 0.0)
     return (n * lam_obs + k * lam_prior) / (n + k)
 
-def obtener_peso_tier(tier):
-    t = str(tier).upper().strip()
-    if "TOP" in t or "CHAMPIONS" in t:
-        return 3
-    elif "MEDIA" in t:
-        return 2
-    elif "DESCENSO" in t or "BAJO" in t:
-        return 1
-    else:
-        return 2
-
 try:
     df_raw = cargar_datos_jugadores()
     df = calcular_feature_engineering_jugadores(df_raw)
@@ -222,12 +211,10 @@ if total_partidos_jugador == 0:
 else:
     exactos_check = df_jugador[(df_jugador["Condición"] == condicion_sel_lower) & (df_jugador["Nivel Rival"] == nivel_sel)]
     num_exactos = len(exactos_check)
-    if num_exactos >= 3:
-        st.sidebar.success(f"{num_exactos} partidos exactos (Suficientes)")
-    elif num_exactos > 0:
-        st.sidebar.warning(f"{num_exactos} partido(s) exacto(s) -> Respaldo inteligente activo")
+    if num_exactos > 0:
+        st.sidebar.success(f"{num_exactos} partidos exactos en este baremo")
     else:
-        st.sidebar.warning(f"0 partidos exactos (Total registros: {total_partidos_jugador}) -> Respaldo inteligente activo")
+        st.sidebar.error("0 partidos exactos en este baremo")
 
 st.markdown("""
 <style>
@@ -302,109 +289,17 @@ if st.session_state.analizado_jugadores:
     if "Fecha" in df_jugador.columns:
         df_jugador = df_jugador.sort_values("Fecha")
 
-    umbral_minimo = 3
-    t_target = obtener_peso_tier(nivel_sel)
-
     if "Condición" in df_jugador.columns and "Nivel Rival" in df_jugador.columns:
         df_exactos = df_jugador[(df_jugador["Condición"] == condicion_sel_lower) & (df_jugador["Nivel Rival"] == nivel_sel)].copy()
     else:
         df_exactos = pd.DataFrame()
 
-    historial_list = []
+    if len(df_exactos) == 0:
+        st.error(f"❌ No se puede realizar el análisis: Hay 0 partidos registrados para **{jugador_sel}** como **{condicion_sel}** contra rivales nivel **{nivel_sel}** en la liga **{liga_sel}**.")
+        st.stop()
 
-    for _, row in df_exactos.iterrows():
-        r = row.to_dict()
-        r["Factor_Ajuste"] = 1.0
-        r["Tipo_Uso"] = "Exacto (Condición + Rival)"
-        r["Peso_Contexto"] = 1.0
-        historial_list.append(r)
-        
-    fuente = f"Exactos ({len(historial_list)} partidos)"
-
-    def calcular_factores_respaldo(row_data, condicion_buscada, tier_objetivo):
-        cond_partido = str(row_data.get("Condición", "")).lower()
-        tier_partido = str(row_data.get("Nivel Rival", ""))
-        t_match = obtener_peso_tier(tier_partido)
-
-        if cond_partido == condicion_buscada:
-            f_cond = 1.0
-            tipo_cond = "Misma condición"
-        else:
-            if condicion_buscada == "visitante" and cond_partido == "local":
-                f_cond = 0.90
-                tipo_cond = "Cruzado (Casa -> Fuera)"
-            elif condicion_buscada == "local" and cond_partido == "visitante":
-                f_cond = 1.05
-                tipo_cond = "Cruzado (Fuera -> Casa)"
-            else:
-                f_cond = 1.0
-                tipo_cond = "Cruzado Estándar"
-
-        diff = tier_objetivo - t_match
-        if diff == 0:
-            f_tier = 1.0
-            tipo_tier = "Tier equivalente"
-        elif diff > 0:
-            f_tier = max(0.65, 1.0 - (diff * 0.12))
-            tipo_tier = "Ajuste a la baja"
-        else:
-            f_tier = min(1.35, 1.0 + (abs(diff) * 0.10))
-            tipo_tier = "Ajuste al alza"
-
-        return f_cond * f_tier, f"Respaldo | {tipo_cond} | {tipo_tier} ({tier_partido})"
-
-    if len(historial_list) < umbral_minimo:
-        if "Condición" in df_jugador.columns:
-            df_misma_cond = df_jugador[(df_jugador["Condición"] == condicion_sel_lower) & (df_jugador["Nivel Rival"] != nivel_sel)].copy()
-        else:
-            df_misma_cond = pd.DataFrame()
-
-        faltantes = umbral_minimo - len(historial_list)
-        comodines_tier = df_misma_cond.tail(faltantes)
-
-        for _, row in comodines_tier.iterrows():
-            r = row.to_dict()
-            f_tot, desc = calcular_factores_respaldo(r, condicion_sel_lower, t_target)
-            r["Factor_Ajuste"] = f_tot
-            r["Tipo_Uso"] = desc
-            r["Peso_Contexto"] = 0.85
-            historial_list.append(r)
-        if len(historial_list) > len(df_exactos):
-            fuente = "Muestra mixta (Misma condición + Otros Tiers)"
-
-    if len(historial_list) < umbral_minimo:
-        opuesto_lower = "local" if condicion_sel_lower == "visitante" else "visitante"
-        if "Condición" in df_jugador.columns:
-            df_contrarios = df_jugador[df_jugador["Condición"] == opuesto_lower].copy()
-        else:
-            df_contrarios = pd.DataFrame()
-
-        faltantes_cruzados = umbral_minimo - len(historial_list)
-        comodines_cruzados = df_contrarios.tail(faltantes_cruzados)
-
-        for _, row in comodines_cruzados.iterrows():
-            r = row.to_dict()
-            f_tot, desc = calcular_factores_respaldo(r, condicion_sel_lower, t_target)
-            r["Factor_Ajuste"] = f_tot
-            r["Tipo_Uso"] = desc
-            r["Peso_Contexto"] = 0.75
-            historial_list.append(r)
-        fuente = "Muestra adaptada con respaldo cruzado"
-
-    if len(historial_list) == 0:
-        for _, row in df_jugador.head(3).iterrows():
-            r = row.to_dict()
-            r["Factor_Ajuste"] = 1.0
-            r["Tipo_Uso"] = "Historial General del Jugador"
-            r["Peso_Contexto"] = 0.60
-            historial_list.append(r)
-        fuente = "Historial general (Sin suficientes filtros específicos)"
-
-    historial = pd.DataFrame(historial_list)
-
-    for col in ["Goles", "Asistencias", "Tiros", "A Puerta", "Faltas"]:
-        if col in historial.columns:
-            historial[col] = historial[col] * historial["Factor_Ajuste"]
+    historial = df_exactos
+    fuente = f"Exactos ({len(historial)} partidos)"
 
     n_obs = len(historial)
     muestra_pequena = n_obs <= 3
@@ -422,8 +317,7 @@ if st.session_state.analizado_jugadores:
     else:
         historial["Peso_Temporal"] = 1.0
 
-    historial["Peso_Total"] = historial["Peso_Temporal"] * historial["Peso_Contexto"]
-    pesos = historial["Peso_Total"] / historial["Peso_Total"].sum()
+    pesos = historial["Peso_Temporal"] / historial["Peso_Temporal"].sum()
 
     def prom_w(col):
         return float(np.average(historial[col].fillna(0), weights=pesos)) if col in historial.columns else 0.0
