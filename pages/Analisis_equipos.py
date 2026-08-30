@@ -519,17 +519,67 @@ if st.session_state.analizado_equipos:
         nombres_mercados_eq = [m["nombre"] for m in lista_mercados_eq_dict]
         parlay_eq = st.multiselect("Elige los mercados para tu combinada:", options=nombres_mercados_eq, key="parlay_eq_input")
 
+        # ------------------------------------------------------------------
+        # Mercados derivados de goles (sg_fav / sg_con). Estos DOS arrays
+        # vienen de la MISMA simulación pareada: la posición i de sg_fav y
+        # la posición i de sg_con representan el mismo partido hipotético.
+        # Por eso, para combinaciones ENTRE estos mercados, podemos calcular
+        # la probabilidad conjunta EXACTA contando en cuántas simulaciones
+        # se cumplen todas las condiciones a la vez, en vez de multiplicar
+        # probabilidades individuales (que asume independencia y no lo son:
+        # p.ej. "Victoria (1)" y "Over 2.5 goles del partido" están
+        # correlacionados porque una goleada implica ambos).
+        mercados_goles_bool = {
+            "Victoria (1)": sg_fav > sg_con,
+            "Empate (X)": sg_fav == sg_con,
+            "Derrota (2)": sg_fav < sg_con,
+            "1X": sg_fav >= sg_con,
+            "X2": sg_fav <= sg_con,
+            "BTTS Si": (sg_fav > 0) & (sg_con > 0),
+            "BTTS No": ~((sg_fav > 0) & (sg_con > 0)),
+            f"Over {linea_goles} Goles": sg_fav > linea_goles,
+            f"Over {linea_total_partido} Goles partido": (sg_fav + sg_con) > linea_total_partido,
+        }
+
         if parlay_eq:
-            p_conj = 1.0
-            for nombre in parlay_eq:
-                m_info = next(m for m in lista_mercados_eq_dict if m["nombre"] == nombre)
-                p_conj *= (m_info["prob"] / 100.0)
-            
+            legs_goles = [n for n in parlay_eq if n in mercados_goles_bool]
+            legs_independientes = [n for n in parlay_eq if n not in mercados_goles_bool]
+
+            # Paso 1: probabilidad conjunta EXACTA entre las patas de goles
+            if legs_goles:
+                mask_conjunta = np.ones(num_sim, dtype=bool)
+                for n in legs_goles:
+                    mask_conjunta &= mercados_goles_bool[n]
+                p_goles_conjunta = float(mask_conjunta.mean())
+            else:
+                p_goles_conjunta = 1.0
+
+            # Paso 2: patas sin modelo conjunto (tiros, corners, faltas, DNB)
+            # se combinan multiplicando, que sigue siendo una aproximación
+            # por independencia porque no tenemos una simulación conjunta
+            # de tiros/corners junto con los goles todavía.
+            p_indep = 1.0
+            for n in legs_independientes:
+                m_info = next(m for m in lista_mercados_eq_dict if m["nombre"] == n)
+                p_indep *= (m_info["prob"] / 100.0)
+
+            p_conj = p_goles_conjunta * p_indep
             p_conj_pct = p_conj * 100.0
             c_justa_parlay = round(100 / p_conj_pct, 2) if p_conj_pct > 0 else 99.0
 
             st.markdown(f"**Probabilidad Conjunta del Modelo:** `{p_conj_pct:.2f}%`")
             st.markdown(f"**Cuota Justa Combinada:** `{c_justa_parlay}`")
+
+            if len(legs_goles) > 1 and not legs_independientes:
+                st.caption("✅ Probabilidad calculada de forma EXACTA a partir de la simulación conjunta de goles (no se asume independencia entre estas patas).")
+            elif legs_goles and legs_independientes:
+                st.caption(
+                    "⚠️ Nota: las patas de goles (1X2, BTTS, Over goles...) se combinaron con probabilidad conjunta EXACTA. "
+                    "Las patas de tiros/corners/faltas/DNB se combinaron asumiendo independencia estadística (aún no existe un modelo conjunto "
+                    "de tiros y goles), lo que puede subestimar o sobrestimar levemente la probabilidad real si están correlacionadas."
+                )
+            elif legs_independientes and len(legs_independientes) > 1:
+                st.caption("⚠️ Estas patas se combinaron asumiendo independencia estadística entre ellas — la probabilidad real podría diferir si están correlacionadas.")
 
             cuota_casa_parlay_eq = st.number_input("Introduce la cuota total que te paga la casa por esta combinada:", min_value=1.01, value=c_justa_parlay * 0.95, step=0.05, format="%.2f", key="cuota_parlay_eq_input")
             ev_parlay_eq = calcular_ev(p_conj_pct, cuota_casa_parlay_eq)
