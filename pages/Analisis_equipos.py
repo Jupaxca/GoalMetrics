@@ -23,7 +23,7 @@ st.set_page_config(
 def cargar_datos():
     sheet_id = st.secrets.get("EQUIPOS_SHEET_ID", "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg")
     
-    # Lee por defecto la primera pestaña ("Registro de Partidos")
+    # Lee por defecto la primera pestaña ("Registro de Partidos" con la columna Liga incluida)
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
     df = pd.read_csv(url)
     
@@ -217,17 +217,17 @@ with st.sidebar.expander("Partido", expanded=True):
     condicion_sel = condicion_label.lower()
     nivel_sel = st.selectbox("Nivel del Rival", lista_niveles)
 
+# Validación de partidos exactos en el baremo seleccionado
 df_diagnostico = df_equipo.sort_values(by="Fecha", ascending=False)
 exactos_check = df_diagnostico[
     (df_diagnostico["Condición"] == condicion_sel) & (df_diagnostico["Nivel Rival"] == nivel_sel)
 ]
 num_exactos = len(exactos_check)
-if num_exactos >= 2:
-    st.sidebar.success(f"{num_exactos} partidos exactos")
-elif num_exactos == 1:
-    st.sidebar.warning("1 partido exacto -> Respaldo activo")
+
+if num_exactos > 0:
+    st.sidebar.success(f"{num_exactos} partidos exactos en este baremo")
 else:
-    st.sidebar.warning("0 partidos exactos -> Respaldo inteligente activo")
+    st.sidebar.error("0 partidos exactos en este baremo")
 
 with st.sidebar.expander("Lineas de Estudio"):
     linea_goles = st.slider("Goles (equipo)", 0.5, 3.5, 1.5, 0.5)
@@ -391,64 +391,26 @@ with c2:
         st.rerun()
 
 if st.session_state.analizado_equipos:
-    df_base = df[(df["Liga"] == liga_sel) & (df["Equipo"] == equipo_sel)].sort_values(by="Fecha", ascending=False)
-    
-    # Sistema de Respaldo Inteligente y Progresivo
-    df_exactos = df_base[(df_base["Condición"] == condicion_sel) & (df_base["Nivel Rival"] == nivel_sel)].copy()
-    
-    historial_list = []
-    
-    for _, row in df_exactos.iterrows():
-        r = row.to_dict()
-        r["Tipo_Uso"] = f"Exacto ({condicion_label} vs {nivel_sel})"
-        historial_list.append(r)
-        
-    fuente_datos = f"Exactos ({len(historial_list)} partidos)"
-    
-    if len(historial_list) < 2:
-        df_misma_cond = df_base[(df_base["Condición"] == condicion_sel) & (df_base["Nivel Rival"] != nivel_sel)].copy()
-        for _, row in df_misma_cond.iterrows():
-            if len(historial_list) >= 3:
-                break
-            r = row.to_dict()
-            r["Tipo_Uso"] = "Misma Condición (Otro Rival)"
-            historial_list.append(r)
-        if len(historial_list) > len(df_exactos):
-            fuente_datos = "Muestra mixta (Misma condición + Otros niveles)"
+    # Validar estrictamente si hay partidos en el baremo seleccionado
+    df_exactos = df_diagnostico[
+        (df_diagnostico["Condición"] == condicion_sel) & (df_diagnostico["Nivel Rival"] == nivel_sel)
+    ].copy()
 
-    if len(historial_list) < 2:
-        cond_opuesta = "visitante" if condicion_sel == "local" else "local"
-        df_opuestos = df_base[df_base["Condición"] == cond_opuesta].copy()
-        factor_cond = 0.88 if condicion_sel == "visitante" else 1.12
-        for _, row in df_opuestos.iterrows():
-            if len(historial_list) >= 3:
-                break
-            r = row.to_dict()
-            for col in ["Goles", "Goles Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Atajadas"]:
-                if col in r and pd.notna(r[col]):
-                    r[col] = r[col] * factor_cond
-            r["Tiros a Puerta Rival"] = r.get("Goles Rival", 0) + r.get("Atajadas", 0)
-            r["Tipo_Uso"] = f"Condición Opuesta ({cond_opuesta.capitalize()}) Ajustada"
-            historial_list.append(r)
-        fuente_datos = "Muestra adaptada con respaldo cruzado"
+    if len(df_exactos) == 0:
+        st.error(f"❌ No se puede realizar el análisis: Hay 0 partidos registrados para **{equipo_sel}** como **{condicion_label}** contra rivales nivel **{nivel_sel}** en la liga **{liga_sel}**.")
+        st.stop()
 
-    if len(historial_list) == 0:
-        for _, row in df_base.head(3).iterrows():
-            r = row.to_dict()
-            r["Tipo_Uso"] = "Historial General del Equipo"
-            historial_list.append(r)
-        fuente_datos = "Historial general (Sin suficientes filtros específicos)"
+    historial = df_exactos
+    fuente_datos = f"Exactos ({len(historial)} partidos)"
 
-    historial = pd.DataFrame(historial_list)
-
-    muestra_pequena = len(historial) <= 3
     n_obs = len(historial)
+    muestra_pequena = n_obs <= 3
     hoy = pd.Timestamp.today().normalize()
     historial["Dias_Pasados"] = (hoy - pd.to_datetime(historial["Fecha"])).dt.days.replace(0, 0.1)
     historial["Peso"] = 1 / (1 + (historial["Dias_Pasados"] / 30))
 
     def prom(col):
-        if col not in historial.columns:
+        if col not in historial.columns or len(historial) == 0:
             return 0.05
         return round(float(np.average(historial[col].fillna(0), weights=historial["Peso"])), 4)
 
