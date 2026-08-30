@@ -1,33 +1,130 @@
+import html
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+from collections import Counter
+
+try:
+    import xgboost as xgb
+    XGB_DISPONIBLE = True
+except ImportError:
+    XGB_DISPONIBLE = False
 
 st.set_page_config(
-    page_title="GoalMetrics | Análisis de Jugadores",
+    page_title="GoalMetrics | Análisis de Jugadores (Híbrido)",
     page_icon="⚽",
     layout="wide"
 )
 
 @st.cache_data(ttl=600)
 def cargar_datos_jugadores():
-    url = "https://docs.google.com/spreadsheets/d/1q98g-IxYaO8g3ksDb0vyZ9V7IrhPjDcVUtChZI8SNT4/export?format=csv"
+    sheet_id = st.secrets.get("JUGADORES_SHEET_ID", "1q98g-IxYaO8g3ksDb0vyZ9V7IrhPjDcVUtChZI8SNT4")
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
     df = pd.read_csv(url)
-    df.columns = df.columns.str.strip()
+    df.columns = df.columns.astype(str).str.strip()
+    
+    # Detección flexible de Liga / Competición
+    col_ligaencontrada = None
+    for col in df.columns:
+        col_lower = col.lower()
+        if col_lower in ["liga", "competición", "competicion", "torneo"]:
+            col_ligaencontrada = col
+            break
+            
+    if col_ligaencontrada and col_ligaencontrada != "Liga":
+        df = df.rename(columns={col_ligaencontrada: "Liga"})
+        
+    if "Liga" in df.columns:
+        df["Liga"] = df["Liga"].astype(str).str.strip()
+        df["Liga"] = df["Liga"].replace(["nan", "None", ""], "Sin Liga")
+    else:
+        df["Liga"] = "General"
+
     if "Jugador" not in df.columns and "Equipo" in df.columns:
         df = df.rename(columns={"Equipo": "Jugador"})
+    if "Jugador" in df.columns:
+        df["Jugador"] = df["Jugador"].astype(str).str.strip()
+        
     if "Fecha" in df.columns:
         df["Fecha"] = pd.to_datetime(df["Fecha"], dayfirst=True, errors="coerce")
+        
     for col in ["Goles", "Asistencias", "Tiros", "A Puerta", "Faltas", "Amarillas", "Rojas"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+        else:
+            df[col] = 0
+            
     if "Condicion" in df.columns and "Condición" not in df.columns:
         df = df.rename(columns={"Condicion": "Condición"})
     if "Condición" in df.columns:
         df["Condición"] = df["Condición"].astype(str).str.strip().str.lower()
+    else:
+        df["Condición"] = "local"
+        
     if "Nivel Rival" in df.columns:
         df["Nivel Rival"] = df["Nivel Rival"].astype(str).str.strip()
+    else:
+        df["Nivel Rival"] = "MEDIA TABLA"
+        
     return df
+
+def calcular_feature_engineering_jugadores(df):
+    df = df.copy()
+    if "Fecha" in df.columns and "Jugador" in df.columns:
+        df = df.sort_values(by=["Jugador", "Fecha"])
+    
+    df["Conversion_Tiros"] = np.where(df["Tiros"] > 0, df["Goles"] / df["Tiros"], 0.0)
+    df["Conversion_Puerta"] = np.where(df["A Puerta"] > 0, df["Goles"] / df["A Puerta"], 0.0)
+    df["Contribucion_Total"] = df["Goles"] + df["Asistencias"]
+
+    if "Jugador" in df.columns:
+        rolling_goles = df.groupby("Jugador")["Goles"].rolling(window=5, min_periods=1)
+        df["Goles_Media_Movil_5"] = rolling_goles.mean().reset_index(level=0, drop=True)
+        df["Goles_Volatilidad_5"] = rolling_goles.std().fillna(0).reset_index(level=0, drop=True)
+        
+        rolling_tiros = df.groupby("Jugador")["Tiros"].rolling(window=5, min_periods=1)
+        df["Tiros_Media_Movil_5"] = rolling_tiros.mean().reset_index(level=0, drop=True)
+        
+        media_global_goles = df["Goles"].mean() if len(df) > 0 else 0.2
+        df["Momentum_Goles"] = df["Goles_Media_Movil_5"] - media_global_goles
+        
+    return df
+
+def entrenar_predictor_xgboost_jugadores(df_historico, features_modelo):
+    if not XGB_DISPONIBLE or len(df_historico) < 25:
+        return None
+        
+    df_clean = df_historico.dropna(subset=features_modelo + ["Goles"]).copy()
+    if len(df_clean) < 25:
+        return None
+        
+    df_clean["Target_Gol"] = (df_clean["Goles"] > 0).astype(int)
+    X = df_clean[features_modelo]
+    y = df_clean["Target_Gol"]
+    
+    model = xgb.XGBClassifier(
+        n_estimators=60,
+        max_depth=3,
+        learning_rate=0.05,
+        random_state=42,
+        eval_metric="logloss"
+    )
+    model.fit(X, y)
+    return model
+
+def predecir_probabilidad_hibrida_jugador(prob_poisson, jugador_actual_df, features_modelo, modelo_xgb):
+    if modelo_xgb is None or jugador_actual_df.empty:
+        return prob_poisson
+    ultima_fila = jugador_actual_df.tail(1)
+    try:
+        X_pred = ultima_fila[features_modelo]
+        prob_xgb = float(modelo_xgb.predict_proba(X_pred)[0][1]) * 100.0
+    except Exception:
+        return prob_poisson
+
+    prob_hibrida = (0.70 * prob_poisson) + (0.30 * prob_xgb)
+    return round(prob_hibrida, 2)
 
 def shrinkage_lambda(lam_obs, lam_prior, n_obs, k=5.0):
     n = max(float(n_obs), 0.0)
@@ -45,7 +142,8 @@ def obtener_peso_tier(tier):
         return 2
 
 try:
-    df = cargar_datos_jugadores()
+    df_raw = cargar_datos_jugadores()
+    df = calcular_feature_engineering_jugadores(df_raw)
     datos_ok = True
 except Exception as e:
     st.error(f"Error cargando datos: {e}")
@@ -54,24 +152,42 @@ except Exception as e:
 
 st.sidebar.header("Configuracion del Jugador")
 
-if datos_ok and not df.empty and "Jugador" in df.columns:
-    jugadores = sorted(df["Jugador"].dropna().unique().tolist())
-    jugador_sel = st.sidebar.selectbox("Selecciona al Jugador", jugadores)
-    df_jugador = df[df["Jugador"] == jugador_sel].copy()
+if datos_ok and not df.empty and "Liga" in df.columns:
+    ligas_disponibles = sorted([str(x) for x in df["Liga"].dropna().unique() if pd.notna(x)])
+    liga_sel = st.sidebar.selectbox("Selecciona la Liga", ligas_disponibles)
+    
+    df_liga = df[df["Liga"] == liga_sel]
+    jugadores = sorted([str(x) for x in df_liga["Jugador"].dropna().unique() if pd.notna(x)])
+    if jugadores:
+        jugador_sel = st.sidebar.selectbox("Selecciona al Jugador", jugadores)
+        df_jugador = df_liga[df_liga["Jugador"] == jugador_sel].copy()
+    else:
+        jugador_sel = st.sidebar.selectbox("Selecciona al Jugador", ["Sin jugadores"])
+        df_jugador = pd.DataFrame()
+        
     if "Fecha" in df_jugador.columns:
         df_jugador = df_jugador.sort_values("Fecha")
+        
     if "Condición" in df_jugador.columns:
         condiciones = sorted(df_jugador["Condición"].dropna().unique().tolist())
+        if not condiciones:
+            condiciones = ["local", "visitante"]
     else:
         condiciones = ["local", "visitante"]
+        
     condicion_sel = st.sidebar.selectbox("Condicion", [c.capitalize() for c in condiciones])
     condicion_sel_lower = condicion_sel.lower()
+    
     if "Nivel Rival" in df_jugador.columns:
         niveles = sorted(df_jugador["Nivel Rival"].dropna().unique().tolist())
+        if not niveles:
+            niveles = ["TOP", "CHAMPIONS", "MEDIA TABLA", "DESCENSO"]
     else:
         niveles = ["TOP", "CHAMPIONS", "MEDIA TABLA", "DESCENSO"]
+        
     nivel_sel = st.sidebar.selectbox("Nivel del Rival", niveles)
 else:
+    liga_sel = st.sidebar.selectbox("Selecciona la Liga", ["General"])
     jugador_sel = st.sidebar.selectbox("Selecciona al Jugador", ["Sin datos"])
     condicion_sel = st.sidebar.selectbox("Condicion", ["Local", "Visitante"])
     condicion_sel_lower = condicion_sel.lower()
@@ -100,19 +216,18 @@ with st.sidebar.expander("Modelo", expanded=False):
     usar_shrinkage = (shrink_opt == "ON")
     k_shrink = st.slider("Fuerza prior (k)", 1.0, 15.0, 5.0, 1.0, key="slider_k_jug", disabled=not usar_shrinkage)
 
-# Comprobación de partidos exactos
-if not df_jugador.empty and "Condición" in df_jugador.columns and "Nivel Rival" in df_jugador.columns:
+total_partidos_jugador = len(df_jugador) if not df_jugador.empty else 0
+if total_partidos_jugador == 0:
+    st.sidebar.error("0 partidos registrados para este jugador en la liga seleccionada")
+else:
     exactos_check = df_jugador[(df_jugador["Condición"] == condicion_sel_lower) & (df_jugador["Nivel Rival"] == nivel_sel)]
     num_exactos = len(exactos_check)
-else:
-    num_exactos = 0
-
-if num_exactos >= 3:
-    st.sidebar.success(f"{num_exactos} partidos exactos (Suficientes)")
-elif num_exactos > 0:
-    st.sidebar.warning(f"{num_exactos} partido(s) exacto(s) -> Respaldo inteligente activo")
-else:
-    st.sidebar.error("0 partidos exactos -> Respaldo cruzado activo")
+    if num_exactos >= 3:
+        st.sidebar.success(f"{num_exactos} partidos exactos (Suficientes)")
+    elif num_exactos > 0:
+        st.sidebar.warning(f"{num_exactos} partido(s) exacto(s) -> Respaldo inteligente activo")
+    else:
+        st.sidebar.warning(f"0 partidos exactos (Total registros: {total_partidos_jugador}) -> Respaldo inteligente activo")
 
 st.markdown("""
 <style>
@@ -163,8 +278,8 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, real=None):
         unsafe_allow_html=True,
     )
 
-st.markdown("### Centro de Analisis Individual de Jugadores")
-st.caption("Asistente inteligente de apuestas con control de dificultad de rival y análisis de valor matemático.")
+st.markdown("### Centro de Analisis Individual de Jugadores (Híbrido)")
+st.caption("Asistente inteligente de apuestas con control de dificultad de rival, ensemble XGBoost y análisis de valor matemático.")
 
 if "analizado_jugadores" not in st.session_state:
     st.session_state.analizado_jugadores = False
@@ -178,8 +293,12 @@ with col_b2:
         st.session_state.analizado_jugadores = False
         st.rerun()
 
-if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugador" in df.columns:
-    df_jugador = df[df["Jugador"] == jugador_sel].copy()
+if st.session_state.analizado_jugadores:
+    if total_partidos_jugador == 0:
+        st.error(f"❌ No se puede realizar el análisis porque el jugador **{jugador_sel}** tiene **0 partidos** registrados en esta liga.")
+        st.stop()
+        
+    df_jugador = df_liga[df_liga["Jugador"] == jugador_sel].copy()
     if "Fecha" in df_jugador.columns:
         df_jugador = df_jugador.sort_values("Fecha")
 
@@ -193,58 +312,50 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
 
     historial_list = []
 
-    if len(df_exactos) >= umbral_minimo:
-        for _, row in df_exactos.tail(5).iterrows():
-            r = row.to_dict()
-            r["Factor_Ajuste"] = 1.0
-            r["Tipo_Uso"] = "Exacto (Condición + Rival)"
-            r["Peso_Contexto"] = 1.0
-            historial_list.append(r)
-        fuente = f"Exactos ({condicion_sel} vs {nivel_sel}) - {len(df_exactos)} partidos"
-    else:
-        for _, row in df_exactos.iterrows():
-            r = row.to_dict()
-            r["Factor_Ajuste"] = 1.0
-            r["Tipo_Uso"] = "Exacto (Insuficiente, retenido)"
-            r["Peso_Contexto"] = 1.0
-            historial_list.append(r)
+    for _, row in df_exactos.iterrows():
+        r = row.to_dict()
+        r["Factor_Ajuste"] = 1.0
+        r["Tipo_Uso"] = "Exacto (Condición + Rival)"
+        r["Peso_Contexto"] = 1.0
+        historial_list.append(r)
+        
+    fuente = f"Exactos ({len(historial_list)} partidos)"
 
-        def calcular_factores_respaldo(row_data, condicion_buscada, tier_objetivo):
-            cond_partido = str(row_data.get("Condición", "")).lower()
-            tier_partido = str(row_data.get("Nivel Rival", ""))
-            t_match = obtener_peso_tier(tier_partido)
+    def calcular_factores_respaldo(row_data, condicion_buscada, tier_objetivo):
+        cond_partido = str(row_data.get("Condición", "")).lower()
+        tier_partido = str(row_data.get("Nivel Rival", ""))
+        t_match = obtener_peso_tier(tier_partido)
 
-            if cond_partido == condicion_buscada:
+        if cond_partido == condicion_buscada:
+            f_cond = 1.0
+            tipo_cond = "Misma condición"
+        else:
+            if condicion_buscada == "visitante" and cond_partido == "local":
+                f_cond = 0.90
+                tipo_cond = "Cruzado (Casa -> Fuera)"
+            elif condicion_buscada == "local" and cond_partido == "visitante":
+                f_cond = 1.05
+                tipo_cond = "Cruzado (Fuera -> Casa)"
+            else:
                 f_cond = 1.0
-                tipo_cond = "Misma condición"
-            else:
-                if condicion_buscada == "visitante" and cond_partido == "local":
-                    f_cond = 0.90
-                    tipo_cond = "Cruzado (Casa -> Fuera)"
-                elif condicion_buscada == "local" and cond_partido == "visitante":
-                    f_cond = 1.05
-                    tipo_cond = "Cruzado (Fuera -> Casa)"
-                else:
-                    f_cond = 1.0
-                    tipo_cond = "Cruzado Estándar"
+                tipo_cond = "Cruzado Estándar"
 
-            diff = tier_objetivo - t_match
-            if diff == 0:
-                f_tier = 1.0
-                tipo_tier = "Tier equivalente"
-            elif diff > 0:
-                f_tier = max(0.65, 1.0 - (diff * 0.12))
-                tipo_tier = "Ajuste a la baja"
-            else:
-                f_tier = min(1.35, 1.0 + (abs(diff) * 0.10))
-                tipo_tier = "Ajuste al alza"
+        diff = tier_objetivo - t_match
+        if diff == 0:
+            f_tier = 1.0
+            tipo_tier = "Tier equivalente"
+        elif diff > 0:
+            f_tier = max(0.65, 1.0 - (diff * 0.12))
+            tipo_tier = "Ajuste a la baja"
+        else:
+            f_tier = min(1.35, 1.0 + (abs(diff) * 0.10))
+            tipo_tier = "Ajuste al alza"
 
-            return f_cond * f_tier, f"Respaldo | {tipo_cond} | {tipo_tier} ({tier_partido})"
+        return f_cond * f_tier, f"Respaldo | {tipo_cond} | {tipo_tier} ({tier_partido})"
 
+    if len(historial_list) < umbral_minimo:
         if "Condición" in df_jugador.columns:
-            df_misma_cond = df_jugador[df_jugador["Condición"] == condicion_sel_lower].copy()
-            if not df_exactos.empty:
-                df_misma_cond = df_misma_cond[~df_misma_cond.index.isin(df_exactos.index)]
+            df_misma_cond = df_jugador[(df_jugador["Condición"] == condicion_sel_lower) & (df_jugador["Nivel Rival"] != nivel_sel)].copy()
         else:
             df_misma_cond = pd.DataFrame()
 
@@ -258,26 +369,36 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
             r["Tipo_Uso"] = desc
             r["Peso_Contexto"] = 0.85
             historial_list.append(r)
+        if len(historial_list) > len(df_exactos):
+            fuente = "Muestra mixta (Misma condición + Otros Tiers)"
 
-        if len(historial_list) < umbral_minimo:
-            opuesto_lower = "local" if condicion_sel_lower == "visitante" else "visitante"
-            if "Condición" in df_jugador.columns:
-                df_contrarios = df_jugador[df_jugador["Condición"] == opuesto_lower].copy()
-            else:
-                df_contrarios = pd.DataFrame()
+    if len(historial_list) < umbral_minimo:
+        opuesto_lower = "local" if condicion_sel_lower == "visitante" else "visitante"
+        if "Condición" in df_jugador.columns:
+            df_contrarios = df_jugador[df_jugador["Condición"] == opuesto_lower].copy()
+        else:
+            df_contrarios = pd.DataFrame()
 
-            faltantes_cruzados = umbral_minimo - len(historial_list)
-            comodines_cruzados = df_contrarios.tail(faltantes_cruzados)
+        faltantes_cruzados = umbral_minimo - len(historial_list)
+        comodines_cruzados = df_contrarios.tail(faltantes_cruzados)
 
-            for _, row in comodines_cruzados.iterrows():
-                r = row.to_dict()
-                f_tot, desc = calcular_factores_respaldo(r, condicion_sel_lower, t_target)
-                r["Factor_Ajuste"] = f_tot
-                r["Tipo_Uso"] = desc
-                r["Peso_Contexto"] = 0.75
-                historial_list.append(r)
+        for _, row in comodines_cruzados.iterrows():
+            r = row.to_dict()
+            f_tot, desc = calcular_factores_respaldo(r, condicion_sel_lower, t_target)
+            r["Factor_Ajuste"] = f_tot
+            r["Tipo_Uso"] = desc
+            r["Peso_Contexto"] = 0.75
+            historial_list.append(r)
+        fuente = "Muestra adaptada con respaldo cruzado"
 
-        fuente = f"Muestra adaptada con Tiers ({len(historial_list)} partidos)"
+    if len(historial_list) == 0:
+        for _, row in df_jugador.head(3).iterrows():
+            r = row.to_dict()
+            r["Factor_Ajuste"] = 1.0
+            r["Tipo_Uso"] = "Historial General del Jugador"
+            r["Peso_Contexto"] = 0.60
+            historial_list.append(r)
+        fuente = "Historial general (Sin suficientes filtros específicos)"
 
     historial = pd.DataFrame(historial_list)
 
@@ -288,8 +409,8 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
     n_obs = len(historial)
     muestra_pequena = n_obs <= 3
 
-    st.markdown(f'<div class="header-box">{jugador_sel.upper()} | {condicion_sel} vs {nivel_sel}</div>', unsafe_allow_html=True)
-    st.caption(f"Base analizada: {n_obs} partidos | Fuente: {fuente}")
+    st.markdown(f'<div class="header-box">{liga_sel.upper()} | {jugador_sel.upper()} | {condicion_sel} vs {nivel_sel}</div>', unsafe_allow_html=True)
+    st.caption(f"Base analizada: {n_obs} partidos | Fuente: {fuente} | Ensemble Híbrido Activo")
 
     if muestra_pequena:
         st.warning("Muestra pequeña. Interpreta con cautela.")
@@ -307,11 +428,30 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
     def prom_w(col):
         return float(np.average(historial[col].fillna(0), weights=pesos)) if col in historial.columns else 0.0
 
-    lam_g = shrinkage_lambda(prom_w("Goles"), float(df_jugador["Goles"].mean()) if len(df_jugador) else 0, n_obs, k_shrink) if usar_shrinkage else prom_w("Goles")
-    lam_t = shrinkage_lambda(prom_w("Tiros"), float(df_jugador["Tiros"].mean()) if len(df_jugador) else 0, n_obs, k_shrink) if usar_shrinkage else prom_w("Tiros")
-    lam_p = shrinkage_lambda(prom_w("A Puerta"), float(df_jugador["A Puerta"].mean()) if len(df_jugador) else 0, n_obs, k_shrink) if usar_shrinkage else prom_w("A Puerta")
-    lam_a = shrinkage_lambda(prom_w("Asistencias"), float(df_jugador["Asistencias"].mean()) if len(df_jugador) else 0, n_obs, k_shrink) if usar_shrinkage else prom_w("Asistencias")
-    lam_f = shrinkage_lambda(prom_w("Faltas"), float(df_jugador["Faltas"].mean()) if len(df_jugador) else 0, n_obs, k_shrink) if usar_shrinkage else prom_w("Faltas")
+    lam_g_raw = prom_w("Goles")
+    lam_t_raw = prom_w("Tiros")
+    lam_p_raw = prom_w("A Puerta")
+    lam_a_raw = prom_w("Asistencias")
+    lam_f_raw = prom_w("Faltas")
+
+    df_tier_liga = df_liga[df_liga["Nivel Rival"] == nivel_sel]
+    if len(df_tier_liga) == 0:
+        df_tier_liga = df_liga
+
+    prior_g = float(df_tier_liga["Goles"].mean()) if len(df_tier_liga) and "Goles" in df_tier_liga.columns else lam_g_raw
+    prior_t = float(df_tier_liga["Tiros"].mean()) if len(df_tier_liga) and "Tiros" in df_tier_liga.columns else lam_t_raw
+    prior_p = float(df_tier_liga["A Puerta"].mean()) if len(df_tier_liga) and "A Puerta" in df_tier_liga.columns else lam_p_raw
+    prior_a = float(df_tier_liga["Asistencias"].mean()) if len(df_tier_liga) and "Asistencias" in df_tier_liga.columns else lam_a_raw
+    prior_f = float(df_tier_liga["Faltas"].mean()) if len(df_tier_liga) and "Faltas" in df_tier_liga.columns else lam_f_raw
+
+    if usar_shrinkage:
+        lam_g = shrinkage_lambda(lam_g_raw, prior_g, n_obs, k_shrink)
+        lam_t = shrinkage_lambda(lam_t_raw, prior_t, n_obs, k_shrink)
+        lam_p = shrinkage_lambda(lam_p_raw, prior_p, n_obs, k_shrink)
+        lam_a = shrinkage_lambda(lam_a_raw, prior_a, n_obs, k_shrink)
+        lam_f = shrinkage_lambda(lam_f_raw, prior_f, n_obs, k_shrink)
+    else:
+        lam_g, lam_t, lam_p, lam_a, lam_f = lam_g_raw, lam_t_raw, lam_p_raw, lam_a_raw, lam_f_raw
 
     rng = np.random.default_rng(42)
     num_sim = 10000
@@ -322,12 +462,22 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
     sim_faltas = rng.poisson(max(lam_f, 0.01), num_sim)
     sim_contrib = sim_goles + sim_asist
 
-    prob_goles = (sim_goles > linea_goles).mean() * 100
-    prob_tiros = (sim_tiros > linea_tiros).mean() * 100
-    prob_puerta = (sim_puerta > linea_puerta).mean() * 100
-    prob_asist = (sim_asist > linea_asist).mean() * 100
-    prob_faltas = (sim_faltas > linea_faltas).mean() * 100
-    prob_contrib = (sim_contrib > linea_contrib).mean() * 100
+    prob_goles_base = (sim_goles > linea_goles).mean() * 100
+    prob_tiros_base = (sim_tiros > linea_tiros).mean() * 100
+    prob_puerta_base = (sim_puerta > linea_puerta).mean() * 100
+    prob_asist_base = (sim_asist > linea_asist).mean() * 100
+    prob_faltas_base = (sim_faltas > linea_faltas).mean() * 100
+    prob_contrib_base = (sim_contrib > linea_contrib).mean() * 100
+
+    features_modelo = ["Goles_Media_Movil_5", "Goles_Volatilidad_5", "Tiros_Media_Movil_5", "Conversion_Tiros", "Momentum_Goles"]
+    modelo_xgb_global = entrenar_predictor_xgboost_jugadores(df, features_modelo)
+    
+    prob_goles = predecir_probabilidad_hibrida_jugador(prob_goles_base, historial, features_modelo, modelo_xgb_global)
+    prob_contrib = predecir_probabilidad_hibrida_jugador(prob_contrib_base, historial, features_modelo, modelo_xgb_global)
+    prob_tiros = prob_tiros_base
+    prob_puerta = prob_puerta_base
+    prob_asist = prob_asist_base
+    prob_faltas = prob_faltas_base
 
     def cj(p): return round(100 / p, 2) if p > 0 else 99.0
     
@@ -346,12 +496,11 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
         st.subheader(f"Métricas promedio y eficiencia en el escenario: {condicion_sel} vs {nivel_sel}")
         st.caption("Valores calculados estrictamente sobre la muestra adaptada para este análisis.")
         
-        # Análisis de Frecuencia y Veredicto para el próximo partido
         lam_contrib = lam_g + lam_a
         partidos_por_contrib = 1.0 / lam_contrib if lam_contrib > 0 else 0
         
         if prob_contrib >= 55:
-            analisis_tendencia = f"Tendencia alta: El jugador muestra un ritmo sólido de aportación, participando en promedio **cada {partidos_por_contrib:.1f} partidos** en este escenario. Las simulaciones de Poisson proyectan una probabilidad sólida ({prob_contrib:.1f}%) de influir directamente en el marcador (Gol o Asistencia) en este próximo encuentro."
+            analisis_tendencia = f"Tendencia alta: El jugador muestra un ritmo sólido de aportación, participando en promedio **cada {partidos_por_contrib:.1f} partidos** en este escenario. Las simulaciones y el modelo híbrido proyectan una probabilidad sólida ({prob_contrib:.1f}%) de influir directamente en el marcador (Gol o Asistencia) en este próximo encuentro."
         elif prob_contrib >= 35:
             analisis_tendencia = f"Tendencia moderada: Registra una contribución en promedio **cada {partidos_por_contrib:.1f} partidos**. El encuentro presenta paridad, con una probabilidad estimada del {prob_contrib:.1f}% de sumar al menos una contribución."
         else:
@@ -420,7 +569,7 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
                 f'<h3>🏆 La Joya del Partido (Top Value Bet)</h3>'
                 f'<p style="font-size: 16px; margin-bottom: 8px;">Mercado recomendado: <b>{top_pick["nombre"]}</b></p>'
                 f'<ul>'
-                f'<li>Probabilidad del Modelo: <b>{top_pick["prob"]:.1f}%</b></li>'
+                f'<li>Probabilidad del Modelo Híbrido: <b>{top_pick["prob"]:.1f}%</b></li>'
                 f'<li>Cuota Justa Calculada: <b>{cuota_justa_top}</b> | Cuota Casa: <b>{top_pick["cuota"]}</b></li>'
                 f'<li><b>EV Matemático: {top_pick["ev"]:+.2%}</b> (Rentabilidad positiva a largo plazo)</li>'
                 f'</ul>'
@@ -433,13 +582,10 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
 
         st.markdown("---")
         st.subheader("🔗 Constructor de Combinada Inteligente (Parlay con Muestras Pareadas)")
-        st.markdown("Selecciona mercados para calcular la probabilidad conjunta real evaluando las 10,000 simulaciones simultáneamente (respetando correlaciones como Goles vs Gol/Asistencia).")
-
         nombres_mercados = [m["nombre"] for m in lista_mercados]
         parlay_elegidos = st.multiselect("Elige los mercados para tu combinada:", options=nombres_mercados, key="parlay_jugador_input")
 
         if parlay_elegidos:
-            # Diccionario mapeando el nombre del mercado con su condición booleana en los arrays de simulación
             condiciones_sim = {
                 f"Over {linea_goles} Goles": sim_goles > linea_goles,
                 f"Over {linea_tiros} Tiros": sim_tiros > linea_tiros,
@@ -449,7 +595,6 @@ if st.session_state.analizado_jugadores and datos_ok and not df.empty and "Jugad
                 f"Over {linea_contrib} Gol/Asist": sim_contrib > linea_contrib,
             }
 
-            # Máscara conjunta sobre las 10,000 simulaciones indexadas por simulación
             match_mask = np.ones(num_sim, dtype=bool)
             for nombre in parlay_elegidos:
                 if nombre in condiciones_sim:
