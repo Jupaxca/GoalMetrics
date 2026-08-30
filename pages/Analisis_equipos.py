@@ -6,8 +6,6 @@ import altair as alt
 from collections import Counter
 import hashlib
 import colorsys
-import urllib.request
-import re
 
 try:
     import xgboost as xgb
@@ -25,32 +23,23 @@ st.set_page_config(
 def cargar_datos():
     sheet_id = st.secrets.get("EQUIPOS_SHEET_ID", "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg")
     
-    # Detección automática del gid de la pestaña "Dash Nivel" (tercera pestaña)
-    gid = "0"
-    try:
-        url_edit = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
-        req = urllib.request.Request(url_edit, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response:
-            html_content = response.read().decode('utf-8')
-            match = re.search(r'["\']Dash Nivel["\'],\s*(\d+)', html_content)
-            if match:
-                gid = match.group(1)
-            else:
-                pos = html_content.find("Dash Nivel")
-                if pos != -1:
-                    nums = re.findall(r'\b\d{6,12}\b', html_content[pos:pos+200])
-                    if nums:
-                        gid = nums[0]
-    except Exception:
-        pass
+    # Intentamos leer el gid de la pestaña desde st.secrets si está configurado, 
+    # de lo contrario intentará con el valor por defecto de la pestaña "Dash Nivel".
+    gid_dash = st.secrets.get("DASH_NIVEL_GID", "0")
     
-    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
-    df = pd.read_csv(url)
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid_dash}"
+    
+    try:
+        df = pd.read_csv(url)
+    except Exception:
+        # Fallback de seguridad por si el gid falla
+        url_fallback = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+        df = pd.read_csv(url_fallback)
     
     # Limpiar espacios en blanco de todos los nombres de columnas
     df.columns = df.columns.astype(str).str.strip()
     
-    # Detección de la columna Liga en la pestaña Dash Nivel
+    # Detección de la columna Liga
     if "Liga" in df.columns:
         df["Liga"] = df["Liga"].astype(str).str.strip()
         df["Liga"] = df["Liga"].replace(["nan", "None", ""], "Sin Liga")
