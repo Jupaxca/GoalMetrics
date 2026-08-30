@@ -618,15 +618,21 @@ if st.session_state.analizado_equipos:
         e.metric("1X", f"{doble_1x:.1f}%")
         f.metric("X2", f"{doble_x2:.1f}%")
         g.metric("DNB", f"{dnb:.1f}%")
-        m1, m2, m3, m4 = st.columns(4)
+        
+        # Actualizado a 5 columnas para incluir Tiros a Puerta (A Puerta)
+        m1, m2, m3, m4, m5 = st.columns(5)
         if usar_shrinkage:
             m1.metric("Goles", f"{lam_f:.2f}", delta=f"raw {lam_f_raw:.2f}")
             m2.metric("Goles Rival", f"{lam_c:.2f}", delta=f"raw {lam_c_raw:.2f}")
+            m3.metric("Tiros", f"{lam_t:.1f}", delta=f"raw {lam_t_raw:.1f}")
+            m4.metric("A Puerta", f"{lam_tp:.1f}", delta=f"raw {lam_tp_raw:.1f}")
+            m5.metric("Corners", f"{lam_co:.1f}", delta=f"raw {lam_co_raw:.1f}")
         else:
             m1.metric("Goles", f"{lam_f:.2f}")
             m2.metric("Goles Rival", f"{lam_c:.2f}")
-        m3.metric("Tiros", f"{lam_t:.1f}")
-        m4.metric("Corners", f"{lam_co:.1f}")
+            m3.metric("Tiros", f"{lam_t:.1f}")
+            m4.metric("A Puerta", f"{lam_tp:.1f}")
+            m5.metric("Corners", f"{lam_co:.1f}")
 
     with tab2:
         st.subheader("Value Bet y Half-Kelly")
