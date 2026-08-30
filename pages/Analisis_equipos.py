@@ -1,3 +1,4 @@
+import html
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -8,7 +9,7 @@ import colorsys
 
 @st.cache_data(ttl=600)
 def cargar_datos():
-    sheet_id = "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg"
+    sheet_id = st.secrets.get("EQUIPOS_SHEET_ID", "16oKLxQtC59_tiPSKLEOECN0kO2WCXUPLZg7q73WPXyg")
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
     df = pd.read_csv(url)
     df.columns = df.columns.astype(str).str.strip()
@@ -56,6 +57,7 @@ def poisson_pmf(k, lam):
     log_p = -lam + k * np.log(lam) - np.sum(np.log(np.arange(1, k + 1)))
     return float(np.exp(log_p))
 
+@st.cache_data
 def simular_goles_dixon_coles(lam_fav, lam_con, rho=-0.10, num_sim=10000, max_goles=8, seed=42):
     rng = np.random.default_rng(seed)
     lam_fav = max(lam_fav, 0.05)
@@ -189,6 +191,8 @@ with st.sidebar.expander("Modelo estadistico", expanded=True):
     st.caption("Recomendado ON en -0.10")
 
 color_equipo = generar_color_equipo(equipo_sel)
+equipo_sel_html = html.escape(equipo_sel)
+nivel_sel_html = html.escape(nivel_sel)
 
 st.markdown(f"""
 <style>
@@ -271,7 +275,7 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, muestra_pequena=Fal
     kelly_txt = f" | Half-Kelly: <b>{stake}% bank</b>" if es_value else ""
     caution = " (muestra pequena)" if muestra_pequena and es_value else ""
     st.markdown(
-        f'<div class="value-box {clase}"><b>{nombre}</b>{caution}<br>'
+        f'<div class="value-box {clase}"><b>{html.escape(nombre)}</b>{caution}<br>'
         f"Prob: <b>{prob:.1f}%</b> | Justa: <b>{cuota_justa}</b> | Casa: <b>{cuota_casa}</b>{kelly_txt}<br>"
         f'<span style="color:{color_ev}; font-weight:bold; font-size:15px;">'
         f"EV: {ev:+.2%} -> {'VALUE' if es_value else 'Sin valor'}</span></div>",
@@ -402,8 +406,8 @@ if st.session_state.analizado_equipos:
     else:
         veredicto = f"Partido Muy Parejo - Marcador proyectado {marcador_mas_comun}"
 
-    st.markdown(f'<div class="header-box">{equipo_sel.upper()} - {condicion_label.upper()} vs {nivel_sel.upper()}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="veredicto-box"><b>Veredicto:</b> {veredicto}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="header-box">{equipo_sel_html.upper()} - {condicion_label.upper()} vs {nivel_sel_html.upper()}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="veredicto-box"><b>Veredicto:</b> {html.escape(veredicto)}</div>', unsafe_allow_html=True)
     st.caption(f"Base: {n_obs} partidos - {fuente_datos}")
 
     mods = []
@@ -495,7 +499,7 @@ if st.session_state.analizado_equipos:
             st.markdown(
                 f'<div class="top-pick-box">'
                 f'<h3>🏆 La Joya del Partido (Top Value Bet)</h3>'
-                f'<p style="font-size: 16px; margin-bottom: 8px;">Mercado recomendado: <b>{top_eq["nombre"]}</b></p>'
+                f'<p style="font-size: 16px; margin-bottom: 8px;">Mercado recomendado: <b>{html.escape(top_eq["nombre"])}</b></p>'
                 f'<ul>'
                 f'<li>Probabilidad del Modelo: <b>{top_eq["prob"]:.1f}%</b></li>'
                 f'<li>Cuota Casa: <b>{top_eq["cuota"]}</b></li>'
