@@ -745,10 +745,13 @@ if st.session_state.analizado_equipos:
                 st.warning("⚠️ EV Negativo.")
 
     with tab4:
-        st.subheader("🛡️ Solidez Defensiva (Comportamiento sin balón / Rival)")
+        st.subheader("🛡️ Solidez Defensiva (Comportamiento sin balón / Rival & Disciplina)")
         prom_tp_rival = prom("Tiros a Puerta Rival")
         prom_g_rival = prom("Goles Rival")
         prom_corners_rival = prom("Corners Rival") if "Corners Rival" in historial.columns else 0.0
+        prom_faltas = prom("Faltas") if "Faltas" in historial.columns else 0.0
+        prom_amarillas = prom("Amarillas") if "Amarillas" in historial.columns else 0.0
+        prom_rojas = prom("Rojas") if "Rojas" in historial.columns else 0.0
         
         ratio_tp_gol_contra = prom_tp_rival / prom_g_rival if prom_g_rival > 0 else 0.0
 
@@ -757,13 +760,15 @@ if st.session_state.analizado_equipos:
         d2.metric("Goles en Contra (Prom.)", f"{prom_g_rival:.2f} xG")
         d3.metric("Tiros a Puerta por Gol en Contra", f"{ratio_tp_gol_contra:.1f} tiros", "Eficiencia defensiva rival")
 
-        d4, _, _ = st.columns(3)
+        d4, d5, d6 = st.columns(3)
         d4.metric("Corners Concedidos (Prom.)", f"{prom_corners_rival:.1f} xG")
+        d5.metric("Faltas Propias (Prom.)", f"{prom_faltas:.1f} xG")
+        d6.metric("Tarjetas (Amarillas / Rojas)", f"{prom_amarillas:.1f} A / {prom_rojas:.1f} R")
 
         if prom_g_rival > 0:
-            feedback_def = f"En la faceta defensiva dentro de este contexto analítico, el equipo permite un promedio de {prom_tp_rival:.1f} tiros a puerta por partido y recibe {prom_g_rival:.2f} goles, lo que equivale a recibir un gol cada {ratio_tp_gol_contra:.1f} tiros a puerta en contra. Asimismo, concede un promedio de {prom_corners_rival:.1f} corners al rival."
+            feedback_def = f"En la faceta defensiva dentro de este contexto analítico, el equipo permite un promedio de {prom_tp_rival:.1f} tiros a puerta por partido y recibe {prom_g_rival:.2f} goles, lo que equivale a recibir un gol cada {ratio_tp_gol_contra:.1f} tiros a puerta en contra. Asimismo, concede un promedio de {prom_corners_rival:.1f} corners al rival, comete {prom_faltas:.1f} faltas y recibe {prom_amarillas:.1f} amarillas y {prom_rojas:.1f} rojas."
         else:
-            feedback_def = f"El equipo mantiene una defensa sólida en esta muestra, permitiendo {prom_tp_rival:.1f} tiros a puerta en promedio sin encajar goles en contra."
+            feedback_def = f"El equipo mantiene una defensa sólida en esta muestra, permitiendo {prom_tp_rival:.1f} tiros a puerta en promedio sin encajar goles en contra, cometiendo {prom_faltas:.1f} faltas y recibiendo {prom_amarillas:.1f} amarillas y {prom_rojas:.1f} rojas."
         st.markdown(f'<div class="veredicto-box"><b>🔍 Retroalimentación Defensiva:</b><br>{feedback_def}</div>', unsafe_allow_html=True)
 
     with tab5:
@@ -772,9 +777,6 @@ if st.session_state.analizado_equipos:
         prom_tp = prom("A Puerta")
         prom_goles = prom("Goles")
         prom_corners = prom("Corners") if "Corners" in historial.columns else 0.0
-        prom_amarillas = prom("Amarillas") if "Amarillas" in historial.columns else 0.0
-        prom_rojas = prom("Rojas") if "Rojas" in historial.columns else 0.0
-        prom_faltas = prom("Faltas") if "Faltas" in historial.columns else 0.0
         
         ratio_tiros_gol = prom_tiros / prom_goles if prom_goles > 0 else 0.0
         ratio_tp_gol = prom_tp / prom_goles if prom_goles > 0 else 0.0
@@ -789,12 +791,8 @@ if st.session_state.analizado_equipos:
         o5.metric("Tiros a Puerta por Gol", f"{ratio_tp_gol:.1f} tiros", "Conversión a puerta")
         o6.metric("Corners a Favor (Prom.)", f"{prom_corners:.1f} xG")
 
-        o7, o8 = st.columns(2)
-        o7.metric("Faltas Propias (Prom.)", f"{prom_faltas:.1f} xG")
-        o8.metric("Tarjetas (Amarillas / Rojas)", f"{prom_amarillas:.1f} A / {prom_rojas:.1f} R")
-
         if prom_goles > 0:
-            feedback_of = f"En la faceta ofensiva dentro de este contexto analítico, el equipo genera {prom_tiros:.1f} tiros totales y {prom_tp:.1f} tiros a puerta por encuentro, anotando {prom_goles:.2f} goles. Necesita en promedio {ratio_tiros_gol:.1f} tiros totales (o {ratio_tp_gol:.1f} a puerta) para convertir un gol. Además, cobra un promedio de {prom_corners:.1f} corners, comete {prom_faltas:.1f} faltas y recibe {prom_amarillas:.1f} amarillas y {prom_rojas:.1f} rojas."
+            feedback_of = f"En la faceta ofensiva dentro de este contexto analítico, el equipo genera {prom_tiros:.1f} tiros totales y {prom_tp:.1f} tiros a puerta por encuentro, anotando {prom_goles:.2f} goles. Necesita en promedio {ratio_tiros_gol:.1f} tiros totales (o {ratio_tp_gol:.1f} a puerta) para convertir un gol. Además, cobra un promedio de {prom_corners:.1f} corners."
         else:
             feedback_of = f"El equipo registra una producción ofensiva de {prom_tiros:.1f} tiros y {prom_tp:.1f} a puerta, sin goles anotados en esta muestra específica."
         st.markdown(f'<div class="veredicto-box"><b>🔍 Retroalimentación Ofensiva:</b><br>{feedback_of}</div>', unsafe_allow_html=True)
