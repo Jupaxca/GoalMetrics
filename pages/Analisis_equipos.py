@@ -402,6 +402,19 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, muestra_pequena=Fal
 st.markdown("### GoalMetrics - Análisis de Equipos (Híbrido)")
 st.caption("Simulación con Poisson, Dixon-Coles y Ensemble XGBoost.")
 
+# Guía detallada que explica cómo funciona todo hasta la parte de shrinkage y dixon-coles
+with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis de Equipos?", expanded=False):
+    st.markdown("""
+    Bienvenido al **Centro de Análisis de Equipos de GoalMetrics**. Esta herramienta combina estadística avanzada y Machine Learning. Aquí te detallamos cómo opera cada módulo interno:
+    
+    * **1. Filtros y Contexto:** Seleccionas la Liga, Equipo, Condición (Local/Visitante) y el Nivel del Rival. El sistema busca partidos exactos que coincidan con estos parámetros.
+    * **2. Respaldo Inteligente (Muestra Pequeña):** Si hay pocos partidos exactos, la herramienta activa un respaldo automático tomando encuentros de otra condición o nivel de rival, aplicando factores de corrección y ponderación por *Tier* para que nunca te quedes a cero.
+    * **3. Modelo Estadístico Base (Poisson):** Calcula la tasa esperada de ocurrencia ($\lambda$) de goles, tiros, córners y faltas ponderando la cercanía temporal de los encuentros (dando más peso a los partidos recientes).
+    * **4. Shrinkage (Regresión a la Media):** Cuando está activado (**ON**), toma las estadísticas observadas del equipo y las ajusta empujándolas levemente hacia el promedio general de su categoría según la fuerza del prior (*k*). Esto evita sobreestimaciones causadas por rachas muy cortas o partidos atípicos.
+    * **5. Corrección Dixon-Coles:** Cuando está activado (**ON**), aplica una matriz de corrección (controlada por el parámetro $\rho$) que ajusta la probabilidad de marcadores de baja anotación (como el 0-0, 1-0 o 1-1), modelando con gran precisión la dependencia entre los goles de ambos equipos y mejorando el cálculo de empates.
+    * **6. Ensemble XGBoost y Valor Matemático (EV / Kelly):** Combina el modelo estocástico de Poisson con Machine Learning (XGBoost) para refinar las probabilidades finales, calculando de forma automática el valor esperado (EV) y el porcentaje de bank recomendado mediante el criterio de Half-Kelly.
+    """)
+
 if "analizado_equipos" not in st.session_state:
     st.session_state.analizado_equipos = False
 
