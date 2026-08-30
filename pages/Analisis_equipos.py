@@ -49,7 +49,8 @@ def cargar_datos():
         else:
             df[col] = 0
 
-    df["Tiros a Puerta Rival"] = df["Goles Rival"] + df["Atajadas"]
+    if "Tiros a Puerta Rival" not in df.columns:
+        df["Tiros a Puerta Rival"] = df["Goles Rival"] + df["Atajadas"]
     
     return df
 
@@ -346,14 +347,6 @@ st.markdown(f"""
 .value-yes {{ background-color: #064e3b; border-left: 4px solid #10b981; }}
 .value-no {{ background-color: #1f2937; border-left: 4px solid #4b5563; }}
 .top-pick-box {{ background: linear-gradient(135deg, #065f46 0%, #111827 100%); padding: 20px; border-radius: 12px; border: 2px solid #10b981; margin-bottom: 20px; }}
-.ratio-box {{
-    background-color: #1F2937; padding: 16px 20px; border-radius: 12px;
-    border-left: 5px solid #3B82F6; margin-bottom: 20px; font-size: 16px;
-}}
-.ratio-box-off {{
-    background-color: #1F2937; padding: 16px 20px; border-radius: 12px;
-    border-left: 5px solid #10b981; margin-bottom: 20px; font-size: 16px;
-}}
 div[data-testid="stMetric"] {{ background-color: #1F2937; padding: 12px 16px; border-radius: 10px; }}
 </style>
 """, unsafe_allow_html=True)
@@ -501,7 +494,7 @@ if st.session_state.analizado_equipos:
 
     historial = pd.DataFrame(historial_list)
 
-    cols_numericas_ajustar = ["Goles", "Goles Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Atajadas", "Amarillas", "Rojas", "Corners Rival"]
+    cols_numericas_ajustar = ["Goles", "Goles Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Atajadas", "Amarillas", "Rojas", "Corners Rival", "Tiros a Puerta Rival"]
     for col in cols_numericas_ajustar:
         if col in historial.columns:
             historial[col] = historial[col] * historial["Factor_Ajuste"]
@@ -752,22 +745,59 @@ if st.session_state.analizado_equipos:
                 st.warning("⚠️ EV Negativo.")
 
     with tab4:
-        st.subheader("🛡️ Solidez Defensiva")
+        st.subheader("🛡️ Solidez Defensiva (Comportamiento sin balón / Rival)")
         prom_tp_rival = prom("Tiros a Puerta Rival")
         prom_g_rival = prom("Goles Rival")
+        prom_corners_rival = prom("Corners Rival") if "Corners Rival" in historial.columns else 0.0
+        
+        ratio_tp_gol_contra = prom_tp_rival / prom_g_rival if prom_g_rival > 0 else 0.0
+
         d1, d2, d3 = st.columns(3)
-        d1.metric("Tiros a Puerta Permitidos", f"{prom_tp_rival:.1f}")
-        d2.metric("Goles en Contra (Prom.)", f"{prom_g_rival:.2f}")
+        d1.metric("Tiros a Puerta Permitidos", f"{prom_tp_rival:.1f} por partido")
+        d2.metric("Goles en Contra (Prom.)", f"{prom_g_rival:.2f} por partido")
+        d3.metric("Tiros a Puerta por Gol en Contra", f"{ratio_tp_gol_contra:.1f} tiros", "Eficiencia defensiva rival")
+
+        d4, _, _ = st.columns(3)
+        d4.metric("Corners Concedidos (Prom.)", f"{prom_corners_rival:.1f}")
+
+        if prom_g_rival > 0:
+            feedback_def = f"En faceta defensiva dentro de este baremo, el equipo permite un promedio de **{prom_tp_rival:.1f} tiros a puerta** por partido y recibe **{prom_g_rival:.2f} goles**, lo que equivale a recibir un gol cada **{ratio_tp_gol_contra:.1f} tiros a puerta** en contra. Asimismo, concede un promedio de **{prom_corners_rival:.1f} corners** al rival."
+        else:
+            feedback_def = f"El equipo mantiene una defensa sólida en esta muestra, permitiendo **{prom_tp_rival:.1f} tiros a puerta** en promedio sin encajar goles en contra."
+        st.markdown(f'<div class="veredicto-box"><b>🔍 Retroalimentación Defensiva:</b><br>{feedback_def}</div>', unsafe_allow_html=True)
 
     with tab5:
-        st.subheader("⚡ Fase Ofensiva")
+        st.subheader("⚡ Fase Ofensiva (Producción propia con balón)")
         prom_tiros = prom("Tiros")
-        prom_a_puerta = prom("A Puerta")
+        prom_tp = prom("A Puerta")
         prom_goles = prom("Goles")
+        prom_corners = prom("Corners") if "Corners" in historial.columns else 0.0
+        prom_amarillas = prom("Amarillas") if "Amarillas" in historial.columns else 0.0
+        prom_rojas = prom("Rojas") if "Rojas" in historial.columns else 0.0
+        prom_faltas = prom("Faltas") if "Faltas" in historial.columns else 0.0
+        
+        ratio_tiros_gol = prom_tiros / prom_goles if prom_goles > 0 else 0.0
+        ratio_tp_gol = prom_tp / prom_goles if prom_goles > 0 else 0.0
+
         o1, o2, o3 = st.columns(3)
-        o1.metric("Tiros Totales", f"{prom_tiros:.1f}")
-        o2.metric("Tiros a Puerta", f"{prom_a_puerta:.1f}")
-        o3.metric("Goles a Favor", f"{prom_goles:.2f}")
+        o1.metric("Tiros Totales (Prom.)", f"{prom_tiros:.1f}")
+        o2.metric("Tiros a Puerta (Prom.)", f"{prom_tp:.1f}")
+        o3.metric("Goles a Favor (Prom.)", f"{prom_goles:.2f}")
+
+        o4, o5, o6 = st.columns(3)
+        o4.metric("Tiros Totales por Gol", f"{ratio_tiros_gol:.1f} tiros", "Conversión global")
+        o5.metric("Tiros a Puerta por Gol", f"{ratio_tp_gol:.1f} tiros", "Conversión a puerta")
+        o6.metric("Corners a Favor (Prom.)", f"{prom_corners:.1f}")
+
+        o7, o8 = st.columns(2)
+        o7.metric("Faltas Propias (Prom.)", f"{prom_faltas:.1f}")
+        o8.metric("Tarjetas (Amarillas / Rojas)", f"{prom_amarillas:.1f} A / {prom_rojas:.1f} R")
+
+        if prom_goles > 0:
+            feedback_of = f"En la faceta ofensiva dentro de este baremo, el equipo genera **{prom_tiros:.1f} tiros totales** y **{prom_tp:.1f} tiros a puerta** por encuentro, anotando **{prom_goles:.2f} goles**. Necesita en promedio **{ratio_tiros_gol:.1f} tiros totales** (o **{ratio_tp_gol:.1f} a puerta**) para convertir un gol. Además, cobra un promedio de **{prom_corners:.1f} corners**, comete **{prom_faltas:.1f} faltas** y recibe **{prom_amarillas:.1f} amarillas** y **{prom_rojas:.1f} rojas**."
+        else:
+            feedback_of = f"El equipo registra una producción ofensiva de **{prom_tiros:.1f} tiros** y **{prom_tp:.1f} a puerta**, sin goles anotados en esta muestra específica."
+        st.markdown(f'<div class="veredicto-box"><b>🔍 Retroalimentación Ofensiva:</b><br>{feedback_of}</div>', unsafe_allow_html=True)
 
     with tab6:
         lc1, lc2, lc3 = st.columns(3)
