@@ -51,13 +51,17 @@ def get_supabase_client() -> Client:
     return st.session_state.supabase_client
 
 
-def guardar_sesion(session) -> None:
+def guardar_sesion(res) -> None:
     """Guarda el usuario y los tokens en session_state tras login/signup."""
-    st.session_state.user = session.user
-    st.session_state.supabase_tokens = {
-        "access_token": session.access_token,
-        "refresh_token": session.refresh_token,
-    }
+    st.session_state.user = res.user
+    
+    # CORRECCIÓN: Los tokens de acceso y refresco viven dentro de res.session
+    session_data = getattr(res, "session", None)
+    if session_data:
+        st.session_state.supabase_tokens = {
+            "access_token": session_data.access_token,
+            "refresh_token": session_data.refresh_token,
+        }
 
 
 def cerrar_sesion() -> None:
@@ -197,4 +201,3 @@ perfil_usuario = st.Page("pages/perfil.py", title="Mi Perfil", icon="👤")
 
 pg = st.navigation([analisis_equipos, analisis_jugadores, tracker_apuestas, coach_ia, perfil_usuario])
 pg.run()
-
