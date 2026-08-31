@@ -13,7 +13,7 @@ except ImportError:
     XGB_DISPONIBLE = False
 
 st.set_page_config(
-    page_title="GoalMetrics | Análisis de Jugadores (Híbrido)",
+    page_title="GoalMetrics | Análisis de Jugadores (Híbrido Pro)",
     page_icon="⚽",
     layout="wide"
 )
@@ -310,19 +310,14 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, real=None):
         unsafe_allow_html=True,
     )
 
-st.markdown("### Centro de Analisis Individual de Jugadores (Híbrido)")
-st.caption("Asistente inteligente de apuestas con control de dificultad de rival, ensemble XGBoost y análisis de valor matemático.")
+st.markdown("### Centro de Analisis Individual de Jugadores (Híbrido Pro)")
+st.caption("Asistente inteligente con semáforo de confiabilidad, control de exposición y gráficos integrados.")
 
-with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis de Jugadores?", expanded=False):
+with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis?", expanded=False):
     st.markdown("""
-    Bienvenido al **Centro de Análisis de Jugadores de GoalMetrics**. Esta herramienta combina estadística avanzada y Machine Learning enfocado en rendimiento individual (*Player Props*). Aquí te detallamos cómo opera cada módulo interno:
-    
-    * **1. Filtros y Contexto:** Seleccionas la Liga, el Jugador, la Condición (Local/Visitante) y el Nivel del Rival para aislar el escenario correcto.
-    * **2. Respaldo Inteligente (Muestra Pequeña):** Si el jugador cuenta con pocos registros exactos en ese filtro, el sistema activa automáticamente un respaldo cruzado o por Tier con factores de ponderación para asegurar una muestra robusta sin bloquearse.
-    * **3. Modelo Estadístico Base (Poisson):** Calcula la tasa esperada de ocurrencia ($\lambda$) de goles, tiros, tiros a puerta, asistencias y faltas ponderando la cercanía temporal de los partidos.
-    * **4. Shrinkage (Regresión a la Media):** Cuando está activado (**ON**), toma las estadísticas observadas y las ajusta empujándolas levemente hacia el promedio general de su categoría según la fuerza del prior (*k*).
-    * **5. Eficiencia, Conversión y Volatilidad:** El Resumen Dinámico evalúa ratios de conversión a gol y la **Volatilidad (Desviación Estándar)** en goles, asistencias y tiros a puerta. Una volatilidad baja indica constancia y fiabilidad partido a partido; una volatilidad alta señala a un jugador irregular o dependiente de rachas.
-    * **6. Ensemble XGBoost y Valor Matemático (EV / Kelly):** Combina el modelo estocástico con Machine Learning (XGBoost) para refinar probabilidades, calculando el valor esperado (EV) y el porcentaje de bank recomendado mediante Half-Kelly.
+    * **1. Semáforo de Confiabilidad:** Evalúa la robustez de la muestra. Verde = Muestra exacta suficiente; Amarillo = Respaldo inteligente activo; Rojo = Muestra escasa/crítica.
+    * **2. Dashboard Principal & Gráficos:** Integra el perfil de radar, tasas de conversión, volatilidad (desviación estándar) y las curvas acumuladas (Over X).
+    * **3. Control de Exposición al Bank:** Monitorea la suma de stakes recomendados para evitar sobreapuestas en un mismo encuentro.
     """)
 
 if "analizado_jugadores" not in st.session_state:
@@ -413,13 +408,29 @@ if st.session_state.analizado_jugadores:
             historial[col] = historial[col] * historial["Factor_Ajuste"]
 
     n_obs = len(historial)
-    muestra_pequena = n_obs <= 2
+
+    # --- 1. SEMÁFORO DE CONFIABILIDAD ---
+    if len(df_exactos) >= 2:
+        st.markdown(
+            '<div style="background-color: #064e3b; padding: 12px 18px; border-radius: 10px; border-left: 5px solid #10b981; margin-bottom: 20px;">'
+            '🟢 <b>Semáforo de Confiabilidad: ALTA</b> — Muestra robusta con suficientes partidos exactos en este escenario.'
+            '</div>', unsafe_allow_html=True
+        )
+    elif len(df_exactos) == 1:
+        st.markdown(
+            '<div style="background-color: #78350f; padding: 12px 18px; border-radius: 10px; border-left: 5px solid #f59e0b; margin-bottom: 20px;">'
+            '🟡 <b>Semáforo de Confiabilidad: MEDIA</b> — 1 partido exacto encontrado. Respaldo inteligente activo.'
+            '</div>', unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            '<div style="background-color: #7f1d1d; padding: 12px 18px; border-radius: 10px; border-left: 5px solid #ef4444; margin-bottom: 20px;">'
+            '🔴 <b>Semáforo de Confiabilidad: BAJA</b> — Muestra escasa, interpretar con máxima precaución.'
+            '</div>', unsafe_allow_html=True
+        )
 
     st.markdown(f'<div class="header-box">{liga_sel.upper()} | {jugador_sel.upper()} | {condicion_sel} vs {nivel_sel}</div>', unsafe_allow_html=True)
     st.caption(f"Base analizada: {n_obs} partidos | Fuente: {fuente} | Ensemble Híbrido Activo")
-
-    if muestra_pequena:
-        st.warning("Muestra pequeña (Respaldo activo con 1 partido). Interpreta con cautela.")
 
     hoy = pd.Timestamp.today().normalize()
     if "Fecha" in historial.columns:
@@ -459,7 +470,6 @@ if st.session_state.analizado_jugadores:
     else:
         lam_g, lam_t, lam_p, lam_a, lam_f = lam_g_raw, lam_t_raw, lam_p_raw, lam_a_raw, lam_f_raw
 
-    # Topes y jerarquía de seguridad lógicos
     lam_g = min(lam_g, 2.0)
     lam_t = min(lam_t, 10.0)
     lam_p = min(lam_p, lam_t)  
@@ -504,11 +514,15 @@ if st.session_state.analizado_jugadores:
         {"nombre": f"Over {linea_contrib} Gol/Asist", "prob": prob_contrib, "cuota": cuota_casa_contrib, "ev": calcular_ev(prob_contrib, cuota_casa_contrib)}
     ]
 
-    tab1, tab_graficos, tab2, tab3, tab4, tab5 = st.tabs(["Resumen Dinámico", "📈 Líneas y Gráficos", "Value Bet Props", "🤖 Panel Inteligente & Parlay", "Probabilidades", "Detalle"])
+    # --- 3. FUSIÓN DE VISTAS (3 PESTAÑAS PRINCIPALES) ---
+    tab1, tab2, tab3 = st.tabs([
+        "📊 Dashboard Principal y Gráficos",
+        "💰 Value Bets & Inteligencia",
+        "📋 Auditoría y Datos"
+    ])
 
     with tab1:
-        st.subheader(f"Métricas promedio y eficiencia en el escenario: {condicion_sel} vs {nivel_sel}")
-        st.caption("Valores calculados estrictamente sobre la muestra adaptada para este análisis.")
+        st.subheader(f"Métricas, Eficiencia y Gráficos Acumulados")
         
         partidos_por_gol = 1.0 / lam_g if lam_g > 0 else 0.0
         partidos_por_asist = 1.0 / lam_a if lam_a > 0 else 0.0
@@ -524,32 +538,28 @@ if st.session_state.analizado_jugadores:
         asist_recientes = ultimos_partidos["Asistencias"].mean() if "Asistencias" in ultimos_partidos else 0.0
         
         if goles_recientes > lam_g or asist_recientes > lam_a:
-            estado_momentum = "🔥 <b>Momentum al alza:</b> Su producción en los últimos encuentros supera su media histórica para este contexto."
+            estado_momentum = "🔥 <b>Momentum al alza:</b> Supera su media histórica reciente."
         elif goles_recientes < lam_g * 0.5 and asist_recientes < lam_a * 0.5:
-            estado_momentum = "❄️ <b>Momentum a la baja:</b> Su rendimiento reciente se encuentra por debajo de su estándar habitual."
+            estado_momentum = "❄️ <b>Momentum a la baja:</b> Rendimiento por debajo de su estándar."
         else:
-            estado_momentum = "⚖️ <b>Momentum estable:</b> Su dinámica actual se alinea con su promedio histórico."
+            estado_momentum = "⚖️ <b>Momentum estable:</b> Acorde a su promedio histórico."
 
-        # Evaluamos la volatilidad de forma automática para el texto descriptivo
         volatilidad_goles_val = historial["Goles"].std() if "Goles" in historial and len(historial) > 1 else 0.0
         volatilidad_puerta_val = historial["A Puerta"].std() if "A Puerta" in historial and len(historial) > 1 else 0.0
 
-        desc_vol_goles = "baja (jugador consistente de cara al gol)" if volatilidad_goles_val < 0.6 else "alta (jugador de rachas o montaña rusa)"
-        desc_vol_puerta = "baja (garantiza remates al arco estables partido a partido)" if volatilidad_puerta_val < 0.8 else "alta (rendimiento irregular en disparos al arco)"
+        desc_vol_goles = "baja (consistente)" if volatilidad_goles_val < 0.6 else "alta (irregular/rachas)"
+        desc_vol_puerta = "baja (estable al arco)" if volatilidad_puerta_val < 0.8 else "alta (variable al arco)"
 
-        freq_gol_txt = f"anota un gol cada <b>{partidos_por_gol:.1f} partidos</b>" if partidos_por_gol > 0 else "baja incidencia goleadora"
-        freq_asist_txt = f"reparte una asistencia cada <b>{partidos_por_asist:.1f} partidos</b>" if partidos_por_asist > 0 else "baja incidencia en pases de gol"
+        freq_gol_txt = f"gol cada <b>{partidos_por_gol:.1f} partidos</b>" if partidos_por_gol > 0 else "baja incidencia"
+        freq_asist_txt = f"asistencia cada <b>{partidos_por_asist:.1f} partidos</b>" if partidos_por_asist > 0 else "baja incidencia"
 
         analisis_tendencia = (
-            f"<b>Desglose de Frecuencia y Producción Pura:</b><br>"
-            f"• En este escenario, el jugador {freq_gol_txt} y {freq_asist_txt}.<br>"
-            f"• <b>Porcentaje de Contribución Real:</b> Aporta al menos un gol o asistencia en el <b>{pct_contribucion_real:.1f}%</b> de sus encuentros bajo este contexto.<br>"
-            f"• <b>Evaluación frente a la línea de Gol o Asistencia (Over {linea_contrib}):</b> La probabilidad híbrida proyectada es del <b>{prob_contrib:.1f}%</b>.<br>"
-            f"• <b>Lectura de Confiabilidad:</b> Su volatilidad en goles es <b>{desc_vol_goles}</b> y en tiros a puerta es <b>{desc_vol_puerta}</b>.<br>"
+            f"• Anota {freq_gol_txt} y reparte {freq_asist_txt}.<br>"
+            f"• <b>Contribución Real:</b> Aporta gol o asistencia en el <b>{pct_contribucion_real:.1f}%</b> de sus encuentros.<br>"
+            f"• <b>Volatilidad:</b> En goles es <b>{desc_vol_goles}</b> y en tiros a puerta es <b>{desc_vol_puerta}</b>.<br>"
             f"• {estado_momentum}"
         )
-
-        st.markdown(f'<div class="veredicto-box"><b>📊 Análisis Profesional de Frecuencia:</b><br>{analisis_tendencia}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="veredicto-box"><b>📊 Resumen Analítico:</b><br>{analisis_tendencia}</div>', unsafe_allow_html=True)
 
         metrics_data = {
             "Goles": {"prom": historial["Goles"].mean() if "Goles" in historial else 0, "lam": lam_g},
@@ -567,44 +577,8 @@ if st.session_state.analizado_jugadores:
 
         st.markdown("---")
         
-        # Panel de Eficiencia y Volatilidad
-        col_ef1, col_ef2 = st.columns([1, 1])
-
-        with col_ef1:
-            st.subheader("🎯 Eficiencia y Conversión Detallada")
-            total_goles_escenario = historial["Goles"].sum() if "Goles" in historial else 0
-            total_puerta_escenario = historial["A Puerta"].sum() if "A Puerta" in historial else 0
-            total_tiros_escenario = historial["Tiros"].sum() if "Tiros" in historial else 0
-            
-            ratio_puerta_gol = total_puerta_escenario / total_goles_escenario if total_goles_escenario > 0 else 0.0
-            ratio_tiros_gol = total_tiros_escenario / total_goles_escenario if total_goles_escenario > 0 else 0.0
-            conv_tiros = (total_goles_escenario / total_tiros_escenario * 100) if total_tiros_escenario > 0 else 0.0
-            conv_puerta = (total_goles_escenario / total_puerta_escenario * 100) if total_puerta_escenario > 0 else 0.0
-
-            if total_goles_escenario > 0:
-                st.metric("Tiros a Puerta por Gol", f"{ratio_puerta_gol:.1f} tiros", f"Efectividad a puerta: {conv_puerta:.1f}%")
-                st.metric("Tiros Totales por Gol", f"{ratio_tiros_gol:.1f} tiros", f"Conversión global: {conv_tiros:.1f}%")
-            else:
-                st.metric("Tiros a Puerta por Gol", "N/A", "Sin goles en esta muestra")
-                st.metric("Tiros Totales por Gol", "N/A", "Sin goles en esta muestra")
-                
-            st.metric("Partidos Analizados en Muestra", n_obs, f"Fuente: {fuente}")
-
-        with col_ef2:
-            st.subheader("🛡️ Confiabilidad y Volatilidad")
-            volatilidad_asistencias = historial["Asistencias"].std() if "Asistencias" in historial and len(historial) > 1 else 0.0
-            
-            st.metric("Volatilidad Goleadora (Desv. Est.)", f"{volatilidad_goles_val:.2f}", "Consistencia en anotación")
-            st.metric("Volatilidad de Asistencias", f"{volatilidad_asistencias:.2f}", "Consistencia en pases de gol")
-            st.metric("Volatilidad de Tiros a Puerta", f"{volatilidad_puerta_val:.2f}", "Variabilidad en remates al arco")
-
-    with tab_graficos:
-        st.subheader("📈 Líneas y Gráficos de Probabilidad Acumulada")
-        st.caption(f"Análisis visual de rendimiento y probabilidad acumulada (Over X) para {jugador_sel} en condición de {condicion_sel} vs {nivel_sel}.")
-
-        st.markdown("### 🕸️ Perfil de Atributos (Radar)")
-        col_gr1, col_gr2 = st.columns(2)
-        
+        # Radar y Gráficos Acumulados integrados
+        st.subheader("🕸️ Perfil de Atributos (Radar)")
         avg_g = historial["Goles"].mean() if "Goles" in historial else 0.0
         avg_t = historial["Tiros"].mean() if "Tiros" in historial else 0.0
         avg_p = historial["A Puerta"].mean() if "A Puerta" in historial else 0.0
@@ -617,38 +591,22 @@ if st.session_state.analizado_jugadores:
         categories = ['Goles', 'Tiros', 'A Puerta', 'Asistencias', 'Faltas']
         vals = [min(avg_g, 10.0), min(avg_t, 10.0), min(avg_p, 10.0), min(avg_a, 10.0), min(avg_f, 10.0)]
 
-        with col_gr1:
-            fig_radar_tab = go.Figure(go.Scatterpolar(
-                r=vals + [vals[0]],
-                theta=categories + [categories[0]],
-                fill='toself',
-                marker=dict(color='#3B82F6'),
-                line=dict(color='#60A5FA', width=2)
-            ))
-            fig_radar_tab.update_layout(
-                polar=dict(
-                    radialaxis=dict(visible=True, range=[0, 10], color="#9ca3af"),
-                    bgcolor="#111827"
-                ),
-                showlegend=False,
-                paper_bgcolor="#0B0F19",
-                plot_bgcolor="#0B0F19",
-                font=dict(color="#F3F4F6", size=11),
-                height=320,
-                margin=dict(l=20, r=20, t=10, b=10)
-            )
-            st.plotly_chart(fig_radar_tab, use_container_width=True)
-
-        with col_gr2:
-            st.markdown("""
-            <div style="background-color: #1F2937; padding: 20px; border-radius: 12px; height: 320px; display: flex; flex-direction: column; justify-content: center;">
-                <h4 style="color: #3B82F6; margin-top: 0;">Resumen del Perfil</h4>
-                <p>Este gráfico de radar mapea los promedios históricos directos del jugador en la muestra analizada, permitiendo identificar rápidamente sus fortalezas en goles, generación de disparos y participación en el juego.</p>
-                <p style="color: #10b981; font-weight: bold;">✔ Escala absoluta sincronizada con la malla de referencia (0-10).</p>
-            </div>
-            """, unsafe_allow_html=True)
+        fig_radar = go.Figure(go.Scatterpolar(
+            r=vals + [vals[0]],
+            theta=categories + [categories[0]],
+            fill='toself',
+            marker=dict(color='#3B82F6'),
+            line=dict(color='#60A5FA', width=2)
+        ))
+        fig_radar.update_layout(
+            polar=dict(radialaxis=dict(visible=True, range=[0, 10], color="#9ca3af"), bgcolor="#111827"),
+            showlegend=False, paper_bgcolor="#0B0F19", plot_bgcolor="#0B0F19",
+            font=dict(color="#F3F4F6", size=11), height=320, margin=dict(l=20, r=20, t=10, b=10)
+        )
+        st.plotly_chart(fig_radar, use_container_width=True)
 
         st.markdown("---")
+        st.subheader("📈 Curvas de Probabilidad Acumulada (Over X)")
 
         def crear_grafico_acumulado(sim_data, titulo_metrica, color_linea="#10b981"):
             if "Gol" in titulo_metrica:
@@ -659,38 +617,28 @@ if st.session_state.analizado_jugadores:
                 lines = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5]
 
             probs = [(sim_data > l).mean() * 100 for l in lines]
-
             fig = go.Figure()
             fig.add_trace(go.Scatter(
-                x=[str(l) for l in lines],
-                y=probs,
-                mode='lines+markers+text',
-                text=[f"{p:.1f}%" if p > 0.05 else "0.0%" for p in probs],
-                textposition="top center",
-                line=dict(color=color_linea, width=3),
-                marker=dict(size=8, color=color_linea)
+                x=[str(l) for l in lines], y=probs, mode='lines+markers+text',
+                text=[f"{p:.1f}%" if p > 0.05 else "0.0%" for p in probs], textposition="top center",
+                line=dict(color=color_linea, width=3), marker=dict(size=8, color=color_linea)
             ))
             fig.update_layout(
-                title=f"Probabilidad Acumulada de {titulo_metrica} (Over X) - {jugador_sel}",
-                xaxis_title=f"Línea de {titulo_metrica} (Over)",
-                yaxis_title="Probabilidad (%)",
-                paper_bgcolor="#0B0F19",
-                plot_bgcolor="#111827",
-                font=dict(color="#F3F4F6", size=11),
-                yaxis=dict(range=[0, 115], gridcolor="#1f2937"),
-                xaxis=dict(gridcolor="#1f2937"),
-                height=350,
-                margin=dict(l=30, r=20, t=40, b=30)
+                title=f"Probabilidad Acumulada de {titulo_metrica} (Over X)",
+                xaxis_title=f"Línea de {titulo_metrica}", yaxis_title="Probabilidad (%)",
+                paper_bgcolor="#0B0F19", plot_bgcolor="#111827", font=dict(color="#F3F4F6", size=11),
+                yaxis=dict(range=[0, 115], gridcolor="#1f2937"), xaxis=dict(gridcolor="#1f2937"),
+                height=320, margin=dict(l=30, r=20, t=40, b=30)
             )
             return fig
 
-        st.plotly_chart(crear_grafico_acumulado(sim_goles, "Goles", color_linea="#10b981"), use_container_width=True)
-        st.plotly_chart(crear_grafico_acumulado(sim_puerta, "Tiros a Puerta", color_linea="#3B82F6"), use_container_width=True)
-        st.plotly_chart(crear_grafico_acumulado(sim_tiros, "Tiros Totales", color_linea="#F59E0B"), use_container_width=True)
+        st.plotly_chart(crear_grafico_acumulado(sim_goles, "Goles", "#10b981"), use_container_width=True)
+        st.plotly_chart(crear_grafico_acumulado(sim_puerta, "Tiros a Puerta", "#3B82F6"), use_container_width=True)
+        st.plotly_chart(crear_grafico_acumulado(sim_tiros, "Tiros Totales", "#F59E0B"), use_container_width=True)
 
     with tab2:
-        st.subheader("Value Bet Props (Gestión Half-Kelly)")
-        st.markdown("💡 *Todas las apuestas con EV positivo están optimizadas para operar bajo el criterio de Half-Kelly (% de bank).*")
+        st.subheader("💰 Value Bet Props & Control de Exposición")
+        st.markdown("💡 *Optimizado con el criterio de Half-Kelly.*")
         
         mostrar_value(f"Over {linea_goles} Goles", cj(prob_goles), cuota_casa_goles, calcular_ev(prob_goles, cuota_casa_goles), prob_goles, (historial["Goles"] > linea_goles).mean() * 100)
         mostrar_value(f"Over {linea_tiros} Tiros", cj(prob_tiros), cuota_casa_tiros, calcular_ev(prob_tiros, cuota_casa_tiros), prob_tiros, (historial["Tiros"] > linea_tiros).mean() * 100)
@@ -699,37 +647,30 @@ if st.session_state.analizado_jugadores:
         mostrar_value(f"Over {linea_faltas} Faltas", cj(prob_faltas), cuota_casa_faltas, calcular_ev(prob_faltas, cuota_casa_faltas), prob_faltas, (historial["Faltas"] > linea_faltas).mean() * 100)
         mostrar_value(f"Over {linea_contrib} Gol/Asist", cj(prob_contrib), cuota_casa_contrib, calcular_ev(prob_contrib, cuota_casa_contrib), prob_contrib, ((historial["Goles"] + historial["Asistencias"]) > linea_contrib).mean() * 100)
 
-    with tab3:
-        st.subheader("🤖 Panel de Inteligencia & Value Bets")
-        st.caption("Selección automática de la mejor oportunidad y constructor de combinadas (Parlay) con criterio matemático y gestión de bank.")
+        # --- 2. CONTROL DE RIESGO ACUMULADO (BANKROLL EXPOSURE) ---
+        exposicion_total_bank = sum([calcular_kelly(m["prob"], m["cuota"]) for m in lista_mercados if m["ev"] > 0])
+        st.markdown("---")
+        st.subheader("🛡️ Control de Exposición Global al Bank")
+        if exposicion_total_bank > 5.0:
+            st.warning(f"⚠️ **Exposición Alta ({exposicion_total_bank:.1f}% del Bank):** Estás tomando múltiples apuestas de valor en este partido que superan el límite de riesgo recomendado (5%). Sé selectivo.")
+        else:
+            st.success(f"✅ **Exposición Saludable ({exposicion_total_bank:.1f}% del Bank):** El riesgo acumulado en este evento se mantiene dentro de parámetros seguros.")
 
+        st.markdown("---")
+        st.subheader("🤖 Top Pick & Constructor de Parlays")
         value_bets_disponibles = [m for m in lista_mercados if m["ev"] > 0]
-        
         if value_bets_disponibles:
             top_pick = max(value_bets_disponibles, key=lambda x: x["ev"])
-            cuota_justa_top = cj(top_pick["prob"])
-            stake_top = calcular_kelly(top_pick["prob"], top_pick["cuota"])
-            
             st.markdown(
                 f'<div class="top-pick-box">'
                 f'<h3>🏆 La Joya del Partido (Top Value Bet)</h3>'
-                f'<p style="font-size: 16px; margin-bottom: 8px;">Mercado recomendado: <b>{top_pick["nombre"]}</b></p>'
-                f'<ul>'
-                f'<li>Probabilidad del Modelo Híbrido: <b>{top_pick["prob"]:.1f}%</b></li>'
-                f'<li>Cuota Justa Calculada: <b>{cuota_justa_top}</b> | Cuota Casa: <b>{top_pick["cuota"]}</b></li>'
-                f'<li><b>EV Matemático: {top_pick["ev"]:+.2%}</b> (Rentabilidad positiva a largo plazo)</li>'
-                f'</ul>'
-                f'<p style="color: #10b981; font-weight: bold; margin-top: 10px;">👉 Sugerencia de Stake: <b>{stake_top}% del Bank (Half-Kelly)</b></p>'
-                f'</div>',
-                unsafe_allow_html=True
+                f'<p>Mercado: <b>{top_pick["nombre"]}</b> | Modelo: <b>{top_pick["prob"]:.1f}%</b> | EV: <b>{top_pick["ev"]:+.2%}</b></p>'
+                f'<p style="color: #10b981; font-weight: bold;">👉 Stake Sugerido: {calcular_kelly(top_pick["prob"], top_pick["cuota"])}% del Bank</p>'
+                f'</div>', unsafe_allow_html=True
             )
-        else:
-            st.info("ℹ️ En este momento no hay mercados con EV positivo estricto (> 0) para las líneas configuradas.")
 
-        st.markdown("---")
-        st.subheader("🔗 Constructor de Combinada Inteligente (Parlay con Muestras Pareadas)")
         nombres_mercados = [m["nombre"] for m in lista_mercados]
-        parlay_elegidos = st.multiselect("Elige los mercados para tu combinada:", options=nombres_mercados, key="parlay_jugador_input")
+        parlay_elegidos = st.multiselect("Elige mercados para tu Combinada (Parlay):", options=nombres_mercados, key="parlay_jugador_input")
 
         if parlay_elegidos:
             condiciones_sim = {
@@ -740,7 +681,6 @@ if st.session_state.analizado_jugadores:
                 f"Over {linea_faltas} Faltas": sim_faltas > linea_faltas,
                 f"Over {linea_contrib} Gol/Asist": sim_contrib > linea_contrib,
             }
-
             match_mask = np.ones(num_sim, dtype=bool)
             for nombre in parlay_elegidos:
                 if nombre in condiciones_sim:
@@ -748,36 +688,17 @@ if st.session_state.analizado_jugadores:
 
             prob_conjunta_pct = float(match_mask.mean()) * 100.0
             cuota_justa_combinada = round(100 / prob_conjunta_pct, 2) if prob_conjunta_pct > 0 else 99.0
-
-            st.markdown(f"**Probabilidad Conjunta Real (Simulada):** `{prob_conjunta_pct:.2f}%`")
-            st.markdown(f"**Cuota Justa Combinada:** `{cuota_justa_combinada}`")
-
-            cuota_casa_parlay = st.number_input("Introduce la cuota total que te paga la casa por esta combinada:", min_value=1.01, value=cuota_justa_combinada * 0.95, step=0.05, format="%.2f", key="cuota_parlay_jug_input")
-
+            st.markdown(f"**Probabilidad Conjunta:** `{prob_conjunta_pct:.2f}%` | **Cuota Justa:** `{cuota_justa_combinada}`")
+            
+            cuota_casa_parlay = st.number_input("Cuota que paga la casa por el Parlay:", min_value=1.01, value=cuota_justa_combinada * 0.95, step=0.05, format="%.2f", key="cuota_parlay_jug_input")
             ev_parlay = calcular_ev(prob_conjunta_pct, cuota_casa_parlay)
-            stake_parlay = calcular_kelly(prob_conjunta_pct, cuota_casa_parlay)
-            
-            col_p1, col_p2 = st.columns(2)
-            col_p1.metric("EV de la Combinada", f"{ev_parlay:+.2%}", "Matemática de valor")
-            
             if ev_parlay > 0:
-                col_p2.metric("Stake Sugerido", f"{stake_parlay}% del Bank", "Combinada con EV positivo ✅")
-                st.success(f"🎉 ¡Esta combinada tiene EV positivo! Stake sugerido: {stake_parlay}% del Bankroll (Half-Kelly).")
+                st.success(f"🎉 ¡Combinada con EV positivo! ({ev_parlay:+.2%})")
             else:
-                col_p2.metric("Stake Sugerido", "0%", "EV Negativo ❌")
-                st.warning("⚠️ Cuidado: Esta combinada tiene EV negativo debido al acumulado de margen que cobra la casa de apuestas.")
+                st.warning(f"⚠️ Combinada con EV negativo ({ev_parlay:+.2%}).")
 
-    with tab4:
-        st.subheader("Probabilidades del Modelo")
-        st.metric(f"Prob. Goles > {linea_goles}", f"{prob_goles:.1f}%")
-        st.metric(f"Prob. Tiros > {linea_tiros}", f"{prob_tiros:.1f}%")
-        st.metric(f"Prob. a Puerta > {linea_puerta}", f"{prob_puerta:.1f}%")
-        st.metric(f"Prob. Asistencias > {linea_asist}", f"{prob_asist:.1f}%")
-        st.metric(f"Prob. Faltas > {linea_faltas}", f"{prob_faltas:.1f}%")
-        st.metric(f"Prob. Gol/Asist > {linea_contrib}", f"{prob_contrib:.1f}%")
-
-    with tab5:
-        st.subheader("Detalle y Auditoría")
+    with tab3:
+        st.subheader("📋 Auditoría de Partidos Filtrados")
         h_mostrar = historial.copy()
         if "Fecha" in h_mostrar.columns:
             h_mostrar["Fecha"] = pd.to_datetime(h_mostrar["Fecha"]).dt.strftime("%Y-%m-%d")
