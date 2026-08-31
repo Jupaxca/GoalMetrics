@@ -15,7 +15,7 @@ except ImportError:
     XGB_DISPONIBLE = False
 
 st.set_page_config(
-    page_title="GoalMetrics | Análisis de Equipos (Híbrido)",
+    page_title="GoalMetrics | Análisis de Equipos (Híbrido Pro)",
     page_icon="⚽",
     layout="wide"
 )
@@ -399,20 +399,19 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, muestra_pequena=Fal
         unsafe_allow_html=True,
     )
 
-st.markdown("### GoalMetrics - Análisis de Equipos (Híbrido)")
-st.caption("Simulación con Poisson, Dixon-Coles y Ensemble XGBoost.")
+st.markdown("### GoalMetrics - Análisis de Equipos (Híbrido Pro)")
+st.caption("Simulación con Poisson, Dixon-Coles, Ensemble XGBoost, semáforo de confiabilidad y control de exposición.")
 
-# Guía detallada que explica cómo funciona todo hasta la parte de shrinkage y dixon-coles
 with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis de Equipos?", expanded=False):
     st.markdown("""
     Bienvenido al **Centro de Análisis de Equipos de GoalMetrics**. Esta herramienta combina estadística avanzada y Machine Learning. Aquí te detallamos cómo opera cada módulo interno:
     
-    * **1. Filtros y Contexto:** Seleccionas la Liga, Equipo, Condición (Local/Visitante) y el Nivel del Rival. El sistema busca partidos exactos que coincidan con estos parámetros.
-    * **2. Respaldo Inteligente (Muestra Pequeña):** Si hay pocos partidos exactos, la herramienta activa un respaldo automático tomando encuentros de otra condición o nivel de rival, aplicando factores de corrección y ponderación por *Tier* para que nunca te quedes a cero.
-    * **3. Modelo Estadístico Base (Poisson):** Calcula la tasa esperada de ocurrencia ($\lambda$) de goles, tiros, córners y faltas ponderando la cercanía temporal de los encuentros (dando más peso a los partidos recientes).
-    * **4. Shrinkage (Regresión a la Media):** Cuando está activado (**ON**), toma las estadísticas observadas del equipo y las ajusta empujándolas levemente hacia el promedio general de su categoría según la fuerza del prior (*k*). Esto evita sobreestimaciones causadas por rachas muy cortas o partidos atípicos.
-    * **5. Corrección Dixon-Coles:** Cuando está activado (**ON**), aplica una matriz de corrección (controlada por el parámetro $\rho$) que ajusta la probabilidad de marcadores de baja anotación (como el 0-0, 1-0 o 1-1), modelando con gran precisión la dependencia entre los goles de ambos equipos y mejorando el cálculo de empates.
-    * **6. Ensemble XGBoost y Valor Matemático (EV / Kelly):** Combina el modelo estocástico de Poisson con Machine Learning (XGBoost) para refinar las probabilidades finales, calculando de forma automática el valor esperado (EV) y el porcentaje de bank recomendado mediante el criterio de Half-Kelly.
+    * **1. Semáforo de Confiabilidad:** Evalúa al instante la robustez de la muestra. Verde = Muestra exacta suficiente; Amarillo = Respaldo inteligente activo; Rojo = Muestra escasa/crítica.
+    * **2. Filtros y Contexto:** Seleccionas la Liga, Equipo, Condición (Local/Visitante) y el Nivel del Rival. El sistema busca partidos exactos que coincidan con estos parámetros.
+    * **3. Respaldo Inteligente (Muestra Pequeña):** Si hay pocos partidos exactos, la herramienta activa un respaldo automático tomando encuentros de otra condición o nivel de rival, aplicando factores de corrección y ponderación por *Tier*.
+    * **4. Modelo Estadístico Base (Poisson):** Calcula la tasa esperada de ocurrencia ($\lambda$) de goles, tiros, córners y faltas ponderando la cercanía temporal de los encuentros.
+    * **5. Shrinkage y Dixon-Coles:** Ajusta las estadísticas empujándolas hacia la media del nivel y modela la dependencia entre los goles de ambos equipos con gran precisión.
+    * **6. Ensemble XGBoost, EV / Kelly y Control de Exposición:** Refina probabilidades combinando estadística con Machine Learning, evaluando el valor esperado y vigilando que el riesgo acumulado en el evento no exceda límites seguros del bankroll.
     """)
 
 if "analizado_equipos" not in st.session_state:
@@ -506,6 +505,27 @@ if st.session_state.analizado_equipos:
 
     n_obs = len(historial)
     muestra_pequena = n_obs <= 2
+
+    # --- SEMÁFORO DE CONFIABILIDAD ---
+    if len(df_exactos) >= 2:
+        st.markdown(
+            '<div style="background-color: #064e3b; padding: 12px 18px; border-radius: 10px; border-left: 5px solid #10b981; margin-bottom: 20px;">'
+            '🟢 <b>Semáforo de Confiabilidad: ALTA</b> — Muestra robusta con suficientes partidos exactos en este escenario.'
+            '</div>', unsafe_allow_html=True
+        )
+    elif len(df_exactos) == 1:
+        st.markdown(
+            '<div style="background-color: #78350f; padding: 12px 18px; border-radius: 10px; border-left: 5px solid #f59e0b; margin-bottom: 20px;">'
+            '🟡 <b>Semáforo de Confiabilidad: MEDIA</b> — 1 partido exacto encontrado. Respaldo inteligente activo.'
+            '</div>', unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            '<div style="background-color: #7f1d1d; padding: 12px 18px; border-radius: 10px; border-left: 5px solid #ef4444; margin-bottom: 20px;">'
+            '🔴 <b>Semáforo de Confiabilidad: BAJA</b> — Muestra escasa, interpretar con máxima precaución.'
+            '</div>', unsafe_allow_html=True
+        )
+
     hoy = pd.Timestamp.today().normalize()
     if "Fecha" in historial.columns:
         historial["Dias_Pasados"] = (hoy - pd.to_datetime(historial["Fecha"])).dt.days.replace(0, 0.1)
@@ -619,7 +639,6 @@ if st.session_state.analizado_equipos:
         f.metric("X2", f"{doble_x2:.1f}%")
         g.metric("DNB", f"{dnb:.1f}%")
         
-        # Actualizado a 5 columnas para incluir Tiros a Puerta (A Puerta)
         m1, m2, m3, m4, m5 = st.columns(5)
         if usar_shrinkage:
             m1.metric("Goles", f"{lam_f:.2f}", delta=f"raw {lam_f_raw:.2f}")
@@ -675,10 +694,20 @@ if st.session_state.analizado_equipos:
             for it in items_lineas[mid2:]:
                 mostrar_value(*it, muestra_pequena=muestra_pequena)
 
-    with tab3:
-        st.subheader("🤖 Panel Inteligente & Parlay Híbrido")
+        # --- CONTROL DE EXPOSICIÓN GLOBAL AL BANK ---
         todos_mercados_eq = items_1x2 + items_lineas
         lista_mercados_eq_dict = [{"nombre": m[0], "prob": m[4], "cuota": m[2], "ev": m[3]} for m in todos_mercados_eq]
+        exposicion_total_bank = sum([calcular_kelly(m["prob"], m["cuota"]) for m in lista_mercados_eq_dict if m["ev"] > 0])
+        
+        st.markdown("---")
+        st.subheader("🛡️ Control de Exposición Global al Bank")
+        if exposicion_total_bank > 5.0:
+            st.warning(f"⚠️ **Exposición Alta ({exposicion_total_bank:.1f}% del Bank):** Estás tomando múltiples apuestas de valor en este partido que superan el límite de riesgo recomendado (5%). Sé selectivo.")
+        else:
+            st.success(f"✅ **Exposición Saludable ({exposicion_total_bank:.1f}% del Bank):** El riesgo acumulado en este evento se mantiene dentro de parámetros seguros.")
+
+    with tab3:
+        st.subheader("🤖 Panel Inteligente & Parlay Híbrido")
         value_bets_eq = [m for m in lista_mercados_eq_dict if m["ev"] > 0]
 
         if value_bets_eq:
