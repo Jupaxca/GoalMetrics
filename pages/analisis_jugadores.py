@@ -311,13 +311,12 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, real=None):
     )
 
 st.markdown("### Centro de Analisis Individual de Jugadores (Híbrido Pro)")
-st.caption("Asistente inteligente con semáforo de confiabilidad, control de exposición y gráficos integrados.")
+st.caption("Asistente inteligente con semáforo de confiabilidad y gráficos integrados.")
 
 with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis?", expanded=False):
     st.markdown("""
     * **1. Semáforo de Confiabilidad:** Evalúa la robustez de la muestra. Verde = Muestra exacta suficiente; Amarillo = Respaldo inteligente activo; Rojo = Muestra escasa/crítica.
     * **2. Dashboard Principal & Gráficos:** Integra el perfil de radar, tasas de conversión, volatilidad (desviación estándar) y las curvas acumuladas (Over X).
-    * **3. Control de Exposición al Bank:** Monitorea la suma de stakes recomendados para evitar sobreapuestas en un mismo encuentro.
     """)
 
 if "analizado_jugadores" not in st.session_state:
@@ -577,7 +576,6 @@ if st.session_state.analizado_jugadores:
 
         st.markdown("---")
         
-        # Radar y Gráficos Acumulados integrados
         st.subheader("🕸️ Perfil de Atributos (Radar)")
         avg_g = historial["Goles"].mean() if "Goles" in historial else 0.0
         avg_t = historial["Tiros"].mean() if "Tiros" in historial else 0.0
@@ -637,7 +635,7 @@ if st.session_state.analizado_jugadores:
         st.plotly_chart(crear_grafico_acumulado(sim_tiros, "Tiros Totales", "#F59E0B"), use_container_width=True)
 
     with tab2:
-        st.subheader("💰 Value Bet Props & Control de Exposición")
+        st.subheader("💰 Value Bet Props & Inteligencia")
         st.markdown("💡 *Optimizado con el criterio de Half-Kelly.*")
         
         mostrar_value(f"Over {linea_goles} Goles", cj(prob_goles), cuota_casa_goles, calcular_ev(prob_goles, cuota_casa_goles), prob_goles, (historial["Goles"] > linea_goles).mean() * 100)
@@ -646,15 +644,6 @@ if st.session_state.analizado_jugadores:
         mostrar_value(f"Over {linea_asist} Asistencias", cj(prob_asist), cuota_casa_asist, calcular_ev(prob_asist, cuota_casa_asist), prob_asist, (historial["Asistencias"] > linea_asist).mean() * 100)
         mostrar_value(f"Over {linea_faltas} Faltas", cj(prob_faltas), cuota_casa_faltas, calcular_ev(prob_faltas, cuota_casa_faltas), prob_faltas, (historial["Faltas"] > linea_faltas).mean() * 100)
         mostrar_value(f"Over {linea_contrib} Gol/Asist", cj(prob_contrib), cuota_casa_contrib, calcular_ev(prob_contrib, cuota_casa_contrib), prob_contrib, ((historial["Goles"] + historial["Asistencias"]) > linea_contrib).mean() * 100)
-
-        # --- 2. CONTROL DE RIESGO ACUMULADO (BANKROLL EXPOSURE) ---
-        exposicion_total_bank = sum([calcular_kelly(m["prob"], m["cuota"]) for m in lista_mercados if m["ev"] > 0])
-        st.markdown("---")
-        st.subheader("🛡️ Control de Exposición Global al Bank")
-        if exposicion_total_bank > 5.0:
-            st.warning(f"⚠️ **Exposición Alta ({exposicion_total_bank:.1f}% del Bank):** Estás tomando múltiples apuestas de valor en este partido que superan el límite de riesgo recomendado (5%). Sé selectivo.")
-        else:
-            st.success(f"✅ **Exposición Saludable ({exposicion_total_bank:.1f}% del Bank):** El riesgo acumulado en este evento se mantiene dentro de parámetros seguros.")
 
         st.markdown("---")
         st.subheader("🤖 Top Pick & Constructor de Parlays")
