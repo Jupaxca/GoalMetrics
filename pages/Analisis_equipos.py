@@ -400,18 +400,16 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, muestra_pequena=Fal
     )
 
 st.markdown("### GoalMetrics - Análisis de Equipos (Híbrido Pro)")
-st.caption("Simulación con Poisson, Dixon-Coles, Ensemble XGBoost, semáforo de confiabilidad y control de exposición.")
+st.caption("Simulación con Poisson, Dixon-Coles, Ensemble XGBoost, semáforo de confiabilidad y vistas unificadas.")
 
 with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis de Equipos?", expanded=False):
     st.markdown("""
     Bienvenido al **Centro de Análisis de Equipos de GoalMetrics**. Esta herramienta combina estadística avanzada y Machine Learning. Aquí te detallamos cómo opera cada módulo interno:
     
     * **1. Semáforo de Confiabilidad:** Evalúa al instante la robustez de la muestra. Verde = Muestra exacta suficiente; Amarillo = Respaldo inteligente activo; Rojo = Muestra escasa/crítica.
-    * **2. Filtros y Contexto:** Seleccionas la Liga, Equipo, Condición (Local/Visitante) y el Nivel del Rival. El sistema busca partidos exactos que coincidan con estos parámetros.
-    * **3. Respaldo Inteligente (Muestra Pequeña):** Si hay pocos partidos exactos, la herramienta activa un respaldo automático tomando encuentros de otra condición o nivel de rival, aplicando factores de corrección y ponderación por *Tier*.
-    * **4. Modelo Estadístico Base (Poisson):** Calcula la tasa esperada de ocurrencia ($\lambda$) de goles, tiros, córners y faltas ponderando la cercanía temporal de los encuentros.
-    * **5. Shrinkage y Dixon-Coles:** Ajusta las estadísticas empujándolas hacia la media del nivel y modela la dependencia entre los goles de ambos equipos con gran precisión.
-    * **6. Ensemble XGBoost, EV / Kelly y Control de Exposición:** Refina probabilidades combinando estadística con Machine Learning, evaluando el valor esperado y vigilando que el riesgo acumulado en el evento no exceda límites seguros del bankroll.
+    * **2. Dashboard Principal & Gráficos:** Integra el ADN del equipo, métricas de probabilidad (1X2, BTTS, DNB), matrices de resultados exactos y curvas acumuladas (Over X).
+    * **3. Value Bets & Inteligencia:** Muestra las mejores apuestas de valor con criterios de Half-Kelly, la Joya del Partido (Top Pick) y el constructor de Parlays.
+    * **4. Análisis Táctico & Auditoría:** Agrupa la solidez defensiva, la fase ofensiva con sus respectivos indicadores y la tabla de auditoría detallada de partidos filtrados.
     """)
 
 if "analizado_equipos" not in st.session_state:
@@ -624,16 +622,23 @@ if st.session_state.analizado_equipos:
     if muestra_pequena:
         st.warning("Muestra pequeña (Respaldo activo con 1 partido exacto). Interpreta con cautela.")
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["Resumen", "Value Bet", "🤖 Panel Inteligente", "Solidez Defensiva", "Fase Ofensiva", "Líneas y Gráficos", "Detalle"])
+    # --- 3 PESTAÑAS PRINCIPALES UNIFICADAS ---
+    tab1, tab2, tab3 = st.tabs([
+        "📊 Dashboard Principal & Gráficos",
+        "💰 Value Bets & Inteligencia",
+        "📋 Análisis Táctico & Auditoría"
+    ])
 
     with tab1:
-        st.subheader("ADN del Equipo")
+        st.subheader("ADN del Equipo y Métricas Probabilísticas")
         renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa)
+        
         a, b, c, d = st.columns(4)
         a.metric("Victoria", f"{triunfos:.1f}%")
         b.metric("Empate", f"{empates:.1f}%")
         c.metric("Derrota", f"{derrotas:.1f}%")
         d.metric("BTTS", f"{ambos_anotan:.1f}%")
+        
         e, f, g = st.columns(3)
         e.metric("1X", f"{doble_1x:.1f}%")
         f.metric("X2", f"{doble_x2:.1f}%")
@@ -653,8 +658,105 @@ if st.session_state.analizado_equipos:
             m4.metric("A Puerta", f"{lam_tp:.1f}")
             m5.metric("Corners", f"{lam_co:.1f}")
 
+        st.markdown("---")
+        st.subheader("🎯 Matriz de Probabilidad del Resultado Exacto")
+        st.caption("Distribución de probabilidad cruzada entre goles del equipo y del rival según la simulación estocástica.")
+
+        max_g = 5
+        matriz_probs = np.zeros((max_g + 1, max_g + 1))
+        text_data = []
+        
+        for f_g in range(max_g + 1):
+            fila_texto = []
+            for c_g in range(max_g + 1):
+                prob = float(((sg_fav == f_g) & (sg_con == c_g)).mean() * 100.0)
+                matriz_probs[f_g, c_g] = prob
+                if prob >= 0.1:
+                    fila_texto.append(f"{prob:.1f}%")
+                else:
+                    fila_texto.append("<0.1%")
+            text_data.append(fila_texto)
+
+        fig_matrix = go.Figure(data=go.Heatmap(
+            z=matriz_probs,
+            x=[str(i) for i in range(max_g + 1)],
+            y=[str(i) for i in range(max_g + 1)],
+            text=text_data,
+            texttemplate="%{text}",
+            textfont={"size": 13, "color": "white"},
+            colorscale=[[0, "#111827"], [0.5, "#1d4ed8"], [1, "#10b981"]],
+            showscale=False
+        ))
+        
+        fig_matrix.update_layout(
+            title=f"Goles Rival (Eje X) vs Goles {equipo_sel} (Eje Y)",
+            xaxis_title="Goles Rival",
+            yaxis_title=f"Goles {equipo_sel}",
+            paper_bgcolor="#0B0F19",
+            plot_bgcolor="#0B0F19",
+            font=dict(color="#F3F4F6"),
+            height=380,
+            margin=dict(l=40, r=40, t=40, b=40)
+        )
+        st.plotly_chart(fig_matrix, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("📈 Curvas de Probabilidad Acumulada (Over X)")
+        
+        col_c1, col_c2 = st.columns(2)
+        with col_c1:
+            max_g_sim = int(max(sg_fav)) + 2
+            goal_vals = [float(i + 0.5) for i in range(max_g_sim)]
+            cum_probs_goles = [float((sg_fav > g).mean() * 100) for g in goal_vals]
+
+            fig_cum_goles = go.Figure(data=go.Scatter(
+                x=goal_vals, y=cum_probs_goles, mode='lines+markers+text',
+                text=[f"{p:.1f}%" for p in cum_probs_goles], textposition="top center",
+                line=dict(color="#10b981", width=3), marker=dict(size=8)
+            ))
+            fig_cum_goles.update_layout(
+                title=f"Acumulada de Goles (Over X) - {equipo_sel}",
+                xaxis=dict(title="Línea de Goles", tickmode='array', tickvals=goal_vals, ticktext=[str(g) for g in goal_vals], color="#F3F4F6"),
+                yaxis_title="Probabilidad (%)", paper_bgcolor="#0B0F19", plot_bgcolor="#0B0F19", font=dict(color="#F3F4F6"),
+                height=320, margin=dict(l=30, r=20, t=40, b=30)
+            )
+            st.plotly_chart(fig_cum_goles, use_container_width=True)
+
+        with col_c2:
+            max_c = int(max(s_corn)) + 2
+            corner_vals = list(range(0, max_c))
+            cum_probs_corners = [float((s_corn > c).mean() * 100) for c in corner_vals]
+
+            fig_cum_corners = go.Figure(data=go.Scatter(
+                x=corner_vals, y=cum_probs_corners, mode='lines+markers+text',
+                text=[f"{p:.1f}%" for p in cum_probs_corners], textposition="top center",
+                line=dict(color=color_equipo, width=3), marker=dict(size=8)
+            ))
+            fig_cum_corners.update_layout(
+                title=f"Acumulada de Córners (Over X) - {equipo_sel}",
+                xaxis=dict(title="Línea de Córners", tickmode='array', tickvals=corner_vals, ticktext=[str(c) for c in corner_vals], color="#F3F4F6"),
+                yaxis_title="Probabilidad (%)", paper_bgcolor="#0B0F19", plot_bgcolor="#0B0F19", font=dict(color="#F3F4F6"),
+                height=320, margin=dict(l=30, r=20, t=40, b=30)
+            )
+            st.plotly_chart(fig_cum_corners, use_container_width=True)
+
+        if not historial.empty and "A Puerta" in historial.columns and "Goles" in historial.columns:
+            st.markdown("---")
+            fig_scatter = go.Figure()
+            fig_scatter.add_trace(go.Scatter(
+                x=historial["A Puerta"], y=historial["Goles"], mode="markers+text",
+                text=historial.get("Rival", ""), textposition="top center",
+                marker=dict(size=12, color=color_equipo, line=dict(width=2, color="white"), opacity=0.85),
+                hovertemplate="<b>Rival:</b> %{text}<br><b>Tiros a Puerta:</b> %{x}<br><b>Goles Anotados:</b> %{y}<extra></extra>"
+            ))
+            fig_scatter.update_layout(
+                title="Tiros a Puerta vs Goles por Partido", xaxis_title="Tiros a Puerta", yaxis_title="Goles Anotados",
+                paper_bgcolor="#0B0F19", plot_bgcolor="#0B0F19", font=dict(color="#F3F4F6"), height=350, margin=dict(l=40, r=40, t=40, b=40)
+            )
+            st.plotly_chart(fig_scatter, use_container_width=True)
+
     with tab2:
-        st.subheader("Value Bet y Half-Kelly")
+        st.subheader("💰 Value Bet y Half-Kelly")
         items_1x2 = [
             ("Victoria (1)", round(100/triunfos,2) if triunfos>0 else 99, cuota_casa_1, calcular_ev(triunfos, cuota_casa_1), triunfos),
             ("Empate (X)", round(100/empates,2) if empates>0 else 99, cuota_casa_x, calcular_ev(empates, cuota_casa_x), empates),
@@ -674,6 +776,7 @@ if st.session_state.analizado_equipos:
         with cb:
             for it in items_1x2[mid:]:
                 mostrar_value(*it, muestra_pequena=muestra_pequena)
+                
         st.markdown("---")
         st.subheader("Lineas (Over)")
         items_lineas = [
@@ -694,20 +797,10 @@ if st.session_state.analizado_equipos:
             for it in items_lineas[mid2:]:
                 mostrar_value(*it, muestra_pequena=muestra_pequena)
 
-        # --- CONTROL DE EXPOSICIÓN GLOBAL AL BANK ---
+        st.markdown("---")
+        st.subheader("🤖 Panel Inteligente & Parlay Híbrido")
         todos_mercados_eq = items_1x2 + items_lineas
         lista_mercados_eq_dict = [{"nombre": m[0], "prob": m[4], "cuota": m[2], "ev": m[3]} for m in todos_mercados_eq]
-        exposicion_total_bank = sum([calcular_kelly(m["prob"], m["cuota"]) for m in lista_mercados_eq_dict if m["ev"] > 0])
-        
-        st.markdown("---")
-        st.subheader("🛡️ Control de Exposición Global al Bank")
-        if exposicion_total_bank > 5.0:
-            st.warning(f"⚠️ **Exposición Alta ({exposicion_total_bank:.1f}% del Bank):** Estás tomando múltiples apuestas de valor en este partido que superan el límite de riesgo recomendado (5%). Sé selectivo.")
-        else:
-            st.success(f"✅ **Exposición Saludable ({exposicion_total_bank:.1f}% del Bank):** El riesgo acumulado en este evento se mantiene dentro de parámetros seguros.")
-
-    with tab3:
-        st.subheader("🤖 Panel Inteligente & Parlay Híbrido")
         value_bets_eq = [m for m in lista_mercados_eq_dict if m["ev"] > 0]
 
         if value_bets_eq:
@@ -783,15 +876,14 @@ if st.session_state.analizado_equipos:
                 col_ep2.metric("Stake Sugerido", "0%")
                 st.warning("⚠️ EV Negativo.")
 
-    with tab4:
-        st.subheader("🛡️ Solidez Defensiva (Comportamiento sin balón / Rival & Disciplina)")
+    with tab3:
+        st.subheader("🛡️ Solidez Defensiva")
         prom_tp_rival = prom("Tiros a Puerta Rival")
         prom_g_rival = prom("Goles Rival")
         prom_corners_rival = prom("Corners Rival") if "Corners Rival" in historial.columns else 0.0
         prom_faltas = prom("Faltas") if "Faltas" in historial.columns else 0.0
         prom_amarillas = prom("Amarillas") if "Amarillas" in historial.columns else 0.0
         prom_rojas = prom("Rojas") if "Rojas" in historial.columns else 0.0
-        
         ratio_tp_gol_contra = prom_tp_rival / prom_g_rival if prom_g_rival > 0 else 0.0
 
         d1, d2, d3 = st.columns(3)
@@ -810,13 +902,12 @@ if st.session_state.analizado_equipos:
             feedback_def = f"El equipo mantiene una defensa sólida en esta muestra, permitiendo {prom_tp_rival:.1f} tiros a puerta en promedio sin encajar goles en contra, cometiendo {prom_faltas:.1f} faltas y recibiendo {prom_amarillas:.1f} amarillas y {prom_rojas:.1f} rojas."
         st.markdown(f'<div class="veredicto-box"><b>🔍 Retroalimentación Defensiva:</b><br>{feedback_def}</div>', unsafe_allow_html=True)
 
-    with tab5:
-        st.subheader("⚡ Fase Ofensiva (Producción propia con balón)")
+        st.markdown("---")
+        st.subheader("⚡ Fase Ofensiva")
         prom_tiros = prom("Tiros")
         prom_tp = prom("A Puerta")
         prom_goles = prom("Goles")
         prom_corners = prom("Corners") if "Corners" in historial.columns else 0.0
-        
         ratio_tiros_gol = prom_tiros / prom_goles if prom_goles > 0 else 0.0
         ratio_tp_gol = prom_tp / prom_goles if prom_goles > 0 else 0.0
 
@@ -836,157 +927,8 @@ if st.session_state.analizado_equipos:
             feedback_of = f"El equipo registra una producción ofensiva de {prom_tiros:.1f} tiros y {prom_tp:.1f} a puerta, sin goles anotados en esta muestra específica."
         st.markdown(f'<div class="veredicto-box"><b>🔍 Retroalimentación Ofensiva:</b><br>{feedback_of}</div>', unsafe_allow_html=True)
 
-    with tab6:
-        lc1, lc2, lc3 = st.columns(3)
-        lc1.metric(f"Goles > {linea_goles}", f"{prob_over_goles:.1f}%")
-        lc2.metric(f"Total > {linea_total_partido}", f"{prob_over_total:.1f}%")
-        lc3.metric(f"Tiros > {linea_tiros}", f"{prob_over_tiros:.1f}%")
-        
         st.markdown("---")
-        st.subheader("🎯 Matriz de Probabilidad del Resultado Exacto")
-        st.caption("Distribución de probabilidad cruzada entre goles del equipo y del rival según la simulación estocástica.")
-
-        max_g = 5
-        matriz_probs = np.zeros((max_g + 1, max_g + 1))
-        text_data = []
-        
-        for f_g in range(max_g + 1):
-            fila_texto = []
-            for c_g in range(max_g + 1):
-                prob = float(((sg_fav == f_g) & (sg_con == c_g)).mean() * 100.0)
-                matriz_probs[f_g, c_g] = prob
-                if prob >= 0.1:
-                    fila_texto.append(f"{prob:.1f}%")
-                else:
-                    fila_texto.append("<0.1%")
-            text_data.append(fila_texto)
-
-        fig_matrix = go.Figure(data=go.Heatmap(
-            z=matriz_probs,
-            x=[str(i) for i in range(max_g + 1)],
-            y=[str(i) for i in range(max_g + 1)],
-            text=text_data,
-            texttemplate="%{text}",
-            textfont={"size": 13, "color": "white"},
-            colorscale=[[0, "#111827"], [0.5, "#1d4ed8"], [1, "#10b981"]],
-            showscale=False
-        ))
-        
-        fig_matrix.update_layout(
-            title=f"Goles Rival (Eje X) vs Goles {equipo_sel} (Eje Y)",
-            xaxis_title="Goles Rival",
-            yaxis_title=f"Goles {equipo_sel}",
-            paper_bgcolor="#0B0F19",
-            plot_bgcolor="#0B0F19",
-            font=dict(color="#F3F4F6"),
-            height=380,
-            margin=dict(l=40, r=40, t=40, b=40)
-        )
-        st.plotly_chart(fig_matrix, use_container_width=True)
-
-        st.markdown("---")
-        st.subheader("📈 Probabilidad Acumulada de Goles (Over X)")
-        st.caption("Probabilidad de que el equipo anote más de X goles (Over acumulado).")
-
-        max_g_sim = int(max(sg_fav)) + 2
-        goal_vals = [float(i + 0.5) for i in range(max_g_sim)]
-        cum_probs_goles = [float((sg_fav > g).mean() * 100) for g in goal_vals]
-
-        fig_cum_goles = go.Figure(data=go.Scatter(
-            x=goal_vals,
-            y=cum_probs_goles,
-            mode='lines+markers+text',
-            text=[f"{p:.1f}%" for p in cum_probs_goles],
-            textposition="top center",
-            line=dict(color="#10b981", width=3),
-            marker=dict(size=8)
-        ))
-        fig_cum_goles.update_layout(
-            title=f"Probabilidad Acumulada de Goles (Over X) - {equipo_sel}",
-            xaxis=dict(
-                title="Línea de Goles (Over)",
-                tickmode='array',
-                tickvals=goal_vals,
-                ticktext=[str(g) for g in goal_vals],
-                color="#F3F4F6"
-            ),
-            yaxis_title="Probabilidad (%)",
-            paper_bgcolor="#0B0F19",
-            plot_bgcolor="#0B0F19",
-            font=dict(color="#F3F4F6"),
-            height=380,
-            margin=dict(l=40, r=40, t=40, b=40)
-        )
-        st.plotly_chart(fig_cum_goles, use_container_width=True)
-
-        st.markdown("---")
-        st.subheader("⛳ Probabilidad Acumulada de Córners (Over X)")
-        st.caption("Probabilidad acumulada de superar cada línea de córners simulada para el equipo.")
-
-        max_c = int(max(s_corn)) + 2
-        corner_vals = list(range(0, max_c))
-        cum_probs_corners = [float((s_corn > c).mean() * 100) for c in corner_vals]
-
-        fig_cum_corners = go.Figure(data=go.Scatter(
-            x=corner_vals,
-            y=cum_probs_corners,
-            mode='lines+markers+text',
-            text=[f"{p:.1f}%" for p in cum_probs_corners],
-            textposition="top center",
-            line=dict(color=color_equipo, width=3),
-            marker=dict(size=8)
-        ))
-        fig_cum_corners.update_layout(
-            title=f"Probabilidad Acumulada de Córners (Over X) - {equipo_sel}",
-            xaxis=dict(
-                title="Línea de Córners (> X)",
-                tickmode='array',
-                tickvals=corner_vals,
-                ticktext=[str(c) for c in corner_vals],
-                color="#F3F4F6"
-            ),
-            yaxis_title="Probabilidad (%)",
-            paper_bgcolor="#0B0F19",
-            plot_bgcolor="#0B0F19",
-            font=dict(color="#F3F4F6"),
-            height=380,
-            margin=dict(l=40, r=40, t=40, b=40)
-        )
-        st.plotly_chart(fig_cum_corners, use_container_width=True)
-
-        st.markdown("---")
-        st.subheader("📈 Gráfico de Dispersión: Tiros a Puerta vs Goles")
-        st.caption("Relación partido a partido entre los Tiros a Puerta (Eje X) y los Goles Anotados (Eje Y) en la muestra.")
-
-        if not historial.empty and "A Puerta" in historial.columns and "Goles" in historial.columns:
-            fig_scatter = go.Figure()
-            fig_scatter.add_trace(go.Scatter(
-                x=historial["A Puerta"],
-                y=historial["Goles"],
-                mode="markers+text",
-                text=historial.get("Rival", ""),
-                textposition="top center",
-                marker=dict(
-                    size=12,
-                    color=color_equipo,
-                    line=dict(width=2, color="white"),
-                    opacity=0.85
-                ),
-                hovertemplate="<b>Rival:</b> %{text}<br><b>Tiros a Puerta:</b> %{x}<br><b>Goles Anotados:</b> %{y}<extra></extra>"
-            ))
-            fig_scatter.update_layout(
-                title="Tiros a Puerta vs Goles por Partido",
-                xaxis_title="Tiros a Puerta",
-                yaxis_title="Goles Anotados",
-                paper_bgcolor="#0B0F19",
-                plot_bgcolor="#0B0F19",
-                font=dict(color="#F3F4F6"),
-                height=380,
-                margin=dict(l=40, r=40, t=40, b=40)
-            )
-            st.plotly_chart(fig_scatter, use_container_width=True)
-
-    with tab7:
+        st.subheader("📋 Auditoría de Partidos Filtrados")
         h_mostrar = historial.copy().sort_values(by="Fecha", ascending=False)
         h_mostrar["Fecha"] = pd.to_datetime(h_mostrar["Fecha"]).dt.strftime("%Y-%m-%d")
         cols = [c for c in ["Fecha", "Liga", "Condición", "Rival", "Nivel Rival", "Goles", "Goles Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Tipo_Uso", "Factor_Ajuste"] if c in h_mostrar.columns]
