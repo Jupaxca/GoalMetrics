@@ -80,73 +80,61 @@ def normalizar_texto(texto):
 @st.cache_data(ttl=86400)
 def obtener_foto_jugador(nombre, liga):
     nombre_limpio = str(nombre).strip()
-    nombre_lower = normalizar_texto(nombre_limpio)
-    
-    # Diccionario directo con nombres normalizados para garantizar fotos reales al 100%
-    fotos_directas = {
-        "vinicius": "https://upload.wikimedia.org/wikipedia/commons/9/9e/Vinicius_Junior_2023.jpg",
-        "vinicius jr": "https://upload.wikimedia.org/wikipedia/commons/9/9e/Vinicius_Junior_2023.jpg",
-        "vini jr": "https://upload.wikimedia.org/wikipedia/commons/9/9e/Vinicius_Junior_2023.jpg",
-        "mbappe": "https://upload.wikimedia.org/wikipedia/commons/b/b3/Kylian_Mbapp%C3%A9_2018_%28cropped%29.jpg",
-        "kylian mbappe": "https://upload.wikimedia.org/wikipedia/commons/b/b3/Kylian_Mbapp%C3%A9_2018_%28cropped%29.jpg",
-        "tzolis": "https://upload.wikimedia.org/wikipedia/commons/8/8f/Christos_Tzolis_2021.jpg",
-        "christos tzolis": "https://upload.wikimedia.org/wikipedia/commons/8/8f/Christos_Tzolis_2021.jpg",
-        "odegard": "https://upload.wikimedia.org/wikipedia/commons/9/99/Martin_%C3%98degaard_2023_%28cropped%29.jpg",
-        "martin odegaard": "https://upload.wikimedia.org/wikipedia/commons/9/99/Martin_%C3%98degaard_2023_%28cropped%29.jpg",
-        "semenyo": "https://upload.wikimedia.org/wikipedia/commons/1/1a/Antoine_Semenyo_2023.jpg",
-        "antoine semenyo": "https://upload.wikimedia.org/wikipedia/commons/1/1a/Antoine_Semenyo_2023.jpg",
-        "haaland": "https://upload.wikimedia.org/wikipedia/commons/f/fbf/Erling_Haaland_2023_%28cropped%29.jpg",
-        "erling haaland": "https://upload.wikimedia.org/wikipedia/commons/f/fbf/Erling_Haaland_2023_%28cropped%29.jpg",
-        "yamal": "https://upload.wikimedia.org/wikipedia/commons/5/54/Lamine_Yamal_2024.jpg",
-        "lamine yamal": "https://upload.wikimedia.org/wikipedia/commons/5/54/Lamine_Yamal_2024.jpg",
-        "raphinha": "https://upload.wikimedia.org/wikipedia/commons/b/b4/Raphinha_2023_%28cropped%29.jpg",
-        "raphina": "https://upload.wikimedia.org/wikipedia/commons/b/b4/Raphinha_2023_%28cropped%29.jpg",
-        "kane": "https://upload.wikimedia.org/wikipedia/commons/a/ad/Harry_Kane_2023_%28cropped%29.jpg",
-        "harry kane": "https://upload.wikimedia.org/wikipedia/commons/a/ad/Harry_Kane_2023_%28cropped%29.jpg",
-        "olise": "https://upload.wikimedia.org/wikipedia/commons/e/ee/Michael_Olise_2024.jpg",
-        "michael olise": "https://upload.wikimedia.org/wikipedia/commons/e/ee/Michael_Olise_2024.jpg",
-        "bruno fernandez": "https://upload.wikimedia.org/wikipedia/commons/8/87/Bruno_Fernandes_2021.jpg",
-        "bruno fernandes": "https://upload.wikimedia.org/wikipedia/commons/8/87/Bruno_Fernandes_2021.jpg",
-        "joao pedro": "https://upload.wikimedia.org/wikipedia/commons/7/77/Jo%C3%A3o_Pedro_2023.jpg",
-        "palmer": "https://upload.wikimedia.org/wikipedia/commons/6/6f/Cole_Palmer_2023.jpg",
-        "cole palmer": "https://upload.wikimedia.org/wikipedia/commons/6/6f/Cole_Palmer_2023.jpg",
-        "gakpo": "https://upload.wikimedia.org/wikipedia/commons/8/8b/Cody_Gakpo_2022.jpg",
-        "cody gakpo": "https://upload.wikimedia.org/wikipedia/commons/8/8b/Cody_Gakpo_2022.jpg",
-        "szoboszlai": "https://upload.wikimedia.org/wikipedia/commons/4/44/Dominik_Szoboszlai_2023.jpg",
-        "dominik szoboszlai": "https://upload.wikimedia.org/wikipedia/commons/4/44/Dominik_Szoboszlai_2023.jpg",
-        "antony": "https://upload.wikimedia.org/wikipedia/commons/3/36/Antony_2023.jpg",
-        "lookman": "https://upload.wikimedia.org/wikipedia/commons/6/67/Ademola_Lookman_2023.jpg",
-        "ademola lookman": "https://upload.wikimedia.org/wikipedia/commons/6/67/Ademola_Lookman_2023.jpg",
-        "gordon": "https://upload.wikimedia.org/wikipedia/commons/7/7b/Anthony_Gordon_2023.jpg",
-        "anthony gordon": "https://upload.wikimedia.org/wikipedia/commons/7/7b/Anthony_Gordon_2023.jpg",
-        "bellingham": "https://upload.wikimedia.org/wikipedia/commons/3/3f/Jude_Bellingham_2023.jpg",
-        "jude bellingham": "https://upload.wikimedia.org/wikipedia/commons/3/3f/Jude_Bellingham_2023.jpg"
-    }
-    
-    if nombre_lower in fotos_directas:
-        return fotos_directas[nombre_lower]
-        
     liga_limpia = str(liga).strip()
     
-    # 1. Búsqueda automática secundaria si hubiera algún jugador nuevo
-    query_principal = f"{nombre_limpio} {liga_limpia} football player"
-    try:
-        url_search = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(query_principal)}&format=json"
-        headers = {'User-Agent': 'GoalMetricsApp/1.0'}
-        res = requests.get(url_search, headers=headers, timeout=3).json()
-        search_results = res.get("query", {}).get("search", [])
-        if search_results:
-            page_title = search_results[0]["title"]
-            url_image = f"https://en.wikipedia.org/w/api.php?action=query&titles={requests.utils.quote(page_title)}&prop=pageimages&pithumbsize=300&format=json"
-            res_img = requests.get(url_image, headers=headers, timeout=3).json()
-            pages = res_img.get("query", {}).get("pages", {})
-            for page_id, page_info in pages.items():
-                if "thumbnail" in page_info:
-                    return page_info["thumbnail"]["source"]
-    except Exception:
-        pass
-        
-    # 2. Fallback visual elegante con las iniciales si no hay foto en Wikimedia
+    # Mapeo optimizado con tu lista exacta de jugadores
+    nombres_busqueda = {
+        "vinicius": "Vinicius Junior",
+        "mbappe": "Kylian Mbappe",
+        "tzolis": "Christos Tzolis",
+        "odegard": "Martin Odegaard",
+        "semenyo": "Antoine Semenyo",
+        "haaland": "Erling Haaland",
+        "yamal": "Lamine Yamal",
+        "raphina": "Raphinha",
+        "raphinha": "Raphinha",
+        "kane": "Harry Kane",
+        "olise": "Michael Olise",
+        "bruno fernandez": "Bruno Fernandes",
+        "bruno fernandes": "Bruno Fernandes",
+        "joao pedro": "Joao Pedro footballer",
+        "palmer": "Cole Palmer",
+        "gakpo": "Cody Gakpo",
+        "szoboszlai": "Dominik Szoboszlai",
+        "antony": "Antony Matheus dos Santos",
+        "lookman": "Ademola Lookman",
+        "gordon": "Anthony Gordon footballer",
+        "bellingham": "Jude Bellingham"
+    }
+    
+    nombre_lower = normalizar_texto(nombre_limpio)
+    busqueda_exacta = nombres_busqueda.get(nombre_lower, nombre_limpio)
+    
+    queries = [
+        f"{busqueda_exacta} {liga_limpia} football player",
+        f"{busqueda_exacta} football player",
+        f"{busqueda_exacta}"
+    ]
+    
+    headers = {'User-Agent': 'GoalMetricsApp/1.0 (contact@goalmetrics.com)'}
+    
+    for q in queries:
+        try:
+            url_search = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(q)}&format=json"
+            res = requests.get(url_search, headers=headers, timeout=3).json()
+            search_results = res.get("query", {}).get("search", [])
+            if search_results:
+                page_title = search_results[0]["title"]
+                url_image = f"https://en.wikipedia.org/w/api.php?action=query&titles={requests.utils.quote(page_title)}&prop=pageimages&pithumbsize=300&format=json"
+                res_img = requests.get(url_image, headers=headers, timeout=3).json()
+                pages = res_img.get("query", {}).get("pages", {})
+                for page_id, page_info in pages.items():
+                    if "thumbnail" in page_info:
+                        return page_info["thumbnail"]["source"]
+        except Exception:
+            continue
+            
+    # Respaldo visual elegante con iniciales si no hay foto disponible
     return f"https://api.dicebear.com/7.x/initials/svg?seed={requests.utils.quote(nombre_limpio)}&backgroundColor=3B82F6&textColor=ffffff&fontWeight=700"
 
 def calcular_feature_engineering_jugadores(df):
