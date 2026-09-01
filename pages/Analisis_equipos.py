@@ -238,7 +238,6 @@ colores_base_equipos = {
     "Monaco": "#ED1C24", "Chelsea": "#034694"
 }
 
-# Diccionario ampliado con los escudos oficiales exactos solicitados
 logos_equipos = {
     "porto": "https://upload.wikimedia.org/wikipedia/en/f/f1/FC_Porto_%28crest%29.svg",
     "flamengo": "https://upload.wikimedia.org/wikipedia/commons/2/2e/CR_Flamengo_logo.svg",
@@ -295,24 +294,26 @@ def normalizar_texto(texto):
 
 @st.cache_data(ttl=86400)
 def obtener_logo_equipo(nombre):
-    nombre_limpio = normalizar_texto(nombre)
+    nombre_limpio = str(nombre).strip()
+    nombre_lower = normalizar_texto(nombre_limpio)
     
-    if nombre_limpio in logos_equipos:
-        return logos_equipos[nombre_limpio]
+    # 1. Búsqueda directa en diccionario garantizado
+    if nombre_lower in logos_equipos:
+        return logos_equipos[nombre_lower]
         
     for k, v in logos_equipos.items():
-        if k in nombre_limpio or nombre_limpio in k:
+        if k in nombre_lower or nombre_lower in k:
             return v
             
-    # Búsqueda automática en Wikipedia si es un equipo totalmente nuevo
+    # 2. Búsqueda automática en Wikipedia si es un equipo totalmente nuevo
     try:
-        url_search = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={str(nombre).strip()} football club&format=json"
+        url_search = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(nombre_limpio + ' football club logo')}🍳&format=json"
         headers = {'User-Agent': 'GoalMetricsApp/1.0'}
         res = requests.get(url_search, headers=headers, timeout=3).json()
         search_results = res.get("query", {}).get("search", [])
         if search_results:
             page_title = search_results[0]["title"]
-            url_image = f"https://en.wikipedia.org/w/api.php?action=query&titles={page_title}&prop=pageimages&pithumbsize=300&format=json"
+            url_image = f"https://en.wikipedia.org/w/api.php?action=query&titles={requests.utils.quote(page_title)}&prop=pageimages&pithumbsize=200&format=json"
             res_img = requests.get(url_image, headers=headers, timeout=3).json()
             pages = res_img.get("query", {}).get("pages", {})
             for page_id, page_info in pages.items():
@@ -321,7 +322,8 @@ def obtener_logo_equipo(nombre):
     except Exception:
         pass
         
-    return "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Bouton_Vigipirate_-_Identifiant_Visuel.svg/200px-Bouton_Vigipirate_-_Identifiant_Visuel.svg.png"
+    # 3. Respaldo visual profesional garantizado (evita por completo imágenes rotas)
+    return f"https://api.dicebear.com/7.x/identicon/svg?seed={requests.utils.quote(nombre_limpio)}&backgroundColor=111827"
 
 st.sidebar.header("Configuracion")
 
@@ -761,10 +763,10 @@ if st.session_state.analizado_equipos:
     else:
         veredicto = f"Partido Muy Parejo - Marcador proyectado {marcador_mas_comun}"
 
-    # --- ENCABEZADO CON ESCUDO OFICIAL REAL ---
+    # --- ENCABEZADO CON ESCUDO OFICIAL REAL Y FALLBACK SEGURO ---
     st.markdown(
         f'<div class="header-box">'
-        f'<img src="{logo_url}" style="height: 42px; width: 42px; object-fit: contain;" />'
+        f'<img src="{logo_url}" style="height: 45px; width: 45px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,0.05); padding: 4px;" />'
         f'<span>{liga_sel_html.upper()} | {equipo_sel_html.upper()} - {condicion_label.upper()} vs {nivel_sel_html.upper()}</span>'
         f'</div>', 
         unsafe_allow_html=True
