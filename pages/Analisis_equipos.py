@@ -305,9 +305,9 @@ def obtener_logo_equipo(nombre):
         if k in nombre_lower or nombre_lower in k:
             return v
             
-    # 2. Búsqueda automática en Wikipedia si es un equipo totalmente nuevo
+    # 2. Búsqueda automática en Wikipedia (corregido sin caracteres extraños)
     try:
-        url_search = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(nombre_limpio + ' football club logo')}🍳&format=json"
+        url_search = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(nombre_limpio + ' football club logo')}&format=json"
         headers = {'User-Agent': 'GoalMetricsApp/1.0'}
         res = requests.get(url_search, headers=headers, timeout=3).json()
         search_results = res.get("query", {}).get("search", [])
@@ -322,7 +322,7 @@ def obtener_logo_equipo(nombre):
     except Exception:
         pass
         
-    # 3. Respaldo visual profesional garantizado (evita por completo imágenes rotas)
+    # 3. Respaldo visual profesional garantizado
     return f"https://api.dicebear.com/7.x/identicon/svg?seed={requests.utils.quote(nombre_limpio)}&backgroundColor=111827"
 
 st.sidebar.header("Configuracion")
@@ -460,7 +460,6 @@ st.markdown(f"""
 .value-no {{ background-color: #111827; border-left: 4px solid #4b5563; }}
 .top-pick-box {{ background: linear-gradient(135deg, rgba(6, 95, 70, 0.8) 0%, #111827 100%); padding: 22px; border-radius: 14px; border: 2px solid #10b981; margin-bottom: 20px; box-shadow: 0 8px 20px rgba(16, 185, 129, 0.15); }}
 
-/* --- TARJETAS CON BORDE DINÁMICO DEL EQUIPO --- */
 .saas-card {{
     background-color: #111827;
     border: 1px solid {color_equipo}44;
@@ -475,7 +474,6 @@ st.markdown(f"""
     box-shadow: 0 6px 25px {color_equipo}22;
 }}
 
-/* --- ESTILO DATAGRID PARA TABLAS DE AUDITORÍA --- */
 [data-testid="stDataFrame"] {{
     border-radius: 12px;
     overflow: hidden;
@@ -551,10 +549,10 @@ with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis de Equipos
       * 🟢 *Verde:* Suficientes partidos exactos en el escenario buscado ($\ge 2$).
       * 🟡 *Amarillo:* Muestra mixta o con 1 solo partido exacto, activando el respaldo inteligente ajustado por *Tier*.
       * 🔴 *Rojo:* Muestra crítica o escasa, requiere máxima precaución.
-    * **2. Shrinkage (Compensación Estadística):** Cuando un equipo cuenta con pocos partidos en un escenario específico (por ejemplo, jugando como visitante ante rivales Top), sus promedios empíricos pueden estar sesgados por la varianza de muestras pequeñas (como golear 3-0 en un único encuentro). El **Shrinkage** corrige esto ponderando la tasa observada ($\lambda_{obs}$) con una media previa (*prior* o $\lambda_{prior}$) de la liga para ese mismo nivel de rival. Mediante la fuerza del parámetro *k*, el modelo "encoge" los valores extremos hacia la tendencia general, evitando falsos positivos y logrando proyecciones mucho más estables.
-    * **3. Modelo Dixon-Coles (Corrección de Empates y Bajas):** A diferencia de una distribución de Poisson estándar (que asume independencia estadística total entre los goles del equipo y del rival), el modelo **Dixon-Coles** introduce un factor de corrección ($\tau$) controlado por el parámetro de correlación $\rho$ (*rho*). Esto es fundamental en el fútbol porque ajusta la probabilidad en marcadores cerrados y de baja anotación (como 0-0, 1-0, 0-1, 1-1), donde la independencia pura suele fallar. El resultado son matrices de resultados exactos y probabilidades 1X2 altamente realistas.
-    * **4. Ensemble Híbrido (Poisson/Dixon-Coles + XGBoost):** Integra la solidez estocástica de las distribuciones de goles con modelos de Machine Learning (XGBoost) entrenados con medias móviles, momentum y diferencias de goles recientes.
-    * **5. Value Bets & Criterio de Half-Kelly:** Evalúa el Valor Esperado (EV) contrastando las probabilidades de la simulación contra las cuotas de las casas de apuestas, dimensionando el tamaño de la apuesta de forma conservadora mediante el criterio fraccional de Kelly.
+    * **2. Shrinkage (Compensación Estadística):** Cuando un equipo cuenta con pocos partidos en un escenario específico, los promedios empíricos pueden estar sesgados. El **Shrinkage** corrige esto ponderando la tasa observada hacia una media previa (*prior*) de la liga para ese mismo nivel de rival.
+    * **3. Modelo Dixon-Coles (Corrección de Empates y Bajas):** Introduce un factor de corrección ($\tau$) controlado por el parámetro de correlación $\rho$ para ajustar la probabilidad en marcadores cerrados y de baja anotación.
+    * **4. Ensemble Híbrido (Poisson/Dixon-Coles + XGBoost):** Integra la solidez estocástica de las distribuciones de goles con modelos de Machine Learning (XGBoost).
+    * **5. Value Bets & Criterio de Half-Kelly:** Evalúa el Valor Esperado (EV) contrastando las probabilidades frente a las cuotas de las casas de apuestas.
     """)
 
 if "analizado_equipos" not in st.session_state:
@@ -799,7 +797,6 @@ if st.session_state.analizado_equipos:
         f.metric("X2", f"{doble_x2:.1f}%")
         g.metric("DNB", f"{dnb:.1f}%")
         
-        # --- TARJETAS DE MÉTRICAS EN 3 COLUMNAS CON VOLATILIDAD VISIBLE ---
         metrics_data_eq = {
             "Goles": {"val": lam_f, "vol": std_w("Goles"), "format": ".2f"},
             "Goles Rival": {"val": lam_c, "vol": std_w("Goles Rival"), "format": ".2f"},
@@ -861,7 +858,6 @@ if st.session_state.analizado_equipos:
         st.markdown("---")
         st.subheader("📈 Curvas de Probabilidad Acumulada (Over X)")
         
-        # --- GRÁFICO 1: GOLES (ARRIBA) ---
         max_g_sim = int(max(sg_fav)) + 2
         goal_vals = [float(i + 0.5) for i in range(max_g_sim)]
         cum_probs_goles = [float((sg_fav > g).mean() * 100) for g in goal_vals]
@@ -882,7 +878,6 @@ if st.session_state.analizado_equipos:
         st.plotly_chart(fig_cum_goles, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- GRÁFICO 2: CÓRNERS (ABAJO) ---
         max_c = int(max(s_corn)) + 2
         step_tick = 2 if max_c > 12 else 1
         corner_vals = list(range(0, max_c, step_tick))
