@@ -333,22 +333,19 @@ liga_sel_html = html.escape(liga_sel)
 
 st.markdown(f"""
 <style>
-.stApp {{ background-color: #0B0F19; color: #F3F4F6; }}
-.stSidebar {{ background-color: #111827; }}
 .header-box {{
     background: linear-gradient(90deg, {color_equipo} 0%, #1F2937 100%);
     padding: 22px 28px; border-radius: 14px; color: white;
     font-weight: 700; font-size: 24px; margin-bottom: 20px; text-align: center;
 }}
 .veredicto-box {{
-    padding: 16px 20px; border-radius: 12px; background-color: #1F2937;
-    border-left: 5px solid {color_equipo}; margin-bottom: 16px; font-size: 16px;
+    padding: 16px 20px; border-radius: 12px; background-color: #111827;
+    border: 1px solid #1f2937; border-left: 5px solid {color_equipo}; margin-bottom: 16px; font-size: 16px;
 }}
-.value-box {{ padding: 14px 16px; border-radius: 10px; margin-bottom: 10px; font-size: 14px; }}
+.value-box {{ padding: 14px 16px; border-radius: 10px; margin-bottom: 10px; font-size: 14px; border: 1px solid #1f2937; }}
 .value-yes {{ background-color: #064e3b; border-left: 4px solid #10b981; }}
-.value-no {{ background-color: #1f2937; border-left: 4px solid #4b5563; }}
+.value-no {{ background-color: #111827; border-left: 4px solid #4b5563; }}
 .top-pick-box {{ background: linear-gradient(135deg, #065f46 0%, #111827 100%); padding: 20px; border-radius: 12px; border: 2px solid #10b981; margin-bottom: 20px; }}
-div[data-testid="stMetric"] {{ background-color: #1F2937; padding: 12px 16px; border-radius: 10px; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -552,7 +549,7 @@ if st.session_state.analizado_equipos:
     lam_f_raw, lam_c_raw = prom("Goles"), prom("Goles Rival")
     lam_t_raw, lam_tp_raw = prom("Tiros"), prom("A Puerta")
     lam_co_raw, lam_fa_raw = prom("Corners"), prom("Faltas")
-    lam_co_rival_raw = prom("Corners Rival") if "Corners Rival" in historial.columns else prom("Corners")
+    lam_co_rival_raw = prom("Corners Rival"] if "Corners Rival" in historial.columns else prom("Corners")
 
     df_nivel = df[(df["Liga"] == liga_sel) & (df["Nivel Rival"] == nivel_sel)]
     if len(df_nivel) == 0:
@@ -651,7 +648,7 @@ if st.session_state.analizado_equipos:
         f.metric("X2", f"{doble_x2:.1f}%")
         g.metric("DNB", f"{dnb:.1f}%")
         
-        # --- TARJETAS DE MÉTRICAS REORGANIZADAS EN 3 COLUMNAS ---
+        # --- TARJETAS DE MÉTRICAS EN 3 COLUMNAS CON VOLATILIDAD VISIBLE ---
         metrics_data_eq = {
             "Goles": {"val": lam_f, "vol": std_w("Goles"), "format": ".2f"},
             "Goles Rival": {"val": lam_c, "vol": std_w("Goles Rival"), "format": ".2f"},
@@ -700,53 +697,62 @@ if st.session_state.analizado_equipos:
             title=f"Goles Rival (Eje X) vs Goles {equipo_sel} (Eje Y)",
             xaxis_title="Goles Rival",
             yaxis_title=f"Goles {equipo_sel}",
-            paper_bgcolor="#0B0F19",
-            plot_bgcolor="#0B0F19",
+            paper_bgcolor="#111827",
+            plot_bgcolor="#111827",
             font=dict(color="#F3F4F6"),
             height=380,
             margin=dict(l=40, r=40, t=40, b=40)
         )
+        st.markdown('<div class="saas-card">', unsafe_allow_html=True)
         st.plotly_chart(fig_matrix, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("---")
         st.subheader("📈 Curvas de Probabilidad Acumulada (Over X)")
         
-        col_c1, col_c2 = st.columns(2)
-        with col_c1:
-            max_g_sim = int(max(sg_fav)) + 2
-            goal_vals = [float(i + 0.5) for i in range(max_g_sim)]
-            cum_probs_goles = [float((sg_fav > g).mean() * 100) for g in goal_vals]
+        # --- GRÁFICO 1: GOLES (ARRIBA) ---
+        max_g_sim = int(max(sg_fav)) + 2
+        goal_vals = [float(i + 0.5) for i in range(max_g_sim)]
+        cum_probs_goles = [float((sg_fav > g).mean() * 100) for g in goal_vals]
 
-            fig_cum_goles = go.Figure(data=go.Scatter(
-                x=goal_vals, y=cum_probs_goles, mode='lines+markers+text',
-                text=[f"{p:.1f}%" for p in cum_probs_goles], textposition="top center",
-                line=dict(color="#10b981", width=3), marker=dict(size=8)
-            ))
-            fig_cum_goles.update_layout(
-                title=f"Acumulada de Goles (Over X) - {equipo_sel}",
-                xaxis=dict(title="Línea de Goles", tickmode='array', tickvals=goal_vals, ticktext=[str(g) for g in goal_vals], color="#F3F4F6"),
-                yaxis_title="Probabilidad (%)", paper_bgcolor="#0B0F19", plot_bgcolor="#0B0F19", font=dict(color="#F3F4F6"),
-                height=320, margin=dict(l=30, r=20, t=40, b=30)
-            )
-            st.plotly_chart(fig_cum_goles, use_container_width=True)
+        fig_cum_goles = go.Figure(data=go.Scatter(
+            x=goal_vals, y=cum_probs_goles, mode='lines+markers+text',
+            text=[f"{p:.1f}%" if p > 1.0 else "" for p in cum_probs_goles], textposition="top center",
+            line=dict(color="#10b981", width=3), marker=dict(size=8)
+        ))
+        fig_cum_goles.update_layout(
+            title=dict(text=f"<b>Acumulada de Goles (Over X)</b>", font=dict(size=14, color="#F3F4F6")),
+            xaxis=dict(title="Línea de Goles", tickmode='array', tickvals=goal_vals, ticktext=[str(g) for g in goal_vals], color="#9ca3af", gridcolor="#1f2937"),
+            yaxis=dict(title="Probabilidad (%)", color="#9ca3af", gridcolor="#1f2937", range=[0, 115]),
+            paper_bgcolor="#111827", plot_bgcolor="#111827", font=dict(color="#F3F4F6"),
+            height=350, margin=dict(l=30, r=20, t=40, b=30)
+        )
+        st.markdown('<div class="saas-card">', unsafe_allow_html=True)
+        st.plotly_chart(fig_cum_goles, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        with col_c2:
-            max_c = int(max(s_corn)) + 2
-            corner_vals = list(range(0, max_c))
-            cum_probs_corners = [float((s_corn > c).mean() * 100) for c in corner_vals]
+        # --- GRÁFICO 2: CÓRNERS (ABAJO) ---
+        max_c = int(max(s_corn)) + 2
+        step_tick = 2 if max_c > 12 else 1
+        corner_vals = list(range(0, max_c, step_tick))
+        
+        cum_probs_corners = [float((s_corn > c).mean() * 100) for c in corner_vals]
 
-            fig_cum_corners = go.Figure(data=go.Scatter(
-                x=corner_vals, y=cum_probs_corners, mode='lines+markers+text',
-                text=[f"{p:.1f}%" for p in cum_probs_corners], textposition="top center",
-                line=dict(color=color_equipo, width=3), marker=dict(size=8)
-            ))
-            fig_cum_corners.update_layout(
-                title=f"Acumulada de Córners (Over X) - {equipo_sel}",
-                xaxis=dict(title="Línea de Córners", tickmode='array', tickvals=corner_vals, ticktext=[str(c) for c in corner_vals], color="#F3F4F6"),
-                yaxis_title="Probabilidad (%)", paper_bgcolor="#0B0F19", plot_bgcolor="#0B0F19", font=dict(color="#F3F4F6"),
-                height=320, margin=dict(l=30, r=20, t=40, b=30)
-            )
-            st.plotly_chart(fig_cum_corners, use_container_width=True)
+        fig_cum_corners = go.Figure(data=go.Scatter(
+            x=corner_vals, y=cum_probs_corners, mode='lines+markers+text',
+            text=[f"{p:.1f}%" if p > 5.0 else "" for p in cum_probs_corners], textposition="top center",
+            line=dict(color=color_equipo, width=3), marker=dict(size=8)
+        ))
+        fig_cum_corners.update_layout(
+            title=dict(text=f"<b>Acumulada de Córners (Over X)</b>", font=dict(size=14, color="#F3F4F6")),
+            xaxis=dict(title="Línea de Córners", tickmode='array', tickvals=corner_vals, ticktext=[str(c) for c in corner_vals], color="#9ca3af", gridcolor="#1f2937"),
+            yaxis=dict(title="Probabilidad (%)", color="#9ca3af", gridcolor="#1f2937", range=[0, 115]),
+            paper_bgcolor="#111827", plot_bgcolor="#111827", font=dict(color="#F3F4F6"),
+            height=350, margin=dict(l=30, r=20, t=40, b=30)
+        )
+        st.markdown('<div class="saas-card">', unsafe_allow_html=True)
+        st.plotly_chart(fig_cum_corners, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
         if not historial.empty and "A Puerta" in historial.columns and "Goles" in historial.columns:
             st.markdown("---")
@@ -759,9 +765,11 @@ if st.session_state.analizado_equipos:
             ))
             fig_scatter.update_layout(
                 title="Tiros a Puerta vs Goles por Partido", xaxis_title="Tiros a Puerta", yaxis_title="Goles Anotados",
-                paper_bgcolor="#0B0F19", plot_bgcolor="#0B0F19", font=dict(color="#F3F4F6"), height=350, margin=dict(l=40, r=40, t=40, b=40)
+                paper_bgcolor="#111827", plot_bgcolor="#111827", font=dict(color="#F3F4F6"), height=350, margin=dict(l=40, r=40, t=40, b=40)
             )
+            st.markdown('<div class="saas-card">', unsafe_allow_html=True)
             st.plotly_chart(fig_scatter, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
         st.subheader("💰 Value Bet y Half-Kelly")
