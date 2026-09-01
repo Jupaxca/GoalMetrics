@@ -305,24 +305,32 @@ def obtener_logo_equipo(nombre):
         if k in nombre_lower or nombre_lower in k:
             return v
             
-    # 2. Búsqueda automática en Wikipedia (corregido sin caracteres extraños)
-    try:
-        url_search = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(nombre_limpio + ' football club logo')}&format=json"
-        headers = {'User-Agent': 'GoalMetricsApp/1.0'}
-        res = requests.get(url_search, headers=headers, timeout=3).json()
-        search_results = res.get("query", {}).get("search", [])
-        if search_results:
-            page_title = search_results[0]["title"]
-            url_image = f"https://en.wikipedia.org/w/api.php?action=query&titles={requests.utils.quote(page_title)}&prop=pageimages&pithumbsize=200&format=json"
-            res_img = requests.get(url_image, headers=headers, timeout=3).json()
-            pages = res_img.get("query", {}).get("pages", {})
-            for page_id, page_info in pages.items():
-                if "thumbnail" in page_info:
-                    return page_info["thumbnail"]["source"]
-    except Exception:
-        pass
-        
-    # 3. Respaldo visual profesional garantizado
+    # 2. Búsqueda automática optimizada idéntica a la de jugadores (Wikimedia API + pithumbsize)
+    queries = [
+        f"{nombre_limpio} football club logo",
+        f"{nombre_limpio} soccer club logo",
+        f"{nombre_limpio} football club"
+    ]
+    
+    headers = {'User-Agent': 'GoalMetricsApp/1.0 (contact@goalmetrics.com)'}
+    
+    for q in queries:
+        try:
+            url_search = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(q)}&format=json"
+            res = requests.get(url_search, headers=headers, timeout=3).json()
+            search_results = res.get("query", {}).get("search", [])
+            if search_results:
+                page_title = search_results[0]["title"]
+                url_image = f"https://en.wikipedia.org/w/api.php?action=query&titles={requests.utils.quote(page_title)}&prop=pageimages&pithumbsize=300&format=json"
+                res_img = requests.get(url_image, headers=headers, timeout=3).json()
+                pages = res_img.get("query", {}).get("pages", {})
+                for page_id, page_info in pages.items():
+                    if "thumbnail" in page_info:
+                        return page_info["thumbnail"]["source"]
+        except Exception:
+            continue
+            
+    # 3. Respaldo visual si no se encuentra
     return f"https://api.dicebear.com/7.x/identicon/svg?seed={requests.utils.quote(nombre_limpio)}&backgroundColor=111827"
 
 st.sidebar.header("Configuracion")
