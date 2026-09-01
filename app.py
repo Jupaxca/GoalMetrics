@@ -13,7 +13,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------
-# CSS AVANZADO (Fase 1: Estilo SaaS Profesional para todo el sitio)
+# CSS AVANZADO (Estilo SaaS Profesional + Banner Hero + Menú Móvil Activo)
 # ---------------------------------------------------------------------
 st.markdown("""
 <style>
@@ -26,12 +26,11 @@ st.markdown("""
         color: #f3f4f6;
     }
 
-    /* 2. Ocultar elementos nativos de Streamlit pero MANTENER el header activo para móviles */
+    /* 2. Ocultar elementos nativos pero MANTENER el header activo para móviles */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    /* header {visibility: hidden;} <- COMENTADO/ELIMINADO para permitir ver el menú hamburguesa en celulares */
+    /* header {visibility: hidden;} -> Activo para que aparezca el botón hamburguesa en celulares */
     
-    /* Ajustar padding principal superior para aprovechar espacio */
     .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
@@ -43,36 +42,28 @@ st.markdown("""
         border-right: 1px solid #1f2937;
     }
 
-    /* 4. Tarjetas de Métricas Estilizadas tipo SaaS */
-    div[data-testid="stMetric"] {
+    /* 4. Banner Hero Principal (Estilo superior que te gusta) */
+    .hero-box {
+        background: linear-gradient(135deg, #3B82F6 0%, #111827 100%);
+        padding: 40px;
+        border-radius: 20px;
+        color: white;
+        text-align: center;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 30px;
+    }
+
+    /* 5. Tarjetas y contenedores estilo SaaS */
+    .saas-card {
         background-color: #111827;
         border: 1px solid #1f2937;
-        padding: 16px 20px;
         border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        transition: all 0.2s ease-in-out;
-    }
-    
-    div[data-testid="stMetric"]:hover {
-        border-color: #374151;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+        padding: 20px;
+        margin-bottom: 16px;
     }
 
-    div[data-testid="stMetric"] label {
-        color: #9ca3af !important;
-        font-size: 0.85rem !important;
-        font-weight: 500 !important;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-
-    div[data-testid="stMetric"] [data-testid="stMetricValue"] {
-        color: #ffffff !important;
-        font-size: 1.6rem !important;
-        font-weight: 700 !important;
-    }
-
-    /* 5. Estilización de Pestañas (Tabs) */
+    /* 6. Estilización de Pestañas (Tabs) */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background-color: #0b0f19;
@@ -96,7 +87,7 @@ st.markdown("""
         box-shadow: 0 0 15px rgba(59, 130, 246, 0.15);
     }
 
-    /* 6. Botones principales (Primary Buttons) */
+    /* 7. Botones principales */
     .stButton button[kind="primary"] {
         background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
         color: white;
@@ -111,15 +102,6 @@ st.markdown("""
     .stButton button[kind="primary"]:hover {
         background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
         box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
-    }
-
-    /* 7. Contenedores personalizados */
-    .saas-card {
-        background-color: #111827;
-        border: 1px solid #1f2937;
-        border-radius: 12px;
-        padding: 20px;
-        margin-bottom: 16px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -172,6 +154,11 @@ def cerrar_sesion() -> None:
     st.session_state.supabase_tokens = None
 
 
+def mensaje_error_supabase(e: Exception, generico: str) -> str:
+    msg = getattr(e, "message", None)
+    return msg if msg else generico
+
+
 supabase = get_supabase_client()
 
 if "user" not in st.session_state:
@@ -179,92 +166,105 @@ if "user" not in st.session_state:
 
 
 # ----------------------------------------------------------------------
-# Zona pública: login / registro / recuperación de clave
+# Zona pública: login / registro / recuperación de clave con Banner Hero
 # ----------------------------------------------------------------------
 if st.session_state.user is None:
-    st.markdown("## 🔐 GoalMetrics · Acceso de Usuarios")
+    # Banner Hero Superior que querías conservar
+    st.markdown("""
+    <div class="hero-box">
+        <h1>⚽ GoalMetrics Pro</h1>
+        <p style="font-size: 18px; color: #93c5fd; margin-top: 10px;">
+            Inicia sesión para acceder a tu centro de análisis avanzado
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs(["Iniciar Sesión", "Registrarse", "Recuperar Clave"])
+    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+    with col_l2:
+        tab1, tab2, tab3 = st.tabs(["Iniciar Sesión", "Registrarse", "Recuperar Clave"])
 
-    # --- Iniciar sesión ---
-    with tab1:
-        with st.form("login_form"):
-            email = st.text_input("Correo electrónico")
-            password = st.text_input("Contraseña", type="password")
-            submitted = st.form_submit_button("Entrar", use_container_width=True)
+        # --- Iniciar sesión ---
+        with tab1:
+            with st.form("login_form"):
+                st.subheader("🔑 Acceso al Sistema")
+                email = st.text_input("Correo electrónico")
+                password = st.text_input("Contraseña", type="password")
+                submitted = st.form_submit_button("Entrar", use_container_width=True)
 
-            if submitted:
-                if not email or not password:
-                    st.error("Completa correo y contraseña.")
-                elif not EMAIL_REGEX.match(email):
-                    st.error("Ingresa un correo electrónico válido.")
-                else:
-                    with st.spinner("Verificando credenciales..."):
-                        try:
-                            res = st.session_state.supabase_client.auth.sign_in_with_password(
-                                {"email": email, "password": password}
-                            )
-                            if res.user is None:
-                                st.error("No se pudo iniciar sesión. Intenta de nuevo.")
-                            else:
-                                guardar_sesion(res)
-                                st.success("¡Bienvenido!")
-                                st.rerun()
-                        except Exception as e:
-                            logger.warning("Fallo de login para %s: %s", email, e)
-                            st.error(mensaje_error_supabase(e, "Credenciales incorrectas."))
+                if submitted:
+                    if not email or not password:
+                        st.error("Completa correo y contraseña.")
+                    elif not EMAIL_REGEX.match(email):
+                        st.error("Ingresa un correo electrónico válido.")
+                    else:
+                        with st.spinner("Verificando credenciales..."):
+                            try:
+                                res = st.session_state.supabase_client.auth.sign_in_with_password(
+                                    {"email": email, "password": password}
+                                )
+                                if res.user is None:
+                                    st.error("No se pudo iniciar sesión. Intenta de nuevo.")
+                                else:
+                                    guardar_sesion(res)
+                                    st.success("¡Bienvenido!")
+                                    st.rerun()
+                            except Exception as e:
+                                logger.warning("Fallo de login para %s: %s", email, e)
+                                st.error(mensaje_error_supabase(e, "Credenciales incorrectas."))
 
-    # --- Registro ---
-    with tab2:
-        with st.form("signup_form"):
-            email_su = st.text_input("Correo electrónico")
-            password_su = st.text_input("Contraseña (mínimo 6 caracteres)", type="password")
-            password_su_confirm = st.text_input("Confirmar contraseña", type="password")
-            submitted_su = st.form_submit_button("Crear cuenta", use_container_width=True)
+        # --- Registro ---
+        with tab2:
+            with st.form("signup_form"):
+                st.subheader("📝 Crear Cuenta Nueva")
+                email_su = st.text_input("Correo electrónico")
+                password_su = st.text_input("Contraseña (mínimo 6 caracteres)", type="password")
+                password_su_confirm = st.text_input("Confirmar contraseña", type="password")
+                submitted_su = st.form_submit_button("Crear cuenta", use_container_width=True)
 
-            if submitted_su:
-                if not email_su or not password_su:
-                    st.error("Completa todos los campos.")
-                elif not EMAIL_REGEX.match(email_su):
-                    st.error("Ingresa un correo electrónico válido.")
-                elif len(password_su) < 6:
-                    st.error("La contraseña debe tener al menos 6 caracteres.")
-                elif password_su != password_su_confirm:
-                    st.error("Las contraseñas no coinciden. Por favor, revísalas.")
-                else:
-                    with st.spinner("Creando cuenta..."):
-                        try:
-                            st.session_state.supabase_client.auth.sign_up(
-                                {"email": email_su, "password": password_su}
-                            )
-                            st.success("¡Cuenta creada! Revisa tu correo para confirmar.")
-                        except Exception as e:
-                            logger.warning("Fallo de signup para %s: %s", email_su, e)
-                            st.error(mensaje_error_supabase(e, "No se pudo crear la cuenta."))
+                if submitted_su:
+                    if not email_su or not password_su:
+                        st.error("Completa todos los campos.")
+                    elif not EMAIL_REGEX.match(email_su):
+                        st.error("Ingresa un correo electrónico válido.")
+                    elif len(password_su) < 6:
+                        st.error("La contraseña debe tener al menos 6 caracteres.")
+                    elif password_su != password_su_confirm:
+                        st.error("Las contraseñas no coinciden. Por favor, revísalas.")
+                    else:
+                        with st.spinner("Creando cuenta..."):
+                            try:
+                                st.session_state.supabase_client.auth.sign_up(
+                                    {"email": email_su, "password": password_su}
+                                )
+                                st.success("¡Cuenta creada! Revisa tu correo para confirmar.")
+                            except Exception as e:
+                                logger.warning("Fallo de signup para %s: %s", email_su, e)
+                                st.error(mensaje_error_supabase(e, "No se pudo crear la cuenta."))
 
-    # --- Recuperar clave ---
-    with tab3:
-        st.write("Ingresa tu correo y te enviaremos un enlace de recuperación.")
-        with st.form("reset_form"):
-            email_reset = st.text_input("Correo de la cuenta")
-            submitted_reset = st.form_submit_button(
-                "Enviar enlace de recuperación", use_container_width=True
-            )
+        # --- Recuperar clave ---
+        with tab3:
+            with st.form("reset_form"):
+                st.subheader("🔄 Recuperar Contraseña")
+                st.write("Ingresa tu correo y te enviaremos un enlace de recuperación.")
+                email_reset = st.text_input("Correo de la cuenta")
+                submitted_reset = st.form_submit_button(
+                    "Enviar enlace de recuperación", use_container_width=True
+                )
 
-            if submitted_reset:
-                if not email_reset or not EMAIL_REGEX.match(email_reset):
-                    st.error("Ingresa un correo electrónico válido.")
-                else:
-                    with st.spinner("Enviando enlace..."):
-                        try:
-                            st.session_state.supabase_client.auth.reset_password_for_email(
-                                email_reset,
-                                {"redirect_to": st.secrets.get("APP_URL", "")},
-                            )
-                            st.success("¡Correo enviado! Revisa tu bandeja de entrada.")
-                        except Exception as e:
-                            logger.warning("Fallo de reset para %s: %s", email_reset, e)
-                            st.error(mensaje_error_supabase(e, "No se pudo enviar el correo."))
+                if submitted_reset:
+                    if not email_reset or not EMAIL_REGEX.match(email_reset):
+                        st.error("Ingresa un correo electrónico válido.")
+                    else:
+                        with st.spinner("Enviando enlace..."):
+                            try:
+                                st.session_state.supabase_client.auth.reset_password_for_email(
+                                    email_reset,
+                                    {"redirect_to": st.secrets.get("APP_URL", "")},
+                                )
+                                st.success("¡Correo enviado! Revisa tu bandeja de entrada.")
+                            except Exception as e:
+                                logger.warning("Fallo de reset para %s: %s", email_reset, e)
+                                st.error(mensaje_error_supabase(e, "No se pudo enviar el correo."))
 
     st.stop()
 
