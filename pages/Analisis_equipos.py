@@ -297,15 +297,13 @@ def obtener_logo_equipo(nombre, liga=""):
     nombre_limpio = str(nombre).strip()
     nombre_lower = normalizar_texto(nombre_limpio)
     
-    # 1. Búsqueda directa en diccionario garantizado
-    if nombre_lower in logos_equipos:
-        return logos_equipos[nombre_lower]
-        
+    # 1. Búsqueda flexible en el diccionario de escudos fijos
     for k, v in logos_equipos.items():
-        if k in nombre_lower or nombre_lower in k:
+        k_norm = normalizar_texto(k)
+        if k_norm == nombre_lower or k_norm in nombre_lower or nombre_lower in k_norm:
             return v
             
-    # Limpiar nombres de patrocinadores de la liga para búsquedas en Wikipedia
+    # Limpiar nombres de patrocinadores de la liga para búsquedas secundarias en Wikipedia
     liga_limpia = str(liga).lower()
     for sponsor in ["betclic", "ea sports", "uber eats", "lotto", "sky", "vodafone"]:
         liga_limpia = liga_limpia.replace(sponsor, "")
@@ -337,8 +335,8 @@ def obtener_logo_equipo(nombre, liga=""):
         except Exception:
             continue
             
-    # 3. Respaldo visual seguro (ícono de balón genérico limpio)
-    return "https://upload.wikimedia.org/wikipedia/commons/2/2a/Football_icon_two.svg"
+    # 3. Respaldo PNG garantizado con DiceBear (100% compatible y sin errores de renderizado)
+    return f"https://api.dicebear.com/7.x/identicon/png?seed={requests.utils.quote(nombre_limpio)}&backgroundColor=111827"
 
 st.sidebar.header("Configuracion")
 
@@ -776,10 +774,10 @@ if st.session_state.analizado_equipos:
     else:
         veredicto = f"Partido Muy Parejo - Marcador proyectado {marcador_mas_comun}"
 
-    # --- ENCABEZADO CON ESCUDO OFICIAL REAL Y FALLBACK SEGURO ANTE ERRORES ---
+    # --- ENCABEZADO CON ESCUDO OFICIAL REAL Y FALLBACK PNG SEGURO ---
     st.markdown(
         f'<div class="header-box">'
-        f'<img src="{logo_url}" onerror="this.src=\'https://upload.wikimedia.org/wikipedia/commons/2/2a/Football_icon_two.svg\';" style="height: 45px; width: 45px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,0.05); padding: 4px;" />'
+        f'<img src="{logo_url}" style="height: 45px; width: 45px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,0.05); padding: 4px;" />'
         f'<span>{liga_sel_html.upper()} | {equipo_sel_html.upper()} - {condicion_label.upper()} vs {nivel_sel_html.upper()}</span>'
         f'</div>', 
         unsafe_allow_html=True
