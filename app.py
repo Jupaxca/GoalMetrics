@@ -8,9 +8,121 @@ logger = logging.getLogger(__name__)
 
 st.set_page_config(
     page_title="GoalMetrics | Football Analytics",
-    page_icon="icon.png",
+    page_icon="⚽",
     layout="wide"
 )
+
+# ---------------------------------------------------------------------
+# CSS AVANZADO (Fase 1: Estilo SaaS Profesional para todo el sitio)
+# ---------------------------------------------------------------------
+st.markdown("""
+<style>
+    /* 1. Importar tipografía moderna de la industria (Inter) */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+        background-color: #0b0f19;
+        color: #f3f4f6;
+    }
+
+    /* 2. Ocultar elementos nativos de Streamlit (Menu, Footer, Header) */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Ajustar padding principal superior para aprovechar espacio */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+
+    /* 3. Estilo global para la barra lateral (Sidebar) */
+    [data-testid="stSidebar"] {
+        background-color: #111827;
+        border-right: 1px solid #1f2937;
+    }
+
+    /* 4. Tarjetas de Métricas Estilizadas tipo SaaS */
+    div[data-testid="stMetric"] {
+        background-color: #111827;
+        border: 1px solid #1f2937;
+        padding: 16px 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        transition: all 0.2s ease-in-out;
+    }
+    
+    div[data-testid="stMetric"]:hover {
+        border-color: #374151;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+    }
+
+    div[data-testid="stMetric"] label {
+        color: #9ca3af !important;
+        font-size: 0.85rem !important;
+        font-weight: 500 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+        color: #ffffff !important;
+        font-size: 1.6rem !important;
+        font-weight: 700 !important;
+    }
+
+    /* 5. Estilización de Pestañas (Tabs) */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: #0b0f19;
+        padding: 4px;
+        border-radius: 10px;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        background-color: #111827;
+        border-radius: 8px;
+        color: #9ca3af;
+        padding: 10px 20px;
+        font-weight: 500;
+        border: 1px solid #1f2937;
+    }
+
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #1f2937 0%, #111827 100%) !important;
+        color: #ffffff !important;
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 15px rgba(59, 130, 246, 0.15);
+    }
+
+    /* 6. Botones principales (Primary Buttons) */
+    .stButton button[kind="primary"] {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        padding: 0.5rem 1rem;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        transition: all 0.2s ease;
+    }
+    
+    .stButton button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+    }
+
+    /* 7. Contenedores personalizados */
+    .saas-card {
+        background-color: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 16px;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -18,14 +130,6 @@ EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 # ----------------------------------------------------------------------
 # Cliente de Supabase
 # ----------------------------------------------------------------------
-# IMPORTANTE: NO usamos @st.cache_resource aquí porque ese decorador crea
-# un objeto único COMPARTIDO por todos los usuarios de la app (vive a
-# nivel de servidor). Como el cliente de supabase-py guarda el token de
-# sesión internamente, cachearlo así puede filtrar la sesión de un
-# usuario a otro. En su lugar, cacheamos solo la URL/KEY (que sí son
-# iguales para todos) y creamos un cliente nuevo por sesión de Streamlit,
-# guardándolo en st.session_state.
-
 @st.cache_resource
 def get_supabase_config() -> tuple[str, str]:
     return st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"]
@@ -36,8 +140,6 @@ def get_supabase_client() -> Client:
         url, key = get_supabase_config()
         st.session_state.supabase_client = create_client(url, key)
 
-        # Si ya teníamos tokens guardados en esta sesión (por ejemplo tras
-        # un rerun), restauramos la sesión de auth en el cliente nuevo.
         tokens = st.session_state.get("supabase_tokens")
         if tokens:
             try:
@@ -52,10 +154,7 @@ def get_supabase_client() -> Client:
 
 
 def guardar_sesion(res) -> None:
-    """Guarda el usuario y los tokens en session_state tras login/signup."""
     st.session_state.user = res.user
-    
-    # CORRECCIÓN: Los tokens de acceso y refresco viven dentro de res.session
     session_data = getattr(res, "session", None)
     if session_data:
         st.session_state.supabase_tokens = {
@@ -74,7 +173,6 @@ def cerrar_sesion() -> None:
 
 
 def mensaje_error_supabase(e: Exception, generico: str) -> str:
-    """Extrae un mensaje legible de una excepción de supabase-py."""
     msg = getattr(e, "message", None)
     return msg if msg else generico
 
@@ -164,9 +262,6 @@ if st.session_state.user is None:
                 else:
                     with st.spinner("Enviando enlace..."):
                         try:
-                            # Ajusta redirect_to a la URL real de tu app en
-                            # producción para que el enlace del correo
-                            # regrese al lugar correcto.
                             st.session_state.supabase_client.auth.reset_password_for_email(
                                 email_reset,
                                 {"redirect_to": st.secrets.get("APP_URL", "")},
