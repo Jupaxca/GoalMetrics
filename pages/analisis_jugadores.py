@@ -261,24 +261,123 @@ else:
     else:
         st.sidebar.error("0 partidos exactos en este filtro")
 
+# --- ESTILOS MODERNOS (FASE 1: TIPOGRAFÍA INTER, PILL BADGES & SAAS CARDS) ---
 st.markdown("""
 <style>
-.stApp { background-color: #0B0F19; color: #F3F4F6; }
-.stSidebar { background-color: #111827; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+    background-color: #0B0F19;
+    color: #F3F4F6;
+}
+
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+}
+
+[data-testid="stSidebar"] {
+    background-color: #111827;
+    border-right: 1px solid #1f2937;
+}
+
 .header-box {
-    background: linear-gradient(90deg, #3B82F6 0%, #1F2937 100%);
-    padding: 22px 28px; border-radius: 14px; color: white;
-    font-weight: 700; font-size: 24px; margin-bottom: 20px; text-align: center;
+    background: linear-gradient(135deg, #3B82F6 0%, #111827 100%);
+    padding: 24px 30px; 
+    border-radius: 16px; 
+    color: white;
+    font-weight: 700; 
+    font-size: 26px; 
+    margin-bottom: 20px; 
+    text-align: center;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
+
+.pill-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 9999px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.pill-green { background-color: rgba(6, 78, 59, 0.7); color: #34d399; border-color: rgba(16, 185, 129, 0.3); }
+.pill-yellow { background-color: rgba(120, 53, 15, 0.7); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
+.pill-red { background-color: rgba(127, 29, 29, 0.7); color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
+
 .veredicto-box {
-    padding: 16px 20px; border-radius: 12px; background-color: #1F2937;
-    border-left: 5px solid #3B82F6; margin-bottom: 20px; font-size: 16px;
+    padding: 18px 22px; border-radius: 14px; background-color: #111827;
+    border: 1px solid #1f2937; border-left: 5px solid #3B82F6; margin-bottom: 20px; font-size: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
 }
-.value-box { padding: 14px 16px; border-radius: 10px; margin-bottom: 10px; font-size: 14px; }
-.value-yes { background-color: #064e3b; border-left: 4px solid #10b981; }
-.value-no { background-color: #1f2937; border-left: 4px solid #4b5563; }
-.top-pick-box { background: linear-gradient(135deg, #065f46 0%, #111827 100%); padding: 20px; border-radius: 12px; border: 2px solid #10b981; margin-bottom: 20px; }
-div[data-testid="stMetric"] { background-color: #1F2937; padding: 12px 16px; border-radius: 10px; }
+.value-box { padding: 14px 16px; border-radius: 12px; margin-bottom: 10px; font-size: 14px; border: 1px solid #1f2937; }
+.value-yes { background-color: rgba(6, 78, 59, 0.4); border-left: 4px solid #10b981; }
+.value-no { background-color: #111827; border-left: 4px solid #4b5563; }
+.top-pick-box { background: linear-gradient(135deg, rgba(6, 95, 70, 0.8) 0%, #111827 100%); padding: 22px; border-radius: 14px; border: 2px solid #10b981; margin-bottom: 20px; box-shadow: 0 8px 20px rgba(16, 185, 129, 0.15); }
+
+div[data-testid="stMetric"] {
+    background-color: #111827;
+    border: 1px solid #1f2937;
+    padding: 16px 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    transition: all 0.2s ease-in-out;
+}
+div[data-testid="stMetric"]:hover {
+    border-color: #374151;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+}
+div[data-testid="stMetric"] label {
+    color: #9ca3af !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+    color: #ffffff !important;
+    font-size: 1.6rem !important;
+    font-weight: 700 !important;
+}
+
+.saas-card {
+    background-color: #111827;
+    border: 1px solid #3B82F644;
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease-in-out;
+}
+.saas-card:hover {
+    border-color: #3B82F6;
+    box-shadow: 0 6px 25px #3B82F622;
+}
+
+[data-testid="stDataFrame"] {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #1f2937;
+}
+[data-testid="stDataFrame"] th {
+    background-color: #1f2937 !important;
+    color: #f3f4f6 !important;
+    font-weight: 600 !important;
+}
+[data-testid="stDataFrame"] td {
+    background-color: #111827 !important;
+    color: #9ca3af !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -416,22 +515,22 @@ if st.session_state.analizado_jugadores:
 
     n_obs = len(historial)
 
-    # --- 1. SEMÁFORO DE CONFIABILIDAD ---
+    # --- 1. SEMÁFORO DE CONFIABILIDAD (PILL BADGES) ---
     if len(df_exactos) >= 2:
         st.markdown(
-            '<div style="background-color: #064e3b; padding: 12px 18px; border-radius: 10px; border-left: 5px solid #10b981; margin-bottom: 20px;">'
+            '<div class="pill-badge pill-green">'
             '🟢 <b>Semáforo de Confiabilidad: ALTA</b> — Muestra robusta con suficientes partidos exactos en este escenario.'
             '</div>', unsafe_allow_html=True
         )
     elif len(df_exactos) == 1:
         st.markdown(
-            '<div style="background-color: #78350f; padding: 12px 18px; border-radius: 10px; border-left: 5px solid #f59e0b; margin-bottom: 20px;">'
+            '<div class="pill-badge pill-yellow">'
             '🟡 <b>Semáforo de Confiabilidad: MEDIA</b> — 1 partido exacto encontrado. Respaldo inteligente activo.'
             '</div>', unsafe_allow_html=True
         )
     else:
         st.markdown(
-            '<div style="background-color: #7f1d1d; padding: 12px 18px; border-radius: 10px; border-left: 5px solid #ef4444; margin-bottom: 20px;">'
+            '<div class="pill-badge pill-red">'
             '🔴 <b>Semáforo de Confiabilidad: BAJA</b> — Muestra escasa, interpretar con máxima precaución.'
             '</div>', unsafe_allow_html=True
         )
@@ -609,10 +708,12 @@ if st.session_state.analizado_jugadores:
         ))
         fig_radar.update_layout(
             polar=dict(radialaxis=dict(visible=True, range=[0, 10], color="#9ca3af"), bgcolor="#111827"),
-            showlegend=False, paper_bgcolor="#0B0F19", plot_bgcolor="#0B0F19",
+            showlegend=False, paper_bgcolor="#111827", plot_bgcolor="#111827",
             font=dict(color="#F3F4F6", size=11), height=320, margin=dict(l=20, r=20, t=10, b=10)
         )
+        st.markdown('<div class="saas-card">', unsafe_allow_html=True)
         st.plotly_chart(fig_radar, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("---")
         st.subheader("📈 Curvas de Probabilidad Acumulada (Over X)")
@@ -635,15 +736,23 @@ if st.session_state.analizado_jugadores:
             fig.update_layout(
                 title=f"Probabilidad Acumulada de {titulo_metrica} (Over X)",
                 xaxis_title=f"Línea de {titulo_metrica}", yaxis_title="Probabilidad (%)",
-                paper_bgcolor="#0B0F19", plot_bgcolor="#111827", font=dict(color="#F3F4F6", size=11),
+                paper_bgcolor="#111827", plot_bgcolor="#111827", font=dict(color="#F3F4F6", size=11),
                 yaxis=dict(range=[0, 115], gridcolor="#1f2937"), xaxis=dict(gridcolor="#1f2937"),
                 height=320, margin=dict(l=30, r=20, t=40, b=30)
             )
             return fig
 
+        st.markdown('<div class="saas-card">', unsafe_allow_html=True)
         st.plotly_chart(crear_grafico_acumulado(sim_goles, "Goles", "#10b981"), use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown('<div class="saas-card">', unsafe_allow_html=True)
         st.plotly_chart(crear_grafico_acumulado(sim_puerta, "Tiros a Puerta", "#3B82F6"), use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown('<div class="saas-card">', unsafe_allow_html=True)
         st.plotly_chart(crear_grafico_acumulado(sim_tiros, "Tiros Totales", "#F59E0B"), use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
         st.subheader("💰 Value Bet Props & Inteligencia")
