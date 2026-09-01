@@ -1,4 +1,4 @@
-import html
+ import html
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -8,6 +8,7 @@ from collections import Counter
 import hashlib
 import colorsys
 import unicodedata
+import requests
 
 try:
     import xgboost as xgb
@@ -252,6 +253,131 @@ def normalizar_texto(texto):
     nfkd_form = unicodedata.normalize('NFKD', str(texto))
     return "".join([c for c in nfkd_form if not unicodedata.combining(c)]).lower().strip()
 
+def obtener_iniciales(nombre):
+    partes = str(nombre).strip().split()
+    if len(partes) >= 2:
+        return (partes[0][0] + partes[1][0]).upper()
+    return str(nombre)[:2].upper()
+
+# --- SISTEMA ROBUSTO ESTILO "JUGADORES" (Diccionario + HTML OnError Fallback) ---
+
+@st.cache_data(ttl=86400)
+def obtener_logo_equipo(nombre):
+    """Resuelve escudo via Wikipedia API (mismo enfoque que jugadores). Si falla, None."""
+    nombre_limpio = str(nombre).strip()
+    if not nombre_limpio:
+        return None
+
+    aliases = {
+        "bayern munchen": "FC Bayern Munich",
+        "bayern munich": "FC Bayern Munich",
+        "bayern": "FC Bayern Munich",
+        "real madrid": "Real Madrid CF",
+        "barcelona": "FC Barcelona",
+        "manchester city": "Manchester City F.C.",
+        "manchester united": "Manchester United F.C.",
+        "psg": "Paris Saint-Germain F.C.",
+        "inter": "Inter Milan",
+        "atletico": "Atletico Madrid",
+        "atletico de madrid": "Atletico Madrid",
+        "dortmund": "Borussia Dortmund",
+        "arsenal": "Arsenal F.C.",
+        "liverpool": "Liverpool F.C.",
+        "chelsea": "Chelsea F.C.",
+        "juventus": "Juventus F.C.",
+        "benfica": "S.L. Benfica",
+        "porto": "FC Porto",
+        "flamengo": "Clube de Regatas do Flamengo",
+        "palmeiras": "Sociedade Esportiva Palmeiras",
+        "fluminense": "Fluminense FC",
+        "vasco": "CR Vasco da Gama",
+        "paranaense": "Club Athletico Paranaense",
+        "betis": "Real Betis",
+        "real sociedad": "Real Sociedad",
+        "monaco": "AS Monaco FC",
+        "lyon": "Olympique Lyonnais",
+        "freiburg": "SC Freiburg",
+        "newcastle": "Newcastle United F.C.",
+        "aston villa": "Aston Villa F.C.",
+        "como": "Como 1907",
+        "bahia": "Esporte Clube Bahia",
+        "racing club": "Racing Club de Avellaneda",
+        "racing": "Racing Club de Avellaneda",
+    }
+
+    key = normalizar_texto(nombre_limpio)
+    busqueda = nombre_limpio
+    for a, v in aliases.items():
+        if a == key or a in key:
+            busqueda = v
+            break
+
+    headers = {"User-Agent": "GoalMetricsApp/1.0 (contact@goalmetrics.com)"}
+    queries = [
+        f"{busqueda} football club",
+        f"{busqueda} football",
+        busqueda,
+    ]
+
+    for q in queries:
+        try:
+            url_search = (
+                "https://en.wikipedia.org/w/api.php"
+                f"?action=query&list=search&srsearch={requests.utils.quote(q)}&format=json"
+            )
+            res = requests.get(url_search, headers=headers, timeout=3).json()
+            results = res.get("query", {}).get("search", [])
+            if not results:
+                continue
+            page_title = results[0]["title"]
+            url_image = (
+                "https://en.wikipedia.org/w/api.php"
+                f"?action=query&titles={requests.utils.quote(page_title)}"
+                "&prop=pageimages&pithumbsize=200&format=json"
+            )
+            res_img = requests.get(url_image, headers=headers, timeout=3).json()
+            pages = res_img.get("query", {}).get("pages", {})
+            for _, page_info in pages.items():
+                thumb = page_info.get("thumbnail", {}).get("source")
+                if thumb:
+                    return thumb
+        except Exception:
+            continue
+    return None
+
+
+def render_header_equipo(liga, equipo, condicion, nivel):
+    """Header con logo Wikipedia o fallback de iniciales (sin onerror)."""
+    liga_h = html.escape(str(liga).upper())
+    equipo_h = html.escape(str(equipo).upper())
+    cond_h = html.escape(str(condicion).upper())
+    nivel_h = html.escape(str(nivel).upper())
+    iniciales = html.escape(obtener_iniciales(equipo))
+    logo_url = obtener_logo_equipo(equipo)
+
+    if logo_url:
+        badge = (
+            f'<img src="{html.escape(logo_url)}" '
+            f'style="height:48px;width:48px;object-fit:contain;border-radius:10px;'
+            f'background:rgba(255,255,255,0.12);padding:4px;flex-shrink:0;" />'
+        )
+    else:
+        badge = (
+            f'<div style="height:48px;width:48px;border-radius:10px;flex-shrink:0;'
+            f'background:rgba(255,255,255,0.15);display:flex;align-items:center;'
+            f'justify-content:center;font-weight:800;font-size:15px;color:#fff;'
+            f'border:1px solid rgba(255,255,255,0.25);">{iniciales}</div>'
+        )
+
+    st.markdown(
+        f'<div class="header-box">'
+        f"{badge}"
+        f"<span>{liga_h} | {equipo_h} - {cond_h} vs {nivel_h}</span>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+
 st.sidebar.header("Configuracion")
 
 with st.sidebar.expander("Partido", expanded=True):
@@ -477,11 +603,11 @@ with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis de Equipos
     Bienvenido al **Centro de Análisis de Equipos de GoalMetrics**. Esta herramienta combina estadística avanzada y Machine Learning. Aquí te detallamos cómo opera cada módulo interno:
     
     * **1. Semáforo de Confiabilidad:** Evalúa al instante la robustez de la muestra de partidos exactos. 
-      * 🟢 *Verde:* Suficientes partidos exactos en el escenario buscado ($\ge 2$).
+      * 🟢 *Verde:* Suficientes partidos exactos en el escenario buscado (>= 2).
       * 🟡 *Amarillo:* Muestra mixta o con 1 solo partido exacto, activando el respaldo inteligente ajustado por *Tier*.
       * 🔴 *Rojo:* Muestra crítica o escasa, requiere máxima precaución.
     * **2. Shrinkage (Compensación Estadística):** Cuando un equipo cuenta con pocos partidos en un escenario específico, los promedios empíricos pueden estar sesgados. El **Shrinkage** corrige esto ponderando la tasa observada hacia una media previa (*prior*) de la liga para ese mismo nivel de rival.
-    * **3. Modelo Dixon-Coles (Corrección de Empates y Bajas):** Introduce un factor de corrección ($\tau$) controlado por el parámetro de correlación $\rho$ para ajustar la probabilidad en marcadores cerrados y de baja anotación.
+    * **3. Modelo Dixon-Coles (Corrección de Empates y Bajas):** Introduce un factor de corrección (tau) controlado por el parámetro de correlación $\rho$ para ajustar la probabilidad en marcadores cerrados y de baja anotación.
     * **4. Ensemble Híbrido (Poisson/Dixon-Coles + XGBoost):** Integra la solidez estocástica de las distribuciones de goles con modelos de Machine Learning (XGBoost).
     * **5. Value Bets & Criterio de Half-Kelly:** Evalúa el Valor Esperado (EV) contrastando las probabilidades frente a las cuotas de las casas de apuestas.
     """)
@@ -692,14 +818,9 @@ if st.session_state.analizado_equipos:
     else:
         veredicto = f"Partido Muy Parejo - Marcador proyectado {marcador_mas_comun}"
 
+    # Header con logo (API Wikipedia) o iniciales
+    render_header_equipo(liga_sel, equipo_sel, condicion_label, nivel_sel)
 
-    # --- ENCABEZADO LIMPIO, ELEGANTE Y SIN IMÁGENES ---
-    st.markdown(
-        f'<div class="header-box">'
-        f'<span>{liga_sel_html.upper()} | {equipo_sel_html.upper()} - {condicion_label.upper()} vs {nivel_sel_html.upper()}</span>'
-        f'</div>', 
-        unsafe_allow_html=True
-    )
     st.markdown(f'<div class="veredicto-box"><b>Veredicto:</b> {html.escape(veredicto)}</div>', unsafe_allow_html=True)
     st.caption(f"Base: {n_obs} partidos - {fuente_datos} | Ensemble Híbrido Activo")
 
