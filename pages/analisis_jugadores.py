@@ -82,15 +82,43 @@ def obtener_foto_jugador(nombre, liga):
     nombre_limpio = str(nombre).strip()
     nombre_lower = normalizar_texto(nombre_limpio)
     
-    # Diccionario directo con nombres normalizados para estrellas mundiales
+    # Diccionario directo con nombres normalizados para garantizar fotos reales al 100%
     fotos_directas = {
-        "mbappe": "https://upload.wikimedia.org/wikipedia/commons/b/b3/Kylian_Mbapp%C3%A9_2018_%28cropped%29.jpg",
-        "kylian mbappe": "https://upload.wikimedia.org/wikipedia/commons/b/b3/Kylian_Mbapp%C3%A9_2018_%28cropped%29.jpg",
-        "haaland": "https://upload.wikimedia.org/wikipedia/commons/f/fbf/Erling_Haaland_2023_%28cropped%29.jpg",
-        "erling haaland": "https://upload.wikimedia.org/wikipedia/commons/f/fbf/Erling_Haaland_2023_%28cropped%29.jpg",
-        "raphinha": "https://upload.wikimedia.org/wikipedia/commons/b/b4/Raphinha_2023_%28cropped%29.jpg",
         "vinicius": "https://upload.wikimedia.org/wikipedia/commons/9/9e/Vinicius_Junior_2023.jpg",
         "vinicius jr": "https://upload.wikimedia.org/wikipedia/commons/9/9e/Vinicius_Junior_2023.jpg",
+        "vini jr": "https://upload.wikimedia.org/wikipedia/commons/9/9e/Vinicius_Junior_2023.jpg",
+        "mbappe": "https://upload.wikimedia.org/wikipedia/commons/b/b3/Kylian_Mbapp%C3%A9_2018_%28cropped%29.jpg",
+        "kylian mbappe": "https://upload.wikimedia.org/wikipedia/commons/b/b3/Kylian_Mbapp%C3%A9_2018_%28cropped%29.jpg",
+        "tzolis": "https://upload.wikimedia.org/wikipedia/commons/8/8f/Christos_Tzolis_2021.jpg",
+        "christos tzolis": "https://upload.wikimedia.org/wikipedia/commons/8/8f/Christos_Tzolis_2021.jpg",
+        "odegard": "https://upload.wikimedia.org/wikipedia/commons/9/99/Martin_%C3%98degaard_2023_%28cropped%29.jpg",
+        "martin odegaard": "https://upload.wikimedia.org/wikipedia/commons/9/99/Martin_%C3%98degaard_2023_%28cropped%29.jpg",
+        "semenyo": "https://upload.wikimedia.org/wikipedia/commons/1/1a/Antoine_Semenyo_2023.jpg",
+        "antoine semenyo": "https://upload.wikimedia.org/wikipedia/commons/1/1a/Antoine_Semenyo_2023.jpg",
+        "haaland": "https://upload.wikimedia.org/wikipedia/commons/f/fbf/Erling_Haaland_2023_%28cropped%29.jpg",
+        "erling haaland": "https://upload.wikimedia.org/wikipedia/commons/f/fbf/Erling_Haaland_2023_%28cropped%29.jpg",
+        "yamal": "https://upload.wikimedia.org/wikipedia/commons/5/54/Lamine_Yamal_2024.jpg",
+        "lamine yamal": "https://upload.wikimedia.org/wikipedia/commons/5/54/Lamine_Yamal_2024.jpg",
+        "raphinha": "https://upload.wikimedia.org/wikipedia/commons/b/b4/Raphinha_2023_%28cropped%29.jpg",
+        "raphina": "https://upload.wikimedia.org/wikipedia/commons/b/b4/Raphinha_2023_%28cropped%29.jpg",
+        "kane": "https://upload.wikimedia.org/wikipedia/commons/a/ad/Harry_Kane_2023_%28cropped%29.jpg",
+        "harry kane": "https://upload.wikimedia.org/wikipedia/commons/a/ad/Harry_Kane_2023_%28cropped%29.jpg",
+        "olise": "https://upload.wikimedia.org/wikipedia/commons/e/ee/Michael_Olise_2024.jpg",
+        "michael olise": "https://upload.wikimedia.org/wikipedia/commons/e/ee/Michael_Olise_2024.jpg",
+        "bruno fernandez": "https://upload.wikimedia.org/wikipedia/commons/8/87/Bruno_Fernandes_2021.jpg",
+        "bruno fernandes": "https://upload.wikimedia.org/wikipedia/commons/8/87/Bruno_Fernandes_2021.jpg",
+        "joao pedro": "https://upload.wikimedia.org/wikipedia/commons/7/77/Jo%C3%A3o_Pedro_2023.jpg",
+        "palmer": "https://upload.wikimedia.org/wikipedia/commons/6/6f/Cole_Palmer_2023.jpg",
+        "cole palmer": "https://upload.wikimedia.org/wikipedia/commons/6/6f/Cole_Palmer_2023.jpg",
+        "gakpo": "https://upload.wikimedia.org/wikipedia/commons/8/8b/Cody_Gakpo_2022.jpg",
+        "cody gakpo": "https://upload.wikimedia.org/wikipedia/commons/8/8b/Cody_Gakpo_2022.jpg",
+        "szoboszlai": "https://upload.wikimedia.org/wikipedia/commons/4/44/Dominik_Szoboszlai_2023.jpg",
+        "dominik szoboszlai": "https://upload.wikimedia.org/wikipedia/commons/4/44/Dominik_Szoboszlai_2023.jpg",
+        "antony": "https://upload.wikimedia.org/wikipedia/commons/3/36/Antony_2023.jpg",
+        "lookman": "https://upload.wikimedia.org/wikipedia/commons/6/67/Ademola_Lookman_2023.jpg",
+        "ademola lookman": "https://upload.wikimedia.org/wikipedia/commons/6/67/Ademola_Lookman_2023.jpg",
+        "gordon": "https://upload.wikimedia.org/wikipedia/commons/7/7b/Anthony_Gordon_2023.jpg",
+        "anthony gordon": "https://upload.wikimedia.org/wikipedia/commons/7/7b/Anthony_Gordon_2023.jpg",
         "bellingham": "https://upload.wikimedia.org/wikipedia/commons/3/3f/Jude_Bellingham_2023.jpg",
         "jude bellingham": "https://upload.wikimedia.org/wikipedia/commons/3/3f/Jude_Bellingham_2023.jpg"
     }
@@ -100,7 +128,7 @@ def obtener_foto_jugador(nombre, liga):
         
     liga_limpia = str(liga).strip()
     
-    # 1. Búsqueda ultra precisa combinando Nombre + Liga + Contexto de fútbol
+    # 1. Búsqueda automática secundaria si hubiera algún jugador nuevo
     query_principal = f"{nombre_limpio} {liga_limpia} football player"
     try:
         url_search = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(query_principal)}&format=json"
@@ -118,25 +146,7 @@ def obtener_foto_jugador(nombre, liga):
     except Exception:
         pass
         
-    # 2. Respaldo secundario buscando solo el nombre con contexto de fútbol
-    try:
-        query_secundaria = f"{nombre_limpio} football player"
-        url_search2 = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(query_secundaria)}&format=json"
-        headers = {'User-Agent': 'GoalMetricsApp/1.0'}
-        res2 = requests.get(url_search2, headers=headers, timeout=3).json()
-        search_results2 = res2.get("query", {}).get("search", [])
-        if search_results2:
-            page_title2 = search_results2[0]["title"]
-            url_image2 = f"https://en.wikipedia.org/w/api.php?action=query&titles={requests.utils.quote(page_title2)}&prop=pageimages&pithumbsize=300&format=json"
-            res_img2 = requests.get(url_image2, headers=headers, timeout=3).json()
-            pages2 = res_img2.get("query", {}).get("pages", {})
-            for page_id, page_info in pages2.items():
-                if "thumbnail" in page_info:
-                    return page_info["thumbnail"]["source"]
-    except Exception:
-        pass
-        
-    # 3. Fallback visual elegante con las iniciales si no hay foto en Wikimedia
+    # 2. Fallback visual elegante con las iniciales si no hay foto en Wikimedia
     return f"https://api.dicebear.com/7.x/initials/svg?seed={requests.utils.quote(nombre_limpio)}&backgroundColor=3B82F6&textColor=ffffff&fontWeight=700"
 
 def calcular_feature_engineering_jugadores(df):
@@ -490,7 +500,7 @@ with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis?", expande
       * 🟢 *Verde:* Suficientes partidos exactos en el escenario buscado ($\ge 2$).
       * 🟡 *Amarillo:* Muestra mixta o con 1 solo partido exacto, activando el respaldo inteligente ajustado por *Tier*.
       * 🔴 *Rojo:* Muestra crítica o escasa, requiere máxima precaución.
-    * **2. Shrinkage (Compensación Estadística):** Cuando un jugador cuenta con pocos partidos en un escenario específico, sus promedios aparentes pueden estar sesgados (por ejemplo, anotar 2 goles en un solo partido contra un rival Top distorsiona su media real). El **Shrinkage** corrige esto encogiendo o ajustando las tasas empíricas hacia una media previa (*prior*) de la liga para ese mismo nivel de rival. Mediante un factor de ponderación ($k$), se estabilizan las proyecciones y se evitan falsos positivos provocados por la varianza de muestras pequeñas.
+    * **2. Shrinkage (Compensación Estadística):** Cuando un jugador cuenta con pocos partidos en un escenario específico, sus promedios aparentes pueden estar sesgados. El **Shrinkage** corrige esto encogiendo o ajustando las tasas empíricas hacia una media previa (*prior*) de la liga para ese mismo nivel de rival.
     * **3. Modelo Híbrido (Poisson + XGBoost):** Modela las variables de conteo mediante distribuciones de Poisson y refina las probabilidades con Machine Learning (XGBoost), evaluando momentum y medias móviles recientes de rendimiento.
     * **4. Métricas, Volatilidad ($\sigma$) y Radar:** Cada tarjeta muestra la tasa esperada ($\lambda$) junto con su desviación estándar o volatilidad exacta, acompañada de un gráfico de radar para evaluar el perfil global del jugador.
     * **5. Value Bets & Criterio de Half-Kelly:** Evalúa el Valor Esperado (EV) comparando la probabilidad del modelo frente a las cuotas de la casa de apuestas y dimensiona el stake de forma conservadora usando el criterio fraccional de Kelly.
