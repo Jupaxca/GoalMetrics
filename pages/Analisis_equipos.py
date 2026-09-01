@@ -238,7 +238,6 @@ colores_base_equipos = {
     "Monaco": "#ED1C24", "Chelsea": "#034694"
 }
 
-# Diccionario con URLs garantizadas en formato miniatura PNG de Wikimedia
 logos_equipos = {
     "porto": "https://upload.wikimedia.org/wikipedia/en/thumb/f/f1/FC_Porto_%28crest%29.svg/300px-FC_Porto_%28crest%29.svg.png",
     "flamengo": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/CR_Flamengo_logo.svg/300px-CR_Flamengo_logo.svg.png",
@@ -306,9 +305,15 @@ def obtener_logo_equipo(nombre, liga=""):
         if k in nombre_lower or nombre_lower in k:
             return v
             
-    # 2. Búsqueda automática en Wikipedia con contexto de liga para evitar confusiones
+    # Limpiar nombres de patrocinadores de la liga para búsquedas en Wikipedia
+    liga_limpia = str(liga).lower()
+    for sponsor in ["betclic", "ea sports", "uber eats", "lotto", "sky", "vodafone"]:
+        liga_limpia = liga_limpia.replace(sponsor, "")
+    liga_limpia = liga_limpia.strip()
+
+    # 2. Búsqueda automática en Wikipedia con contexto limpio
     queries = [
-        f"{nombre_limpio} {liga} football club logo",
+        f"{nombre_limpio} {liga_limpia} football club logo",
         f"{nombre_limpio} football club logo",
         f"{nombre_limpio} football club",
         f"{nombre_limpio}"
@@ -332,8 +337,8 @@ def obtener_logo_equipo(nombre, liga=""):
         except Exception:
             continue
             
-    # 3. Respaldo visual si no se encuentra
-    return f"https://api.dicebear.com/7.x/identicon/svg?seed={requests.utils.quote(nombre_limpio)}&backgroundColor=111827"
+    # 3. Respaldo visual seguro (ícono de balón genérico limpio)
+    return "https://upload.wikimedia.org/wikipedia/commons/2/2a/Football_icon_two.svg"
 
 st.sidebar.header("Configuracion")
 
@@ -771,10 +776,10 @@ if st.session_state.analizado_equipos:
     else:
         veredicto = f"Partido Muy Parejo - Marcador proyectado {marcador_mas_comun}"
 
-    # --- ENCABEZADO CON ESCUDO OFICIAL REAL Y FALLBACK SEGURO ---
+    # --- ENCABEZADO CON ESCUDO OFICIAL REAL Y FALLBACK SEGURO ANTE ERRORES ---
     st.markdown(
         f'<div class="header-box">'
-        f'<img src="{logo_url}" style="height: 45px; width: 45px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,0.05); padding: 4px;" />'
+        f'<img src="{logo_url}" onerror="this.src=\'https://upload.wikimedia.org/wikipedia/commons/2/2a/Football_icon_two.svg\';" style="height: 45px; width: 45px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,0.05); padding: 4px;" />'
         f'<span>{liga_sel_html.upper()} | {equipo_sel_html.upper()} - {condicion_label.upper()} vs {nivel_sel_html.upper()}</span>'
         f'</div>', 
         unsafe_allow_html=True
