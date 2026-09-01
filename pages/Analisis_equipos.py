@@ -406,10 +406,14 @@ with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis de Equipos
     st.markdown("""
     Bienvenido al **Centro de Análisis de Equipos de GoalMetrics**. Esta herramienta combina estadística avanzada y Machine Learning. Aquí te detallamos cómo opera cada módulo interno:
     
-    * **1. Semáforo de Confiabilidad:** Evalúa al instante la robustez de la muestra. Verde = Muestra exacta suficiente; Amarillo = Respaldo inteligente activo; Rojo = Muestra escasa/crítica.
-    * **2. Dashboard Principal & Gráficos:** Integra el ADN del equipo, métricas de probabilidad (1X2, BTTS, DNB), matrices de resultados exactos y curvas acumuladas (Over X).
-    * **3. Value Bets & Inteligencia:** Muestra las mejores apuestas de valor con criterios de Half-Kelly, la Joya del Partido (Top Pick) y el constructor de Parlays.
-    * **4. Análisis Táctico & Auditoría:** Agrupa la solidez defensiva, la fase ofensiva con sus respectivos indicadores y la tabla de auditoría detallada de partidos filtrados.
+    * **1. Semáforo de Confiabilidad:** Evalúa al instante la robustez de la muestra de partidos exactos. 
+      * 🟢 *Verde:* Suficientes partidos exactos en el escenario buscado ($\ge 2$).
+      * 🟡 *Amarillo:* Muestra mixta o con 1 solo partido exacto, activando el respaldo inteligente ajustado por *Tier*.
+      * 🔴 *Rojo:* Muestra crítica o escasa, requiere máxima precaución.
+    * **2. Shrinkage (Compensación Estadística):** Cuando un equipo cuenta con pocos partidos en un escenario específico (por ejemplo, jugando como visitante ante rivales Top), sus promedios empíricos pueden estar sesgados por la varianza de muestras pequeñas (como golear 3-0 en un único encuentro). El **Shrinkage** corrige esto ponderando la tasa observada ($\lambda_{obs}$) con una media previa (*prior* o $\lambda_{prior}$) de la liga para ese mismo nivel de rival. Mediante la fuerza del parámetro *k*, el modelo "encoge" los valores extremos hacia la tendencia general, evitando falsos positivos y logrando proyecciones mucho más estables.
+    * **3. Modelo Dixon-Coles (Corrección de Empates y Bajas):** A diferencia de una distribución de Poisson estándar (que asume independencia estadística total entre los goles del equipo y del rival), el modelo **Dixon-Coles** introduce un factor de corrección ($\tau$) controlado por el parámetro de correlación $\rho$ (*rho*). Esto es fundamental en el fútbol porque ajusta la probabilidad en marcadores cerrados y de baja anotación (como 0-0, 1-0, 0-1, 1-1), donde la independencia pura suele fallar. El resultado son matrices de resultados exactos y probabilidades 1X2 altamente realistas.
+    * **4. Ensemble Híbrido (Poisson/Dixon-Coles + XGBoost):** Integra la solidez estocástica de las distribuciones de goles con modelos de Machine Learning (XGBoost) entrenados con medias móviles, momentum y diferencias de goles recientes.
+    * **5. Value Bets & Criterio de Half-Kelly:** Evalúa el Valor Esperado (EV) contrastando las probabilidades de la simulación contra las cuotas de las casas de apuestas, dimensionando el tamaño de la apuesta de forma conservadora mediante el criterio fraccional de Kelly.
     """)
 
 if "analizado_equipos" not in st.session_state:
@@ -435,7 +439,7 @@ if st.session_state.analizado_equipos:
         df_exactos = pd.DataFrame()
 
     if len(df_exactos) == 0:
-        st.error(f"❌ No se puede realizar el análisis: Hay 0 partidos exactos registrados para **{equipo_sel}** como **{condicion_label}** contra rivales nivel **{nivel_sel}** en la liga **{liga_sel}**.")
+        st.error(f"❌ No se puede realizar el análisis: Hay 0 partidos exactos registrados para **{equipo_sel}** como **{condicion_label}** contra rivales nivel **{nivel_sel}** en the liga **{liga_sel}**.")
         st.stop()
 
     UMBRAL_MINIMO = 2
@@ -542,6 +546,9 @@ if st.session_state.analizado_equipos:
             return 0.05
         return round(float(np.average(historial[col].fillna(0), weights=pesos)), 4)
 
+    def std_w(col):
+        return float(historial[col].std()) if col in historial.columns and len(historial) > 1 else 0.0
+
     lam_f_raw, lam_c_raw = prom("Goles"), prom("Goles Rival")
     lam_t_raw, lam_tp_raw = prom("Tiros"), prom("A Puerta")
     lam_co_raw, lam_fa_raw = prom("Corners"), prom("Faltas")
@@ -645,18 +652,11 @@ if st.session_state.analizado_equipos:
         g.metric("DNB", f"{dnb:.1f}%")
         
         m1, m2, m3, m4, m5 = st.columns(5)
-        if usar_shrinkage:
-            m1.metric("Goles", f"{lam_f:.2f}", delta=f"raw {lam_f_raw:.2f}")
-            m2.metric("Goles Rival", f"{lam_c:.2f}", delta=f"raw {lam_c_raw:.2f}")
-            m3.metric("Tiros", f"{lam_t:.1f}", delta=f"raw {lam_t_raw:.1f}")
-            m4.metric("A Puerta", f"{lam_tp:.1f}", delta=f"raw {lam_tp_raw:.1f}")
-            m5.metric("Corners", f"{lam_co:.1f}", delta=f"raw {lam_co_raw:.1f}")
-        else:
-            m1.metric("Goles", f"{lam_f:.2f}")
-            m2.metric("Goles Rival", f"{lam_c:.2f}")
-            m3.metric("Tiros", f"{lam_t:.1f}")
-            m4.metric("A Puerta", f"{lam_tp:.1f}")
-            m5.metric("Corners", f"{lam_co:.1f}")
+        m1.metric("Goles", f"{lam_f:.2f}", f"λ: {lam_f:.2f} | Vol (σ): {std_w('Goles'):.2f}")
+        m2.metric("Goles Rival", f"{lam_c:.2f}", f"λ: {lam_c:.2f} | Vol (σ): {std_w('Goles Rival'):.2f}")
+        m3.metric("Tiros", f"{lam_t:.1f}", f"λ: {lam_t:.1f} | Vol (σ): {std_w('Tiros'):.2f}")
+        m4.metric("A Puerta", f"{lam_tp:.1f}", f"λ: {lam_tp:.1f} | Vol (σ): {std_w('A Puerta'):.2f}")
+        m5.metric("Corners", f"{lam_co:.1f}", f"λ: {lam_co:.1f} | Vol (σ): {std_w('Corners'):.2f}")
 
         st.markdown("---")
         st.subheader("🎯 Matriz de Probabilidad del Resultado Exacto")
