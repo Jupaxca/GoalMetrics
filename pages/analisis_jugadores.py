@@ -5,6 +5,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from collections import Counter
+import requests
 
 try:
     import xgboost as xgb
@@ -68,6 +69,50 @@ def cargar_datos_jugadores():
         df["Nivel Rival"] = "MEDIA TABLA"
         
     return df
+
+@st.cache_data(ttl=86400)
+def obtener_foto_jugador(nombre, liga):
+    nombre_limpio = str(nombre).strip()
+    liga_limpia = str(liga).strip()
+    
+    # 1. Búsqueda ultra precisa combinando Nombre + Liga + Contexto de fútbol
+    query_principal = f"{nombre_limpio} {liga_limpia} football player"
+    try:
+        url_search = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(query_principal)}&format=json"
+        headers = {'User-Agent': 'GoalMetricsApp/1.0'}
+        res = requests.get(url_search, headers=headers, timeout=3).json()
+        search_results = res.get("query", {}).get("search", [])
+        if search_results:
+            page_title = search_results[0]["title"]
+            url_image = f"https://en.wikipedia.org/w/api.php?action=query&titles={requests.utils.quote(page_title)}&prop=pageimages&pithumbsize=300&format=json"
+            res_img = requests.get(url_image, headers=headers, timeout=3).json()
+            pages = res_img.get("query", {}).get("pages", {})
+            for page_id, page_info in pages.items():
+                if "thumbnail" in page_info:
+                    return page_info["thumbnail"]["source"]
+    except Exception:
+        pass
+        
+    # 2. Respaldo secundario buscando solo el nombre con contexto de fútbol
+    try:
+        query_secundaria = f"{nombre_limpio} football player"
+        url_search2 = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(query_secundaria)}&format=json"
+        headers = {'User-Agent': 'GoalMetricsApp/1.0'}
+        res2 = requests.get(url_search2, headers=headers, timeout=3).json()
+        search_results2 = res2.get("query", {}).get("search", [])
+        if search_results2:
+            page_title2 = search_results2[0]["title"]
+            url_image2 = f"https://en.wikipedia.org/w/api.php?action=query&titles={requests.utils.quote(page_title2)}&prop=pageimages&pithumbsize=300&format=json"
+            res_img2 = requests.get(url_image2, headers=headers, timeout=3).json()
+            pages2 = res_img2.get("query", {}).get("pages", {})
+            for page_id, page_info in pages2.items():
+                if "thumbnail" in page_info:
+                    return page_info["thumbnail"]["source"]
+    except Exception:
+        pass
+        
+    # 3. Fallback visual elegante con las iniciales si no hay foto en Wikimedia
+    return f"https://api.dicebear.com/7.x/initials/svg?seed={requests.utils.quote(nombre_limpio)}&backgroundColor=3B82F6&textColor=ffffff&fontWeight=700"
 
 def calcular_feature_engineering_jugadores(df):
     df = df.copy()
@@ -261,7 +306,7 @@ else:
     else:
         st.sidebar.error("0 partidos exactos en este filtro")
 
-# --- ESTILOS MODERNOS (FASE 1: TIPOGRAFÍA INTER, PILL BADGES & SAAS CARDS) ---
+# --- ESTILOS MODERNOS ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -535,7 +580,23 @@ if st.session_state.analizado_jugadores:
             '</div>', unsafe_allow_html=True
         )
 
-    st.markdown(f'<div class="header-box">{liga_sel.upper()} | {jugador_sel.upper()} | {condicion_sel} vs {nivel_sel}</div>', unsafe_allow_html=True)
+    # --- 2. ENCABEZADO CON FOTO OFICIAL Y LIGA ---
+    foto_url = obtener_foto_jugador(jugador_sel, liga_sel)
+    liga_sel_html = html.escape(liga_sel)
+    jugador_sel_html = html.escape(jugador_sel)
+    condicion_sel_html = html.escape(condicion_sel)
+    nivel_sel_html = html.escape(nivel_sel)
+
+    st.markdown(
+        f'<div class="header-box" style="display: flex; align-items: center; gap: 20px;">'
+        f'<img src="{foto_url}" style="height: 64px; width: 64px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.3); background-color: #1f2937;" />'
+        f'<div>'
+        f'<div style="font-size: 22px; font-weight: 700;">{liga_sel_html.upper()} | {jugador_sel_html.upper()}</div>'
+        f'<div style="font-size: 14px; color: #93c5fd; font-weight: 500; margin-top: 4px;">Condición: {condicion_sel_html} vs {nivel_sel_html}</div>'
+        f'</div>'
+        f'</div>', 
+        unsafe_allow_html=True
+    )
     st.caption(f"Base analizada: {n_obs} partidos | Fuente: {fuente} | Ensemble Híbrido Activo")
 
     hoy = pd.Timestamp.today().normalize()
