@@ -82,7 +82,6 @@ def obtener_foto_jugador(nombre, liga):
     nombre_limpio = str(nombre).strip()
     liga_limpia = str(liga).strip()
     
-    # Mapeo optimizado con tu lista exacta de jugadores
     nombres_busqueda = {
         "vinicius": "Vinicius Junior",
         "mbappe": "Kylian Mbappe",
@@ -134,7 +133,6 @@ def obtener_foto_jugador(nombre, liga):
         except Exception:
             continue
             
-    # Respaldo visual elegante con iniciales si no hay foto disponible
     return f"https://api.dicebear.com/7.x/initials/svg?seed={requests.utils.quote(nombre_limpio)}&backgroundColor=3B82F6&textColor=ffffff&fontWeight=700"
 
 def calcular_feature_engineering_jugadores(df):
@@ -329,7 +327,7 @@ else:
     else:
         st.sidebar.error("0 partidos exactos en este filtro")
 
-# --- ESTILOS MODERNOS ---
+# --- ESTILOS MODERNOS (CON CORRECCIÓN DE NAVEGACIÓN) ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -342,7 +340,12 @@ html, body, [class*="css"] {
 
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
-header {visibility: hidden;}
+
+/* CORRECCIÓN: Forzar que el header y el botón de menú lateral sean visibles */
+header[data-testid="stHeader"] {
+    visibility: visible !important;
+    background: transparent !important;
+}
 
 .block-container {
     padding-top: 2rem;
@@ -583,7 +586,6 @@ if st.session_state.analizado_jugadores:
 
     n_obs = len(historial)
 
-    # --- 1. SEMÁFORO DE CONFIABILIDAD (PILL BADGES) ---
     if len(df_exactos) >= 2:
         st.markdown(
             '<div class="pill-badge pill-green">'
@@ -603,7 +605,6 @@ if st.session_state.analizado_jugadores:
             '</div>', unsafe_allow_html=True
         )
 
-    # --- 2. ENCABEZADO CON FOTO OFICIAL Y LIGA ---
     foto_url = obtener_foto_jugador(jugador_sel, liga_sel)
     liga_sel_html = html.escape(liga_sel)
     jugador_sel_html = html.escape(jugador_sel)
@@ -707,7 +708,6 @@ if st.session_state.analizado_jugadores:
         {"nombre": f"Over {linea_contrib} Gol/Asist", "prob": prob_contrib, "cuota": cuota_casa_contrib, "ev": calcular_ev(prob_contrib, cuota_casa_contrib)}
     ]
 
-    # --- 3. FUSIÓN DE VISTAS (3 PESTAÑAS PRINCIPALES) ---
     tab1, tab2, tab3 = st.tabs([
         "📊 Dashboard Principal y Gráficos",
         "💰 Value Bets & Inteligencia",
