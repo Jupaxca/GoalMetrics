@@ -226,56 +226,49 @@ except Exception as e:
     st.stop()
 
 colores_base_equipos = {
-    "Palmeiras": "#006400", "Flamengo": "#C8102E", "Paranaense": "#CC0000",
-    "Fluminense": "#8B0000", "Vasco": "#333333", "Arsenal": "#EF0107",
-    "Aston villa": "#670E36", "Barcelona": "#A50044", "Bayern Munich": "#DC052D",
-    "Benfica": "#E30613", "Como": "#002D62", "Freiburg": "#222222",
-    "Inter": "#010E80", "Liverpool": "#C8102E", "Lyon": "#1D428A",
-    "Manchester City": "#6CABDD", "Manchester United": "#DA291C",
-    "Newcastle": "#241F20", "Porto": "#003399", "PSG": "#004170",
-    "Real Madrid": "#00529F", "Bahia": "#00529F", "Atletico de Madrid": "#CB352C",
-    "Betis": "#009B48", "Racing Club": "#00529F", "Real Sociedad": "#006699",
-    "Monaco": "#ED1C24", "Chelsea": "#034694"
+    "Arsenal": "#EF0107", "Aston villa": "#670E36", "Atletico de Madrid": "#CB352C",
+    "Barcelona": "#A50044", "Bayern Munchen": "#DC052D", "Benfica": "#E30613",
+    "Betis": "#009B48", "Chelsea": "#034694", "Como": "#002D62",
+    "Dortmund": "#FDE100", "Flamengo": "#C8102E", "Fluminense": "#8B0000",
+    "Freiburg": "#222222", "Inter": "#010E80", "Juventus": "#000000",
+    "Liverpool": "#C8102E", "Lyon": "#1D428A", "Manchester City": "#6CABDD",
+    "Manchester United": "#DA291C", "Monaco": "#ED1C24", "Newcastle": "#241F20",
+    "Palmeiras": "#006400", "Paranaense": "#CC0000", "Porto": "#003399",
+    "PSG": "#004170", "Racing club": "#00529F", "Real Madrid": "#00529F",
+    "Real sociedad": "#006699", "Vasco": "#333333"
 }
 
+# DICCIONARIO MAESTRO CON LOS 29 EQUIPOS DE TU LISTA (PNG GARANTIZADOS)
 logos_equipos = {
-    "porto": "https://upload.wikimedia.org/wikipedia/en/thumb/f/f1/FC_Porto_%28crest%29.svg/300px-FC_Porto_%28crest%29.svg.png",
-    "flamengo": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/CR_Flamengo_logo.svg/300px-CR_Flamengo_logo.svg.png",
-    "fluminense": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ad/Fluminense_FC_crest.svg/300px-Fluminense_FC_crest.svg.png",
-    "palmeiras": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/SE_Palmeiras_logo_2020.svg/300px-SE_Palmeiras_logo_2020.svg.png",
-    "paranaense": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Club_Athletico_Paranaense_logo.svg/300px-Club_Athletico_Paranaense_logo.svg.png",
-    "athletico paranaense": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Club_Athletico_Paranaense_logo.svg/300px-Club_Athletico_Paranaense_logo.svg.png",
-    "vasco": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/CR_Vasco_da_Gama_%28logo%29.svg/300px-CR_Vasco_da_Gama_%28logo%29.svg.png",
-    "vasco da gama": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/CR_Vasco_da_Gama_%28logo%29.svg/300px-CR_Vasco_da_Gama_%28logo%29.svg.png",
-    "freiburg": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a2/SC_Freiburg_logo.svg/300px-SC_Freiburg_logo.svg.png",
-    "atletico de madrid": "https://upload.wikimedia.org/wikipedia/en/thumb/c/c1/Atletico_Madrid_2017_logo.svg/300px-Atletico_Madrid_2017_logo.svg.png",
-    "atlético de madrid": "https://upload.wikimedia.org/wikipedia/en/thumb/c/c1/Atletico_Madrid_2017_logo.svg/300px-Atletico_Madrid_2017_logo.svg.png",
-    "betis": "https://upload.wikimedia.org/wikipedia/en/thumb/1/13/Real_Betis_logo.svg/300px-Real_Betis_logo.svg.png",
-    "real betis": "https://upload.wikimedia.org/wikipedia/en/thumb/1/13/Real_Betis_logo.svg/300px-Real_Betis_logo.svg.png",
-    "racing club": "https://upload.wikimedia.org/wikipedia/en/thumb/5/5e/Real_Racing_Club_de_Santander_logo.svg/300px-Real_Racing_Club_de_Santander_logo.svg.png",
-    "racing de santander": "https://upload.wikimedia.org/wikipedia/en/thumb/5/5e/Real_Racing_Club_de_Santander_logo.svg/300px-Real_Racing_Club_de_Santander_logo.svg.png",
-    "real racing club de santander": "https://upload.wikimedia.org/wikipedia/en/thumb/5/5e/Real_Racing_Club_de_Santander_logo.svg/300px-Real_Racing_Club_de_Santander_logo.svg.png",
-    "real sociedad": "https://upload.wikimedia.org/wikipedia/en/thumb/f/f1/Real_Sociedad_logo.svg/300px-Real_Sociedad_logo.svg.png",
-    "lyon": "https://upload.wikimedia.org/wikipedia/en/thumb/c/c6/Olympique_Lyonnais_logo.svg/300px-Olympique_Lyonnais_logo.svg.png",
-    "olympique lyonnais": "https://upload.wikimedia.org/wikipedia/en/thumb/c/c6/Olympique_Lyonnais_logo.svg/300px-Olympique_Lyonnais_logo.svg.png",
-    "monaco": "https://upload.wikimedia.org/wikipedia/en/thumb/c/cba/AS_Monaco_FC.svg/300px-AS_Monaco_FC.svg.png",
-    "mónaco": "https://upload.wikimedia.org/wikipedia/en/thumb/c/cba/AS_Monaco_FC.svg/300px-AS_Monaco_FC.svg.png",
-    "as monaco": "https://upload.wikimedia.org/wikipedia/en/thumb/c/cba/AS_Monaco_FC.svg/300px-AS_Monaco_FC.svg.png",
+    "arsenal": "https://upload.wikimedia.org/wikipedia/en/thumb/5/53/Arsenal_FC.svg/300px-Arsenal_FC.svg.png",
     "aston villa": "https://upload.wikimedia.org/wikipedia/en/thumb/f/f9/Aston_Villa_FC_crest_%282024%29.svg/300px-Aston_Villa_FC_crest_%282024%29.svg.png",
+    "atletico de madrid": "https://upload.wikimedia.org/wikipedia/en/thumb/c/c1/Atletico_Madrid_2017_logo.svg/300px-Atletico_Madrid_2017_logo.svg.png",
+    "barcelona": "https://upload.wikimedia.org/wikipedia/en/thumb/4/47/FC_Barcelona_%28crest%29.svg/300px-FC_Barcelona_%28crest%29.svg.png",
+    "bayern munchen": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282002%29.svg/300px-FC_Bayern_M%C3%BCnchen_logo_%282002%29.svg.png",
+    "benfica": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a2/SL_Benfica_logo.svg/300px-SL_Benfica_logo.svg.png",
+    "betis": "https://upload.wikimedia.org/wikipedia/en/thumb/1/13/Real_Betis_logo.svg/300px-Real_Betis_logo.svg.png",
     "chelsea": "https://upload.wikimedia.org/wikipedia/en/thumb/c/cc/Chelsea_FC.svg/300px-Chelsea_FC.svg.png",
     "como": "https://upload.wikimedia.org/wikipedia/en/thumb/2/2f/Como_1907_logo.svg/300px-Como_1907_logo.svg.png",
-    "benfica": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a2/SL_Benfica_logo.svg/300px-SL_Benfica_logo.svg.png",
-    "barcelona": "https://upload.wikimedia.org/wikipedia/en/thumb/4/47/FC_Barcelona_%28crest%29.svg/300px-FC_Barcelona_%28crest%29.svg.png",
-    "real madrid": "https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Real_Madrid_CF.svg/300px-Real_Madrid_CF.svg.png",
+    "dortmund": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Borussia_Dortmund_logo.svg/300px-Borussia_Dortmund_logo.svg.png",
+    "flamengo": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/CR_Flamengo_logo.svg/300px-CR_Flamengo_logo.svg.png",
+    "fluminense": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ad/Fluminense_FC_crest.svg/300px-Fluminense_FC_crest.svg.png",
+    "freiburg": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a2/SC_Freiburg_logo.svg/300px-SC_Freiburg_logo.svg.png",
+    "inter": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/FC_Internazionale_Milano_2021.svg/300px-FC_Internazionale_Milano_2021.svg.png",
+    "juventus": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Juventus_FC_2017_logo.svg/300px-Juventus_FC_2017_logo.svg.png",
+    "liverpool": "https://upload.wikimedia.org/wikipedia/en/thumb/0/0c/Liverpool_FC.svg/300px-Liverpool_FC.svg.png",
+    "lyon": "https://upload.wikimedia.org/wikipedia/en/thumb/c/c6/Olympique_Lyonnais_logo.svg/300px-Olympique_Lyonnais_logo.svg.png",
     "manchester city": "https://upload.wikimedia.org/wikipedia/en/thumb/e/eb/Manchester_City_FC_badge.svg/300px-Manchester_City_FC_badge.svg.png",
     "manchester united": "https://upload.wikimedia.org/wikipedia/en/thumb/7/7a/Manchester_United_FC_crest.svg/300px-Manchester_United_FC_crest.svg.png",
-    "bayern munich": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282002%29.svg/300px-FC_Bayern_M%C3%BCnchen_logo_%282002%29.svg.png",
-    "inter": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/FC_Internazionale_Milano_2021.svg/300px-FC_Internazionale_Milano_2021.svg.png",
-    "liverpool": "https://upload.wikimedia.org/wikipedia/en/thumb/0/0c/Liverpool_FC.svg/300px-Liverpool_FC.svg.png",
-    "arsenal": "https://upload.wikimedia.org/wikipedia/en/thumb/5/53/Arsenal_FC.svg/300px-Arsenal_FC.svg.png",
-    "psg": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a7/Paris_Saint-Germain_F.C..svg/300px-Paris_Saint-Germain_F.C..svg.png",
+    "monaco": "https://upload.wikimedia.org/wikipedia/en/thumb/c/cba/AS_Monaco_FC.svg/300px-AS_Monaco_FC.svg.png",
     "newcastle": "https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Newcastle_United_Logo.svg/300px-Newcastle_United_Logo.svg.png",
-    "bahia": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/Esporte_Clube_Bahia_logo.svg/300px-Esporte_Clube_Bahia_logo.svg.png"
+    "palmeiras": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/SE_Palmeiras_logo_2020.svg/300px-SE_Palmeiras_logo_2020.svg.png",
+    "paranaense": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Club_Athletico_Paranaense_logo.svg/300px-Club_Athletico_Paranaense_logo.svg.png",
+    "porto": "https://upload.wikimedia.org/wikipedia/en/thumb/f/f1/FC_Porto_%28crest%29.svg/300px-FC_Porto_%28crest%29.svg.png",
+    "psg": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a7/Paris_Saint-Germain_F.C..svg/300px-Paris_Saint-Germain_F.C..svg.png",
+    "racing club": "https://upload.wikimedia.org/wikipedia/en/thumb/5/5e/Real_Racing_Club_de_Santander_logo.svg/300px-Real_Racing_Club_de_Santander_logo.svg.png",
+    "real madrid": "https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Real_Madrid_CF.svg/300px-Real_Madrid_CF.svg.png",
+    "real sociedad": "https://upload.wikimedia.org/wikipedia/en/thumb/f/f1/Real_Sociedad_logo.svg/300px-Real_Sociedad_logo.svg.png",
+    "vasco": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/CR_Vasco_da_Gama_%28logo%29.svg/300px-CR_Vasco_da_Gama_%28logo%29.svg.png"
 }
 
 def generar_color_equipo(nombre):
@@ -297,45 +290,13 @@ def obtener_logo_equipo(nombre, liga=""):
     nombre_limpio = str(nombre).strip()
     nombre_lower = normalizar_texto(nombre_limpio)
     
-    # 1. Búsqueda flexible en el diccionario de escudos fijos
+    # Búsqueda directa o parcial en el diccionario maestro de tus 29 equipos
     for k, v in logos_equipos.items():
         k_norm = normalizar_texto(k)
         if k_norm == nombre_lower or k_norm in nombre_lower or nombre_lower in k_norm:
             return v
             
-    # Limpiar nombres de patrocinadores de la liga para búsquedas secundarias en Wikipedia
-    liga_limpia = str(liga).lower()
-    for sponsor in ["betclic", "ea sports", "uber eats", "lotto", "sky", "vodafone"]:
-        liga_limpia = liga_limpia.replace(sponsor, "")
-    liga_limpia = liga_limpia.strip()
-
-    # 2. Búsqueda automática en Wikipedia con contexto limpio
-    queries = [
-        f"{nombre_limpio} {liga_limpia} football club logo",
-        f"{nombre_limpio} football club logo",
-        f"{nombre_limpio} football club",
-        f"{nombre_limpio}"
-    ]
-    
-    headers = {'User-Agent': 'GoalMetricsApp/1.0 (contact@goalmetrics.com)'}
-    
-    for q in queries:
-        try:
-            url_search = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(q)}&format=json"
-            res = requests.get(url_search, headers=headers, timeout=3).json()
-            search_results = res.get("query", {}).get("search", [])
-            if search_results:
-                page_title = search_results[0]["title"]
-                url_image = f"https://en.wikipedia.org/w/api.php?action=query&titles={requests.utils.quote(page_title)}&prop=pageimages&pithumbsize=300&format=json"
-                res_img = requests.get(url_image, headers=headers, timeout=3).json()
-                pages = res_img.get("query", {}).get("pages", {})
-                for page_id, page_info in pages.items():
-                    if "thumbnail" in page_info:
-                        return page_info["thumbnail"]["source"]
-        except Exception:
-            continue
-            
-    # 3. Respaldo PNG garantizado con DiceBear (100% compatible y sin errores de renderizado)
+    # Respaldo seguro si un equipo nuevo no estuviera en la lista
     return f"https://api.dicebear.com/7.x/identicon/png?seed={requests.utils.quote(nombre_limpio)}&backgroundColor=111827"
 
 st.sidebar.header("Configuracion")
@@ -774,7 +735,7 @@ if st.session_state.analizado_equipos:
     else:
         veredicto = f"Partido Muy Parejo - Marcador proyectado {marcador_mas_comun}"
 
-    # --- ENCABEZADO CON ESCUDO OFICIAL REAL Y FALLBACK PNG SEGURO ---
+    # --- ENCABEZADO CON ESCUDO OFICIAL REAL Y FALLBACK SEGURO ---
     st.markdown(
         f'<div class="header-box">'
         f'<img src="{logo_url}" style="height: 45px; width: 45px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,0.05); padding: 4px;" />'
