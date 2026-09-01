@@ -1,132 +1,293 @@
+import logging
+import re
 import streamlit as st
+from supabase import create_client, Client
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 st.set_page_config(
-    page_title="GoalMetrics | Inicio",
+    page_title="GoalMetrics | Football Analytics",
     page_icon="⚽",
     layout="wide"
 )
 
-# --- ESTILOS MODERNOS (CON HEADER ACTIVO PARA MÓVILES) ---
+# ---------------------------------------------------------------------
+# CSS AVANZADO (Fase 1: Estilo SaaS Profesional para todo el sitio)
+# ---------------------------------------------------------------------
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    /* 1. Importar tipografía moderna de la industria (Inter) */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
-    background-color: #0B0F19;
-    color: #F3F4F6;
-}
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+        background-color: #0b0f19;
+        color: #f3f4f6;
+    }
 
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-/* NOTA: El header se mantiene activo para que aparezca el botón de menú hamburguesa en celulares */
+    /* 2. Ocultar elementos nativos de Streamlit pero MANTENER el header activo para móviles */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    /* header {visibility: hidden;} <- COMENTADO/ELIMINADO para permitir ver el menú hamburguesa en celulares */
+    
+    /* Ajustar padding principal superior para aprovechar espacio */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
 
-.block-container {
-    padding-top: 2rem;
-    padding-bottom: 2rem;
-}
+    /* 3. Estilo global para la barra lateral (Sidebar) */
+    [data-testid="stSidebar"] {
+        background-color: #111827;
+        border-right: 1px solid #1f2937;
+    }
 
-.hero-box {
-    background: linear-gradient(135deg, #3B82F6 0%, #111827 100%);
-    padding: 40px;
-    border-radius: 20px;
-    color: white;
-    text-align: center;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    margin-bottom: 30px;
-}
+    /* 4. Tarjetas de Métricas Estilizadas tipo SaaS */
+    div[data-testid="stMetric"] {
+        background-color: #111827;
+        border: 1px solid #1f2937;
+        padding: 16px 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        transition: all 0.2s ease-in-out;
+    }
+    
+    div[data-testid="stMetric"]:hover {
+        border-color: #374151;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+    }
 
-.card-home {
-    background-color: #111827;
-    border: 1px solid #1f2937;
-    border-radius: 16px;
-    padding: 24px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    transition: all 0.2s ease-in-out;
-    height: 100%;
-}
-.card-home:hover {
-    border-color: #3B82F6;
-    box-shadow: 0 6px 25px rgba(59, 130, 246, 0.2);
-}
+    div[data-testid="stMetric"] label {
+        color: #9ca3af !important;
+        font-size: 0.85rem !important;
+        font-weight: 500 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+        color: #ffffff !important;
+        font-size: 1.6rem !important;
+        font-weight: 700 !important;
+    }
+
+    /* 5. Estilización de Pestañas (Tabs) */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: #0b0f19;
+        padding: 4px;
+        border-radius: 10px;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        background-color: #111827;
+        border-radius: 8px;
+        color: #9ca3af;
+        padding: 10px 20px;
+        font-weight: 500;
+        border: 1px solid #1f2937;
+    }
+
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #1f2937 0%, #111827 100%) !important;
+        color: #ffffff !important;
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 15px rgba(59, 130, 246, 0.15);
+    }
+
+    /* 6. Botones principales (Primary Buttons) */
+    .stButton button[kind="primary"] {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        padding: 0.5rem 1rem;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        transition: all 0.2s ease;
+    }
+    
+    .stButton button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+    }
+
+    /* 7. Contenedores personalizados */
+    .saas-card {
+        background-color: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 16px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- GESTIÓN DE SESIÓN / INICIO DE SESIÓN ---
-if "autenticado" not in st.session_state:
-    st.session_state.autenticado = False
+EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
-if not st.session_state.autenticado:
-    st.markdown("""
-    <div class="hero-box">
-        <h1>⚽ GoalMetrics Pro</h1>
-        <p style="font-size: 18px; color: #93c5fd; margin-top: 10px;">
-            Inicia sesión para acceder a tu centro de análisis avanzado
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
-    with col_l2:
-        with st.form("form_login"):
-            st.subheader("🔑 Acceso al Sistema")
-            usuario_input = st.text_input("Usuario")
-            password_input = st.text_input("Contraseña", type="password")
-            submit_login = st.form_submit_button("Iniciar Sesión", use_container_width=True)
-            
-            if submit_login:
-                # Puedes ajustar o conectar esto con tus validaciones previas si las tenías parametrizadas
-                if usuario_input.strip() != "":
-                    st.session_state.autenticado = True
-                    st.session_state.usuario = usuario_input
-                    st.rerun()
+
+# ----------------------------------------------------------------------
+# Cliente de Supabase
+# ----------------------------------------------------------------------
+@st.cache_resource
+def get_supabase_config() -> tuple[str, str]:
+    return st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"]
+
+
+def get_supabase_client() -> Client:
+    if "supabase_client" not in st.session_state:
+        url, key = get_supabase_config()
+        st.session_state.supabase_client = create_client(url, key)
+
+        tokens = st.session_state.get("supabase_tokens")
+        if tokens:
+            try:
+                st.session_state.supabase_client.auth.set_session(
+                    tokens["access_token"], tokens["refresh_token"]
+                )
+            except Exception:
+                logger.exception("No se pudo restaurar la sesión de Supabase")
+                st.session_state.supabase_tokens = None
+
+    return st.session_state.supabase_client
+
+
+def guardar_sesion(res) -> None:
+    st.session_state.user = res.user
+    session_data = getattr(res, "session", None)
+    if session_data:
+        st.session_state.supabase_tokens = {
+            "access_token": session_data.access_token,
+            "refresh_token": session_data.refresh_token,
+        }
+
+
+def cerrar_sesion() -> None:
+    try:
+        st.session_state.supabase_client.auth.sign_out()
+    except Exception:
+        logger.exception("Error al cerrar sesión en Supabase")
+    st.session_state.user = None
+    st.session_state.supabase_tokens = None
+
+
+supabase = get_supabase_client()
+
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+
+# ----------------------------------------------------------------------
+# Zona pública: login / registro / recuperación de clave
+# ----------------------------------------------------------------------
+if st.session_state.user is None:
+    st.markdown("## 🔐 GoalMetrics · Acceso de Usuarios")
+
+    tab1, tab2, tab3 = st.tabs(["Iniciar Sesión", "Registrarse", "Recuperar Clave"])
+
+    # --- Iniciar sesión ---
+    with tab1:
+        with st.form("login_form"):
+            email = st.text_input("Correo electrónico")
+            password = st.text_input("Contraseña", type="password")
+            submitted = st.form_submit_button("Entrar", use_container_width=True)
+
+            if submitted:
+                if not email or not password:
+                    st.error("Completa correo y contraseña.")
+                elif not EMAIL_REGEX.match(email):
+                    st.error("Ingresa un correo electrónico válido.")
                 else:
-                    st.error("Por favor ingresa un usuario válido.")
+                    with st.spinner("Verificando credenciales..."):
+                        try:
+                            res = st.session_state.supabase_client.auth.sign_in_with_password(
+                                {"email": email, "password": password}
+                            )
+                            if res.user is None:
+                                st.error("No se pudo iniciar sesión. Intenta de nuevo.")
+                            else:
+                                guardar_sesion(res)
+                                st.success("¡Bienvenido!")
+                                st.rerun()
+                        except Exception as e:
+                            logger.warning("Fallo de login para %s: %s", email, e)
+                            st.error(mensaje_error_supabase(e, "Credenciales incorrectas."))
+
+    # --- Registro ---
+    with tab2:
+        with st.form("signup_form"):
+            email_su = st.text_input("Correo electrónico")
+            password_su = st.text_input("Contraseña (mínimo 6 caracteres)", type="password")
+            password_su_confirm = st.text_input("Confirmar contraseña", type="password")
+            submitted_su = st.form_submit_button("Crear cuenta", use_container_width=True)
+
+            if submitted_su:
+                if not email_su or not password_su:
+                    st.error("Completa todos los campos.")
+                elif not EMAIL_REGEX.match(email_su):
+                    st.error("Ingresa un correo electrónico válido.")
+                elif len(password_su) < 6:
+                    st.error("La contraseña debe tener al menos 6 caracteres.")
+                elif password_su != password_su_confirm:
+                    st.error("Las contraseñas no coinciden. Por favor, revísalas.")
+                else:
+                    with st.spinner("Creando cuenta..."):
+                        try:
+                            st.session_state.supabase_client.auth.sign_up(
+                                {"email": email_su, "password": password_su}
+                            )
+                            st.success("¡Cuenta creada! Revisa tu correo para confirmar.")
+                        except Exception as e:
+                            logger.warning("Fallo de signup para %s: %s", email_su, e)
+                            st.error(mensaje_error_supabase(e, "No se pudo crear la cuenta."))
+
+    # --- Recuperar clave ---
+    with tab3:
+        st.write("Ingresa tu correo y te enviaremos un enlace de recuperación.")
+        with st.form("reset_form"):
+            email_reset = st.text_input("Correo de la cuenta")
+            submitted_reset = st.form_submit_button(
+                "Enviar enlace de recuperación", use_container_width=True
+            )
+
+            if submitted_reset:
+                if not email_reset or not EMAIL_REGEX.match(email_reset):
+                    st.error("Ingresa un correo electrónico válido.")
+                else:
+                    with st.spinner("Enviando enlace..."):
+                        try:
+                            st.session_state.supabase_client.auth.reset_password_for_email(
+                                email_reset,
+                                {"redirect_to": st.secrets.get("APP_URL", "")},
+                            )
+                            st.success("¡Correo enviado! Revisa tu bandeja de entrada.")
+                        except Exception as e:
+                            logger.warning("Fallo de reset para %s: %s", email_reset, e)
+                            st.error(mensaje_error_supabase(e, "No se pudo enviar el correo."))
+
     st.stop()
 
-# --- BARRA LATERAL CON CONTROL DE SESIÓN ---
-st.sidebar.success(f"👤 Sesión activa: {st.session_state.get('usuario', 'Usuario')}")
-if st.sidebar.button("Cerrar Sesión", use_container_width=True):
-    st.session_state.autenticado = False
+
+# ----------------------------------------------------------------------
+# Zona privada (usuario logueado)
+# ----------------------------------------------------------------------
+user_metadata = getattr(st.session_state.user, "user_metadata", {}) or {}
+nombre_mostrado = user_metadata.get(
+    "display_name", getattr(st.session_state.user, "email", "Analista")
+)
+
+st.sidebar.markdown(f"👋 Hola, **{nombre_mostrado}**")
+
+if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
+    cerrar_sesion()
     st.rerun()
 
-st.sidebar.markdown("---")
+analisis_equipos = st.Page("pages/Analisis_equipos.py", title="Analisis equipos", icon="📊", default=True)
+analisis_jugadores = st.Page("pages/analisis_jugadores.py", title="Analisis jugadores", icon="👥")
+tracker_apuestas = st.Page("pages/tracker_apuestas.py", title="Tracker de Apuestas", icon="📈")
+coach_ia = st.Page("pages/coach_ia.py", title="Coach IA", icon="🤖")
+perfil_usuario = st.Page("pages/perfil.py", title="Mi Perfil", icon="👤")
 
-# --- CONTENIDO DE LA PÁGINA PRINCIPAL (POST-LOGIN) ---
-st.markdown("""
-<div class="hero-box">
-    <h1>⚽ GoalMetrics Pro</h1>
-    <p style="font-size: 18px; color: #93c5fd; margin-top: 10px;">
-        Plataforma Avanzada de Análisis Estadístico, Modelos Híbridos y Value Bets
-    </p>
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown("### 🚀 Bienvenido al Centro de Mando")
-st.markdown("Utiliza el menú lateral izquierdo (o el botón superior en tu celular) para navegar entre los diferentes módulos de análisis:")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    st.markdown("""
-    <div class="card-home">
-        <h3>📊 Análisis de Equipos</h3>
-        <p style="color: #9ca3af; font-size: 14px; margin-top: 10px;">
-            Simulaciones estocásticas con Poisson y Dixon-Coles, Ensemble XGBoost, semáforos de confiabilidad, matrices de resultados exactos y Value Bets colectivas con escudos oficiales reales.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col2:
-    st.markdown("""
-    <div class="card-home">
-        <h3>👤 Análisis de Jugadores</h3>
-        <p style="color: #9ca3af; font-size: 14px; margin-top: 10px;">
-            Evaluación individual de Player Props (goles, tiros a puerta, asistencias y faltas), perfiles de atributos en radar, fotos oficiales de los jugadores y gestión de bankroll con Half-Kelly.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("---")
-st.caption("GoalMetrics Engine Pro | Panel de Control Principal")
+pg = st.navigation([analisis_equipos, analisis_jugadores, tracker_apuestas, coach_ia, perfil_usuario])
+pg.run()
