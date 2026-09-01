@@ -6,6 +6,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from collections import Counter
 import requests
+import unicodedata
 
 try:
     import xgboost as xgb
@@ -70,9 +71,33 @@ def cargar_datos_jugadores():
         
     return df
 
+def normalizar_texto(texto):
+    if not texto:
+        return ""
+    nfkd_form = unicodedata.normalize('NFKD', str(texto))
+    return "".join([c for c in nfkd_form if not unicodedata.combining(c)]).lower().strip()
+
 @st.cache_data(ttl=86400)
 def obtener_foto_jugador(nombre, liga):
     nombre_limpio = str(nombre).strip()
+    nombre_lower = normalizar_texto(nombre_limpio)
+    
+    # Diccionario directo con nombres normalizados para estrellas mundiales
+    fotos_directas = {
+        "mbappe": "https://upload.wikimedia.org/wikipedia/commons/b/b3/Kylian_Mbapp%C3%A9_2018_%28cropped%29.jpg",
+        "kylian mbappe": "https://upload.wikimedia.org/wikipedia/commons/b/b3/Kylian_Mbapp%C3%A9_2018_%28cropped%29.jpg",
+        "haaland": "https://upload.wikimedia.org/wikipedia/commons/f/fbf/Erling_Haaland_2023_%28cropped%29.jpg",
+        "erling haaland": "https://upload.wikimedia.org/wikipedia/commons/f/fbf/Erling_Haaland_2023_%28cropped%29.jpg",
+        "raphinha": "https://upload.wikimedia.org/wikipedia/commons/b/b4/Raphinha_2023_%28cropped%29.jpg",
+        "vinicius": "https://upload.wikimedia.org/wikipedia/commons/9/9e/Vinicius_Junior_2023.jpg",
+        "vinicius jr": "https://upload.wikimedia.org/wikipedia/commons/9/9e/Vinicius_Junior_2023.jpg",
+        "bellingham": "https://upload.wikimedia.org/wikipedia/commons/3/3f/Jude_Bellingham_2023.jpg",
+        "jude bellingham": "https://upload.wikimedia.org/wikipedia/commons/3/3f/Jude_Bellingham_2023.jpg"
+    }
+    
+    if nombre_lower in fotos_directas:
+        return fotos_directas[nombre_lower]
+        
     liga_limpia = str(liga).strip()
     
     # 1. Búsqueda ultra precisa combinando Nombre + Liga + Contexto de fútbol
