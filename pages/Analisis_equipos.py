@@ -439,7 +439,7 @@ if st.session_state.analizado_equipos:
         df_exactos = pd.DataFrame()
 
     if len(df_exactos) == 0:
-        st.error(f"❌ No se puede realizar el análisis: Hay 0 partidos exactos registrados para **{equipo_sel}** como **{condicion_label}** contra rivales nivel **{nivel_sel}** en the liga **{liga_sel}**.")
+        st.error(f"❌ No se puede realizar el análisis: Hay 0 partidos exactos registrados para **{equipo_sel}** como **{condicion_label}** contra rivales nivel **{nivel_sel}** en la liga **{liga_sel}**.")
         st.stop()
 
     UMBRAL_MINIMO = 2
@@ -651,12 +651,20 @@ if st.session_state.analizado_equipos:
         f.metric("X2", f"{doble_x2:.1f}%")
         g.metric("DNB", f"{dnb:.1f}%")
         
-        m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric("Goles", f"{lam_f:.2f}", f"λ: {lam_f:.2f} | Vol (σ): {std_w('Goles'):.2f}")
-        m2.metric("Goles Rival", f"{lam_c:.2f}", f"λ: {lam_c:.2f} | Vol (σ): {std_w('Goles Rival'):.2f}")
-        m3.metric("Tiros", f"{lam_t:.1f}", f"λ: {lam_t:.1f} | Vol (σ): {std_w('Tiros'):.2f}")
-        m4.metric("A Puerta", f"{lam_tp:.1f}", f"λ: {lam_tp:.1f} | Vol (σ): {std_w('A Puerta'):.2f}")
-        m5.metric("Corners", f"{lam_co:.1f}", f"λ: {lam_co:.1f} | Vol (σ): {std_w('Corners'):.2f}")
+        # --- TARJETAS DE MÉTRICAS REORGANIZADAS EN 3 COLUMNAS ---
+        metrics_data_eq = {
+            "Goles": {"val": lam_f, "vol": std_w("Goles"), "format": ".2f"},
+            "Goles Rival": {"val": lam_c, "vol": std_w("Goles Rival"), "format": ".2f"},
+            "Tiros": {"val": lam_t, "vol": std_w("Tiros"), "format": ".1f"},
+            "A Puerta": {"val": lam_tp, "vol": std_w("A Puerta"), "format": ".1f"},
+            "Corners": {"val": lam_co, "vol": std_w("Corners"), "format": ".1f"},
+        }
+
+        cols_m = st.columns(3)
+        for i, (var, data) in enumerate(metrics_data_eq.items()):
+            col_target = cols_m[i % 3]
+            fmt = data["format"]
+            col_target.metric(var, f"{data['val']:{fmt}}", f"λ: {data['val']:{fmt}} | σ: {data['vol']:.2f}")
 
         st.markdown("---")
         st.subheader("🎯 Matriz de Probabilidad del Resultado Exacto")
