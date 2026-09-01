@@ -234,6 +234,23 @@ colores_base_equipos = {
     "Real Madrid": "#00529F",
 }
 
+logos_equipos = {
+    "Benfica": "https://upload.wikimedia.org/wikipedia/en/a/a2/SL_Benfica_logo.svg",
+    "Barcelona": "https://upload.wikimedia.org/wikipedia/en/4/47/FC_Barcelona_%28crest%29.svg",
+    "Real Madrid": "https://upload.wikimedia.org/wikipedia/en/5/56/Real_Madrid_CF.svg",
+    "Manchester City": "https://upload.wikimedia.org/wikipedia/en/e/eb/Manchester_City_FC_badge.svg",
+    "Manchester United": "https://upload.wikimedia.org/wikipedia/en/7/7a/Manchester_United_FC_crest.svg",
+    "Bayern Munich": "https://upload.wikimedia.org/wikipedia/commons/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282002%29.svg",
+    "Inter": "https://upload.wikimedia.org/wikipedia/commons/0/05/FC_Internazionale_Milano_2021.svg",
+    "Palmeiras": "https://upload.wikimedia.org/wikipedia/commons/1/10/SE_Palmeiras_logo_2020.svg",
+    "Liverpool": "https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg",
+    "Arsenal": "https://upload.wikimedia.org/wikipedia/en/5/53/Arsenal_FC.svg",
+    "PSG": "https://upload.wikimedia.org/wikipedia/en/a/a7/Paris_Saint-Germain_F.C..svg",
+    "Porto": "https://upload.wikimedia.org/wikipedia/en/f/f1/FC_Porto_%28crest%29.svg",
+    "Lyon": "https://upload.wikimedia.org/wikipedia/en/c/c6/Olympique_Lyonnais_logo.svg",
+    "Aston villa": "https://upload.wikimedia.org/wikipedia/en/f/f9/Aston_Villa_FC_crest_%282024%29.svg"
+}
+
 def generar_color_equipo(nombre):
     if nombre in colores_base_equipos:
         return colores_base_equipos[nombre]
@@ -241,6 +258,9 @@ def generar_color_equipo(nombre):
     hue = (hash_val % 360) / 360.0
     rgb = colorsys.hsv_to_rgb(hue, 0.65, 0.85)
     return f"#{int(rgb[0]*255):02x}{int(rgb[1]*255):02x}{int(rgb[2]*255):02x}"
+
+def obtener_logo_equipo(nombre):
+    return logos_equipos.get(nombre, "https://cdn-icons-png.flaticon.com/512/53/53283.png")
 
 st.sidebar.header("Configuracion")
 
@@ -327,25 +347,86 @@ with st.sidebar.expander("Modelo estadistico", expanded=True):
     st.caption("Recomendado ON en -0.10")
 
 color_equipo = generar_color_equipo(equipo_sel)
+logo_url = obtener_logo_equipo(equipo_sel)
 equipo_sel_html = html.escape(equipo_sel)
 nivel_sel_html = html.escape(nivel_sel)
 liga_sel_html = html.escape(liga_sel)
 
+# --- ESTILOS MODERNOS (PILL BADGES, BORDES DINÁMICOS & DATAGRID) ---
 st.markdown(f"""
 <style>
 .header-box {{
-    background: linear-gradient(90deg, {color_equipo} 0%, #1F2937 100%);
-    padding: 22px 28px; border-radius: 14px; color: white;
-    font-weight: 700; font-size: 24px; margin-bottom: 20px; text-align: center;
+    background: linear-gradient(135deg, {color_equipo} 0%, #111827 100%);
+    padding: 24px 30px; 
+    border-radius: 16px; 
+    color: white;
+    font-weight: 700; 
+    font-size: 26px; 
+    margin-bottom: 20px; 
+    text-align: center;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
 }}
+.pill-badge {{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 9999px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}}
+.pill-green {{ background-color: rgba(6, 78, 59, 0.7); color: #34d399; border-color: rgba(16, 185, 129, 0.3); }}
+.pill-yellow {{ background-color: rgba(120, 53, 15, 0.7); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }}
+.pill-red {{ background-color: rgba(127, 29, 29, 0.7); color: #f87171; border-color: rgba(239, 68, 68, 0.3); }}
+
 .veredicto-box {{
-    padding: 16px 20px; border-radius: 12px; background-color: #111827;
-    border: 1px solid #1f2937; border-left: 5px solid {color_equipo}; margin-bottom: 16px; font-size: 16px;
+    padding: 18px 22px; border-radius: 14px; background-color: #111827;
+    border: 1px solid #1f2937; border-left: 5px solid {color_equipo}; margin-bottom: 20px; font-size: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
 }}
-.value-box {{ padding: 14px 16px; border-radius: 10px; margin-bottom: 10px; font-size: 14px; border: 1px solid #1f2937; }}
-.value-yes {{ background-color: #064e3b; border-left: 4px solid #10b981; }}
+.value-box {{ padding: 14px 16px; border-radius: 12px; margin-bottom: 10px; font-size: 14px; border: 1px solid #1f2937; }}
+.value-yes {{ background-color: rgba(6, 78, 59, 0.4); border-left: 4px solid #10b981; }}
 .value-no {{ background-color: #111827; border-left: 4px solid #4b5563; }}
-.top-pick-box {{ background: linear-gradient(135deg, #065f46 0%, #111827 100%); padding: 20px; border-radius: 12px; border: 2px solid #10b981; margin-bottom: 20px; }}
+.top-pick-box {{ background: linear-gradient(135deg, rgba(6, 95, 70, 0.8) 0%, #111827 100%); padding: 22px; border-radius: 14px; border: 2px solid #10b981; margin-bottom: 20px; box-shadow: 0 8px 20px rgba(16, 185, 129, 0.15); }}
+
+/* --- TARJETAS CON BORDE DINÁMICO DEL EQUIPO --- */
+.saas-card {{
+    background-color: #111827;
+    border: 1px solid {color_equipo}44;
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease-in-out;
+}}
+.saas-card:hover {{
+    border-color: {color_equipo};
+    box-shadow: 0 6px 25px {color_equipo}22;
+}}
+
+/* --- ESTILO DATAGRID PARA TABLAS DE AUDITORÍA --- */
+[data-testid="stDataFrame"] {{
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #1f2937;
+}}
+[data-testid="stDataFrame"] th {{
+    background-color: #1f2937 !important;
+    color: #f3f4f6 !important;
+    font-weight: 600 !important;
+}}
+[data-testid="stDataFrame"] td {{
+    background-color: #111827 !important;
+    color: #9ca3af !important;
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -505,22 +586,22 @@ if st.session_state.analizado_equipos:
     n_obs = len(historial)
     muestra_pequena = n_obs <= 2
 
-    # --- SEMÁFORO DE CONFIABILIDAD ---
+    # --- SEMÁFORO DE CONFIABILIDAD (PILL BADGES) ---
     if len(df_exactos) >= 2:
         st.markdown(
-            '<div style="background-color: #064e3b; padding: 12px 18px; border-radius: 10px; border-left: 5px solid #10b981; margin-bottom: 20px;">'
-            '🟢 <b>Semáforo de Confiabilidad: ALTA</b> — Muestra robusta con suficientes partidos exactos en este escenario.'
+            '<div class="pill-badge pill-green">'
+            '🟢 <b>Semáforo de Confiabilidad: ALTA</b> — Muestra robusta con suficientes partidos exactos.'
             '</div>', unsafe_allow_html=True
         )
     elif len(df_exactos) == 1:
         st.markdown(
-            '<div style="background-color: #78350f; padding: 12px 18px; border-radius: 10px; border-left: 5px solid #f59e0b; margin-bottom: 20px;">'
+            '<div class="pill-badge pill-yellow">'
             '🟡 <b>Semáforo de Confiabilidad: MEDIA</b> — 1 partido exacto encontrado. Respaldo inteligente activo.'
             '</div>', unsafe_allow_html=True
         )
     else:
         st.markdown(
-            '<div style="background-color: #7f1d1d; padding: 12px 18px; border-radius: 10px; border-left: 5px solid #ef4444; margin-bottom: 20px;">'
+            '<div class="pill-badge pill-red">'
             '🔴 <b>Semáforo de Confiabilidad: BAJA</b> — Muestra escasa, interpretar con máxima precaución.'
             '</div>', unsafe_allow_html=True
         )
@@ -549,7 +630,7 @@ if st.session_state.analizado_equipos:
     lam_f_raw, lam_c_raw = prom("Goles"), prom("Goles Rival")
     lam_t_raw, lam_tp_raw = prom("Tiros"), prom("A Puerta")
     lam_co_raw, lam_fa_raw = prom("Corners"), prom("Faltas")
-    lam_co_rival_raw = prom("Corners Rival"] if "Corners Rival" in historial.columns else prom("Corners")
+    lam_co_rival_raw = prom("Corners Rival") if "Corners Rival" in historial.columns else prom("Corners")
 
     df_nivel = df[(df["Liga"] == liga_sel) & (df["Nivel Rival"] == nivel_sel)]
     if len(df_nivel) == 0:
@@ -619,7 +700,14 @@ if st.session_state.analizado_equipos:
     else:
         veredicto = f"Partido Muy Parejo - Marcador proyectado {marcador_mas_comun}"
 
-    st.markdown(f'<div class="header-box">{liga_sel_html.upper()} | {equipo_sel_html.upper()} - {condicion_label.upper()} vs {nivel_sel_html.upper()}</div>', unsafe_allow_html=True)
+    # --- ENCABEZADO CON ESCUDO OFICIAL ---
+    st.markdown(
+        f'<div class="header-box">'
+        f'<img src="{logo_url}" style="height: 42px; width: 42px; object-fit: contain;" />'
+        f'<span>{liga_sel_html.upper()} | {equipo_sel_html.upper()} - {condicion_label.upper()} vs {nivel_sel_html.upper()}</span>'
+        f'</div>', 
+        unsafe_allow_html=True
+    )
     st.markdown(f'<div class="veredicto-box"><b>Veredicto:</b> {html.escape(veredicto)}</div>', unsafe_allow_html=True)
     st.caption(f"Base: {n_obs} partidos - {fuente_datos} | Ensemble Híbrido Activo")
 
