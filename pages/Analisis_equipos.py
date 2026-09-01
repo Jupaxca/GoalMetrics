@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 from collections import Counter
 import hashlib
 import colorsys
+import requests
 import unicodedata
 
 try:
@@ -252,13 +253,13 @@ def normalizar_texto(texto):
     nfkd_form = unicodedata.normalize('NFKD', str(texto))
     return "".join([c for c in nfkd_form if not unicodedata.combining(c)]).lower().strip()
 
-# --- SISTEMA INFALIBLE DE ESCUDOS (DICCIONARIO OFICIAL VERIFICADO + AVATAR DE RESPALDO) ---
+# --- SISTEMA INFALIBLE DE ESCUDOS (DICCIONARIO + WIKIMEDIA COMMONS ARCHIVES) ---
 @st.cache_data(ttl=86400)
 def obtener_logo_equipo(nombre, liga=""):
     nombre_limpio = str(nombre).strip()
     nombre_lower = normalizar_texto(nombre_limpio)
     
-    # Diccionario con los escudos oficiales exactos (evita fotos de estadios o partidos de Champions)
+    # 1. Diccionario fijo con escudos oficiales verificados
     logos_verificados = {
         "arsenal": "https://upload.wikimedia.org/wikipedia/en/thumb/5/53/Arsenal_FC.svg/300px-Arsenal_FC.svg.png",
         "aston villa": "https://upload.wikimedia.org/wikipedia/en/thumb/f/f9/Aston_Villa_FC_crest_%282024%29.svg/300px-Aston_Villa_FC_crest_%282024%29.svg.png",
@@ -266,6 +267,7 @@ def obtener_logo_equipo(nombre, liga=""):
         "barcelona": "https://upload.wikimedia.org/wikipedia/en/thumb/4/47/FC_Barcelona_%28crest%29.svg/300px-FC_Barcelona_%28crest%29.svg.png",
         "bayern munchen": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282002%29.svg/300px-FC_Bayern_M%C3%BCnchen_logo_%282002%29.svg.png",
         "benfica": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a2/SL_Benfica_logo.svg/300px-SL_Benfica_logo.svg.png",
+        "sl benfica": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a2/SL_Benfica_logo.svg/300px-SL_Benfica_logo.svg.png",
         "betis": "https://upload.wikimedia.org/wikipedia/en/thumb/1/13/Real_Betis_logo.svg/300px-Real_Betis_logo.svg.png",
         "real betis": "https://upload.wikimedia.org/wikipedia/en/thumb/1/13/Real_Betis_logo.svg/300px-Real_Betis_logo.svg.png",
         "chelsea": "https://upload.wikimedia.org/wikipedia/en/thumb/c/cc/Chelsea_FC.svg/300px-Chelsea_FC.svg.png",
@@ -301,7 +303,36 @@ def obtener_logo_equipo(nombre, liga=""):
         if clave in nombre_lower or nombre_lower in clave:
             return url
             
-    # Respaldo limpio y profesional con iniciales (idéntico al de jugadores, cero errores de estadios)
+    # 2. Búsqueda directa en Wikimedia Commons (Namespace 6 = Solo Archivos/Imágenes)
+    # Esto busca archivos de imagen específicos y descarta estadios o fotos de partidos
+    headers = {'User-Agent': 'GoalMetricsApp/1.0 (contact@goalmetrics.com)'}
+    queries = [
+        f"{nombre_limpio} logo",
+        f"{nombre_limpio} crest",
+        f"{nombre_limpio} football club badge"
+    ]
+    
+    for q in queries:
+        try:
+            url_search = f"https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(q)}&srnamespace=6&format=json"
+            res = requests.get(url_search, headers=headers, timeout=3).json()
+            search_results = res.get("query", {}).get("search", [])
+            
+            if search_results:
+                for item in search_results[:3]:
+                    file_title = item["title"]
+                    url_info = f"https://commons.wikimedia.org/w/api.php?action=query&titles={requests.utils.quote(file_title)}&prop=imageinfo&iiprop=url&format=json"
+                    res_info = requests.get(url_info, headers=headers, timeout=3).json()
+                    pages = res_info.get("query", {}).get("pages", {})
+                    for p_id, p_info in pages.items():
+                        if "imageinfo" in p_info and len(p_info["imageinfo"]) > 0:
+                            img_url = p_info["imageinfo"][0].get("url")
+                            if img_url and any(ext in img_url.lower() for ext in [".png", ".svg", ".jpg", ".jpeg"]):
+                                return img_url
+        except Exception:
+            continue
+            
+    # 3. Respaldo profesional con iniciales si todo lo demás falla
     partes = nombre_limpio.split()
     if len(partes) >= 2:
         iniciales = (partes[0][0] + partes[1][0]).upper()
