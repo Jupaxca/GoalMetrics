@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 from collections import Counter
 import hashlib
 import colorsys
+import requests
 import unicodedata
 
 try:
@@ -224,7 +225,6 @@ except Exception as e:
     st.error(f"Error al cargar o procesar los datos: {e}")
     st.stop()
 
-# --- CONFIGURACIÓN DE COLORES OFICIALES ---
 colores_base_equipos = {
     "Arsenal": "#EF0107", "Aston villa": "#670E36", "Atletico de Madrid": "#CB352C",
     "Barcelona": "#A50044", "Bayern Munchen": "#DC052D", "Benfica": "#E30613",
@@ -253,69 +253,39 @@ def normalizar_texto(texto):
     nfkd_form = unicodedata.normalize('NFKD', str(texto))
     return "".join([c for c in nfkd_form if not unicodedata.combining(c)]).lower().strip()
 
-# --- ENLACES DIRECTOS MANUALES Y GARANTIZADOS ---
-# Aquí están las imágenes de todos los equipos directamente en el código para que nunca fallen.
-logos_equipos = {
-    "arsenal": "https://upload.wikimedia.org/wikipedia/en/thumb/5/53/Arsenal_FC.svg/300px-Arsenal_FC.svg.png",
-    "aston villa": "https://upload.wikimedia.org/wikipedia/en/thumb/f/f9/Aston_Villa_FC_crest_%282024%29.svg/300px-Aston_Villa_FC_crest_%282024%29.svg.png",
-    "atletico": "https://upload.wikimedia.org/wikipedia/en/thumb/c/c1/Atletico_Madrid_2017_logo.svg/300px-Atletico_Madrid_2017_logo.svg.png",
-    "barcelona": "https://upload.wikimedia.org/wikipedia/en/thumb/4/47/FC_Barcelona_%28crest%29.svg/300px-FC_Barcelona_%28crest%29.svg.png",
-    "bayern": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282002%29.svg/300px-FC_Bayern_M%C3%BCnchen_logo_%282002%29.svg.png",
-    "munchen": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282002%29.svg/300px-FC_Bayern_M%C3%BCnchen_logo_%282002%29.svg.png",
-    "benfica": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a2/SL_Benfica_logo.svg/300px-SL_Benfica_logo.svg.png",
-    "betis": "https://upload.wikimedia.org/wikipedia/en/thumb/1/13/Real_Betis_logo.svg/300px-Real_Betis_logo.svg.png",
-    "chelsea": "https://upload.wikimedia.org/wikipedia/en/thumb/c/cc/Chelsea_FC.svg/300px-Chelsea_FC.svg.png",
-    "como": "https://upload.wikimedia.org/wikipedia/en/thumb/2/2f/Como_1907_logo.svg/300px-Como_1907_logo.svg.png",
-    "dortmund": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Borussia_Dortmund_logo.svg/300px-Borussia_Dortmund_logo.svg.png",
-    "borussia": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Borussia_Dortmund_logo.svg/300px-Borussia_Dortmund_logo.svg.png",
-    "flamengo": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/CR_Flamengo_logo.svg/300px-CR_Flamengo_logo.svg.png",
-    "fluminense": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ad/Fluminense_FC_crest.svg/300px-Fluminense_FC_crest.svg.png",
-    "freiburg": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a2/SC_Freiburg_logo.svg/300px-SC_Freiburg_logo.svg.png",
-    "inter": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/FC_Internazionale_Milano_2021.svg/300px-FC_Internazionale_Milano_2021.svg.png",
-    "juventus": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Juventus_FC_2017_logo.svg/300px-Juventus_FC_2017_logo.svg.png",
-    "liverpool": "https://upload.wikimedia.org/wikipedia/en/thumb/0/0c/Liverpool_FC.svg/300px-Liverpool_FC.svg.png",
-    "lyon": "https://upload.wikimedia.org/wikipedia/en/thumb/c/c6/Olympique_Lyonnais_logo.svg/300px-Olympique_Lyonnais_logo.svg.png",
-    "manchester city": "https://upload.wikimedia.org/wikipedia/en/thumb/e/eb/Manchester_City_FC_badge.svg/300px-Manchester_City_FC_badge.svg.png",
-    "city": "https://upload.wikimedia.org/wikipedia/en/thumb/e/eb/Manchester_City_FC_badge.svg/300px-Manchester_City_FC_badge.svg.png",
-    "manchester united": "https://upload.wikimedia.org/wikipedia/en/thumb/7/7a/Manchester_United_FC_crest.svg/300px-Manchester_United_FC_crest.svg.png",
-    "united": "https://upload.wikimedia.org/wikipedia/en/thumb/7/7a/Manchester_United_FC_crest.svg/300px-Manchester_United_FC_crest.svg.png",
-    "monaco": "https://upload.wikimedia.org/wikipedia/en/thumb/c/cba/AS_Monaco_FC.svg/300px-AS_Monaco_FC.svg.png",
-    "newcastle": "https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Newcastle_United_Logo.svg/300px-Newcastle_United_Logo.svg.png",
-    "palmeiras": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/SE_Palmeiras_logo_2020.svg/300px-SE_Palmeiras_logo_2020.svg.png",
-    "paranaense": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Club_Athletico_Paranaense_logo.svg/300px-Club_Athletico_Paranaense_logo.svg.png",
-    "athletico": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Club_Athletico_Paranaense_logo.svg/300px-Club_Athletico_Paranaense_logo.svg.png",
-    "porto": "https://upload.wikimedia.org/wikipedia/en/thumb/f/f1/FC_Porto_%28crest%29.svg/300px-FC_Porto_%28crest%29.svg.png",
-    "psg": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a7/Paris_Saint-Germain_F.C..svg/300px-Paris_Saint-Germain_F.C..svg.png",
-    "paris": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a7/Paris_Saint-Germain_F.C..svg/300px-Paris_Saint-Germain_F.C..svg.png",
-    "racing": "https://upload.wikimedia.org/wikipedia/en/thumb/5/5e/Real_Racing_Club_de_Santander_logo.svg/300px-Real_Racing_Club_de_Santander_logo.svg.png",
-    "real madrid": "https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Real_Madrid_CF.svg/300px-Real_Madrid_CF.svg.png",
-    "real sociedad": "https://upload.wikimedia.org/wikipedia/en/thumb/f/f1/Real_Sociedad_logo.svg/300px-Real_Sociedad_logo.svg.png",
-    "sociedad": "https://upload.wikimedia.org/wikipedia/en/thumb/f/f1/Real_Sociedad_logo.svg/300px-Real_Sociedad_logo.svg.png",
-    "vasco": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/CR_Vasco_da_Gama_%28logo%29.svg/300px-CR_Vasco_da_Gama_%28logo%29.svg.png",
-    "bahia": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/Esporte_Clube_Bahia_logo.svg/300px-Esporte_Clube_Bahia_logo.svg.png"
-}
-
+# --- NUEVO MOTOR DINÁMICO DE ESCUDOS (IDÉNTICO AL DE JUGADORES) ---
 @st.cache_data(ttl=86400)
-def obtener_logo_equipo(nombre, color_hex):
+def obtener_logo_equipo(nombre, liga=""):
     nombre_limpio = str(nombre).strip()
-    nombre_lower = normalizar_texto(nombre_limpio)
+    liga_limpia = str(liga).strip()
     
-    # Búsqueda súper flexible (si pones "Barcelona", coincidirá porque está en la lista de arriba)
-    # y ya NO pasa por ninguna API que bloquee el requerimiento
-    for clave, url in logos_equipos.items():
-        if clave in nombre_lower or nombre_lower in clave:
-            return url
+    queries = [
+        f"{nombre_limpio} football club",
+        f"{nombre_limpio} {liga_limpia} football club",
+        f"{nombre_limpio} FC",
+        f"{nombre_limpio}"
+    ]
+    
+    headers = {'User-Agent': 'GoalMetricsApp/1.0 (contact@goalmetrics.com)'}
+    
+    for q in queries:
+        try:
+            url_search = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(q)}&format=json"
+            res = requests.get(url_search, headers=headers, timeout=3).json()
+            search_results = res.get("query", {}).get("search", [])
+            if search_results:
+                page_title = search_results[0]["title"]
+                url_image = f"https://en.wikipedia.org/w/api.php?action=query&titles={requests.utils.quote(page_title)}&prop=pageimages&pithumbsize=300&format=json"
+                res_img = requests.get(url_image, headers=headers, timeout=3).json()
+                pages = res_img.get("query", {}).get("pages", {})
+                for page_id, page_info in pages.items():
+                    if "thumbnail" in page_info:
+                        return page_info["thumbnail"]["source"]
+        except Exception:
+            continue
             
-    # Solo en el caso extremo de que agregues un equipo nuevo al Excel que no esté en la lista,
-    # generará las iniciales bonitas con el color de fondo para que no se vea feo.
-    partes = nombre_limpio.split()
-    if len(partes) >= 2:
-        iniciales = (partes[0][0] + partes[1][0]).upper()
-    else:
-        iniciales = nombre_limpio[:2].upper()
-        
-    color_fondo = str(color_hex).replace("#", "")
-    return f"https://ui-avatars.com/api/?name={iniciales}&background={color_fondo}&color=fff&bold=true&size=128&format=png"
+    # Respaldo visual elegante si no encuentra imagen
+    return f"https://api.dicebear.com/7.x/identicon/png?seed={requests.utils.quote(nombre_limpio)}&backgroundColor=111827"
 
 st.sidebar.header("Configuracion")
 
@@ -401,16 +371,21 @@ with st.sidebar.expander("Modelo estadistico", expanded=True):
     rho_dc = st.slider("rho Dixon-Coles", -0.20, 0.05, -0.10, 0.01, key="slider_rho_eq", disabled=not usar_dc)
     st.caption("Recomendado ON en -0.10")
 
-# Solicitamos el color y el URL (que ahora es estático y 100% seguro)
 color_equipo = generar_color_equipo(equipo_sel)
-logo_url = obtener_logo_equipo(equipo_sel, color_equipo)
+logo_url = obtener_logo_equipo(equipo_sel, liga_sel)
 equipo_sel_html = html.escape(equipo_sel)
 nivel_sel_html = html.escape(nivel_sel)
 liga_sel_html = html.escape(liga_sel)
 
-# --- ESTILOS MODERNOS (PILL BADGES, BORDES DINÁMICOS & DATAGRID) ---
+# --- ESTILOS MODERNOS (CON CORRECCIÓN DE NAVEGACIÓN Y MENÚ LATERAL) ---
 st.markdown(f"""
 <style>
+/* Forzar que el menú superior de Streamlit y el botón hamburguesa nunca se oculten */
+header[data-testid="stHeader"] {{
+    visibility: visible !important;
+    background: transparent !important;
+}}
+
 .header-box {{
     background: linear-gradient(135deg, {color_equipo} 0%, #111827 100%);
     padding: 24px 30px; 
@@ -754,7 +729,8 @@ if st.session_state.analizado_equipos:
     else:
         veredicto = f"Partido Muy Parejo - Marcador proyectado {marcador_mas_comun}"
 
-    # --- AQUÍ SE INSERTA EL ESCUDO. Como la URL es un PNG directo que siempre existe, ya no fallará ---
+    logo_url = obtener_logo_equipo(equipo_sel, liga_sel)
+
     st.markdown(
         f'<div class="header-box">'
         f'<img src="{logo_url}" style="height: 45px; width: 45px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,0.05); padding: 4px;" />'
@@ -768,7 +744,6 @@ if st.session_state.analizado_equipos:
     if muestra_pequena:
         st.warning("Muestra pequeña (Respaldo activo con 1 partido exacto). Interpreta con cautela.")
 
-    # --- 3 PESTAÑAS PRINCIPALES UNIFICADAS ---
     tab1, tab2, tab3 = st.tabs([
         "📊 Dashboard Principal & Gráficos",
         "💰 Value Bets & Inteligencia",
