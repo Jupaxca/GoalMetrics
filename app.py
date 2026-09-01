@@ -6,7 +6,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- ESTILOS MODERNOS (CON EL HEADER ACTIVO PARA MÓVILES) ---
+# --- ESTILOS MODERNOS (CON HEADER ACTIVO PARA MÓVILES) ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -53,7 +53,47 @@ footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# --- CONTENIDO DE LA PÁGINA DE BIENVENIDA ---
+# --- GESTIÓN DE SESIÓN / INICIO DE SESIÓN ---
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
+
+if not st.session_state.autenticado:
+    st.markdown("""
+    <div class="hero-box">
+        <h1>⚽ GoalMetrics Pro</h1>
+        <p style="font-size: 18px; color: #93c5fd; margin-top: 10px;">
+            Inicia sesión para acceder a tu centro de análisis avanzado
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+    with col_l2:
+        with st.form("form_login"):
+            st.subheader("🔑 Acceso al Sistema")
+            usuario_input = st.text_input("Usuario")
+            password_input = st.text_input("Contraseña", type="password")
+            submit_login = st.form_submit_button("Iniciar Sesión", use_container_width=True)
+            
+            if submit_login:
+                # Puedes ajustar o conectar esto con tus validaciones previas si las tenías parametrizadas
+                if usuario_input.strip() != "":
+                    st.session_state.autenticado = True
+                    st.session_state.usuario = usuario_input
+                    st.rerun()
+                else:
+                    st.error("Por favor ingresa un usuario válido.")
+    st.stop()
+
+# --- BARRA LATERAL CON CONTROL DE SESIÓN ---
+st.sidebar.success(f"👤 Sesión activa: {st.session_state.get('usuario', 'Usuario')}")
+if st.sidebar.button("Cerrar Sesión", use_container_width=True):
+    st.session_state.autenticado = False
+    st.rerun()
+
+st.sidebar.markdown("---")
+
+# --- CONTENIDO DE LA PÁGINA PRINCIPAL (POST-LOGIN) ---
 st.markdown("""
 <div class="hero-box">
     <h1>⚽ GoalMetrics Pro</h1>
