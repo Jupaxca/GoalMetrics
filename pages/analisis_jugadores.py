@@ -311,12 +311,20 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, real=None):
     )
 
 st.markdown("### Centro de Analisis Individual de Jugadores (Híbrido Pro)")
-st.caption("Asistente inteligente con semáforo de confiabilidad y gráficos integrados.")
+st.caption("Asistente inteligente con semáforo de confiabilidad, compensación estadística (Shrinkage) y gráficos integrados.")
 
 with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis?", expanded=False):
     st.markdown("""
-    * **1. Semáforo de Confiabilidad:** Evalúa la robustez de la muestra. Verde = Muestra exacta suficiente; Amarillo = Respaldo inteligente activo; Rojo = Muestra escasa/crítica.
-    * **2. Dashboard Principal & Gráficos:** Integra el perfil de radar, tasas de conversión, volatilidad (desviación estándar) por variable y las curvas acumuladas (Over X).
+    Bienvenido al centro analítico de jugadores. A continuación se detalla cómo operan los módulos principales:
+    
+    * **1. Semáforo de Confiabilidad:** Clasifica la robustez de la muestra de partidos exactos. 
+      * 🟢 *Verde:* Suficientes partidos exactos en el escenario buscado ($\ge 2$).
+      * 🟡 *Amarillo:* Muestra mixta o con 1 solo partido exacto, activando el respaldo inteligente ajustado por *Tier*.
+      * 🔴 *Rojo:* Muestra crítica o escasa, requiere máxima precaución.
+    * **2. Shrinkage (Compensación Estadística):** Cuando un jugador cuenta con pocos partidos en un escenario específico, sus promedios aparentes pueden estar sesgados (por ejemplo, anotar 2 goles en un solo partido contra un rival Top distorsiona su media real). El **Shrinkage** corrige esto encogiendo o ajustando las tasas empíricas hacia una media previa (*prior*) de la liga para ese mismo nivel de rival. Mediante un factor de ponderación ($k$), se estabilizan las proyecciones y se evitan falsos positivos provocados por la varianza de muestras pequeñas.
+    * **3. Modelo Híbrido (Poisson + XGBoost):** Modela las variables de conteo mediante distribuciones de Poisson y refina las probabilidades con Machine Learning (XGBoost), evaluando momentum y medias móviles recientes de rendimiento.
+    * **4. Métricas, Volatilidad ($\sigma$) y Radar:** Cada tarjeta muestra la tasa esperada ($\lambda$) junto con su desviación estándar o volatilidad exacta, acompañada de un gráfico de radar para evaluar el perfil global del jugador.
+    * **5. Value Bets & Criterio de Half-Kelly:** Evalúa el Valor Esperado (EV) comparando la probabilidad del modelo frente a las cuotas de la casa de apuestas y dimensiona el stake de forma conservadora usando el criterio fraccional de Kelly.
     """)
 
 if "analizado_jugadores" not in st.session_state:
