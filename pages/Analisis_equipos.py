@@ -1,4 +1,4 @@
- import html
+import html
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -259,11 +259,8 @@ def obtener_iniciales(nombre):
         return (partes[0][0] + partes[1][0]).upper()
     return str(nombre)[:2].upper()
 
-# --- SISTEMA ROBUSTO ESTILO "JUGADORES" (Diccionario + HTML OnError Fallback) ---
-
 @st.cache_data(ttl=86400)
 def obtener_logo_equipo(nombre):
-    """Resuelve escudo via Wikipedia API (mismo enfoque que jugadores). Si falla, None."""
     nombre_limpio = str(nombre).strip()
     if not nombre_limpio:
         return None
@@ -347,7 +344,6 @@ def obtener_logo_equipo(nombre):
 
 
 def render_header_equipo(liga, equipo, condicion, nivel):
-    """Header con logo Wikipedia o fallback de iniciales (sin onerror)."""
     liga_h = html.escape(str(liga).upper())
     equipo_h = html.escape(str(equipo).upper())
     cond_h = html.escape(str(condicion).upper())
@@ -467,7 +463,6 @@ equipo_sel_html = html.escape(equipo_sel)
 nivel_sel_html = html.escape(nivel_sel)
 liga_sel_html = html.escape(liga_sel)
 
-# --- ESTILOS MODERNOS ---
 st.markdown(f"""
 <style>
 header[data-testid="stHeader"] {{
@@ -704,7 +699,6 @@ if st.session_state.analizado_equipos:
     n_obs = len(historial)
     muestra_pequena = n_obs <= 2
 
-    # --- SEMÁFORO DE CONFIABILIDAD (PILL BADGES) ---
     if len(df_exactos) >= 2:
         st.markdown(
             '<div class="pill-badge pill-green">'
@@ -818,7 +812,6 @@ if st.session_state.analizado_equipos:
     else:
         veredicto = f"Partido Muy Parejo - Marcador proyectado {marcador_mas_comun}"
 
-    # Header con logo (API Wikipedia) o iniciales
     render_header_equipo(liga_sel, equipo_sel, condicion_label, nivel_sel)
 
     st.markdown(f'<div class="veredicto-box"><b>Veredicto:</b> {html.escape(veredicto)}</div>', unsafe_allow_html=True)
