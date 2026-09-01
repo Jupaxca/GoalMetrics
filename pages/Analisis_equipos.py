@@ -238,46 +238,6 @@ colores_base_equipos = {
     "Monaco": "#ED1C24", "Chelsea": "#034694"
 }
 
-logos_equipos = {
-    "porto": "https://upload.wikimedia.org/wikipedia/en/f/f1/FC_Porto_%28crest%29.svg",
-    "flamengo": "https://upload.wikimedia.org/wikipedia/commons/2/2e/CR_Flamengo_logo.svg",
-    "fluminense": "https://upload.wikimedia.org/wikipedia/commons/a/ad/Fluminense_FC_crest.svg",
-    "palmeiras": "https://upload.wikimedia.org/wikipedia/commons/1/10/SE_Palmeiras_logo_2020.svg",
-    "paranaense": "https://upload.wikimedia.org/wikipedia/commons/0/07/Club_Athletico_Paranaense_logo.svg",
-    "athletico paranaense": "https://upload.wikimedia.org/wikipedia/commons/0/07/Club_Athletico_Paranaense_logo.svg",
-    "vasco": "https://upload.wikimedia.org/wikipedia/commons/ac/ac/CR_Vasco_da_Gama_%28logo%29.svg",
-    "vasco da gama": "https://upload.wikimedia.org/wikipedia/commons/ac/ac/CR_Vasco_da_Gama_%28logo%29.svg",
-    "freiburg": "https://upload.wikimedia.org/wikipedia/en/a/a2/SC_Freiburg_logo.svg",
-    "atletico de madrid": "https://upload.wikimedia.org/wikipedia/en/c/c1/Atletico_Madrid_2017_logo.svg",
-    "atlético de madrid": "https://upload.wikimedia.org/wikipedia/en/c/c1/Atletico_Madrid_2017_logo.svg",
-    "betis": "https://upload.wikimedia.org/wikipedia/en/1/13/Real_Betis_logo.svg",
-    "real betis": "https://upload.wikimedia.org/wikipedia/en/1/13/Real_Betis_logo.svg",
-    "racing club": "https://upload.wikimedia.org/wikipedia/en/5/5e/Real_Racing_Club_de_Santander_logo.svg",
-    "racing de santander": "https://upload.wikimedia.org/wikipedia/en/5/5e/Real_Racing_Club_de_Santander_logo.svg",
-    "real racing club de santander": "https://upload.wikimedia.org/wikipedia/en/5/5e/Real_Racing_Club_de_Santander_logo.svg",
-    "real sociedad": "https://upload.wikimedia.org/wikipedia/en/f/f1/Real_Sociedad_logo.svg",
-    "lyon": "https://upload.wikimedia.org/wikipedia/en/c/c6/Olympique_Lyonnais_logo.svg",
-    "olympique lyonnais": "https://upload.wikimedia.org/wikipedia/en/c/c6/Olympique_Lyonnais_logo.svg",
-    "monaco": "https://upload.wikimedia.org/wikipedia/en/c/cba/AS_Monaco_FC.svg",
-    "mónaco": "https://upload.wikimedia.org/wikipedia/en/c/cba/AS_Monaco_FC.svg",
-    "as monaco": "https://upload.wikimedia.org/wikipedia/en/c/cba/AS_Monaco_FC.svg",
-    "aston villa": "https://upload.wikimedia.org/wikipedia/en/f/f9/Aston_Villa_FC_crest_%282024%29.svg",
-    "chelsea": "https://upload.wikimedia.org/wikipedia/en/c/cc/Chelsea_FC.svg",
-    "como": "https://upload.wikimedia.org/wikipedia/en/2/2f/Como_1907_logo.svg",
-    "benfica": "https://upload.wikimedia.org/wikipedia/en/a/a2/SL_Benfica_logo.svg",
-    "barcelona": "https://upload.wikimedia.org/wikipedia/en/4/47/FC_Barcelona_%28crest%29.svg",
-    "real madrid": "https://upload.wikimedia.org/wikipedia/en/5/56/Real_Madrid_CF.svg",
-    "manchester city": "https://upload.wikimedia.org/wikipedia/en/e/eb/Manchester_City_FC_badge.svg",
-    "manchester united": "https://upload.wikimedia.org/wikipedia/en/7/7a/Manchester_United_FC_crest.svg",
-    "bayern munich": "https://upload.wikimedia.org/wikipedia/commons/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282002%29.svg",
-    "inter": "https://upload.wikimedia.org/wikipedia/commons/0/05/FC_Internazionale_Milano_2021.svg",
-    "liverpool": "https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg",
-    "arsenal": "https://upload.wikimedia.org/wikipedia/en/5/53/Arsenal_FC.svg",
-    "psg": "https://upload.wikimedia.org/wikipedia/en/a/a7/Paris_Saint-Germain_F.C..svg",
-    "newcastle": "https://upload.wikimedia.org/wikipedia/en/5/56/Newcastle_United_Logo.svg",
-    "bahia": "https://upload.wikimedia.org/wikipedia/commons/9/90/Esporte_Clube_Bahia_logo.svg"
-}
-
 def generar_color_equipo(nombre):
     if nombre in colores_base_equipos:
         return colores_base_equipos[nombre]
@@ -295,21 +255,13 @@ def normalizar_texto(texto):
 @st.cache_data(ttl=86400)
 def obtener_logo_equipo(nombre):
     nombre_limpio = str(nombre).strip()
-    nombre_lower = normalizar_texto(nombre_limpio)
     
-    # 1. Búsqueda directa en diccionario garantizado
-    if nombre_lower in logos_equipos:
-        return logos_equipos[nombre_lower]
-        
-    for k, v in logos_equipos.items():
-        if k in nombre_lower or nombre_lower in k:
-            return v
-            
-    # 2. Búsqueda automática optimizada idéntica a la de jugadores (Wikimedia API + pithumbsize)
+    # Motor idéntico al de jugadores usando Wikipedia API + pithumbsize (garantiza formato JPG/PNG compatible)
     queries = [
         f"{nombre_limpio} football club logo",
         f"{nombre_limpio} soccer club logo",
-        f"{nombre_limpio} football club"
+        f"{nombre_limpio} football club",
+        f"{nombre_limpio}"
     ]
     
     headers = {'User-Agent': 'GoalMetricsApp/1.0 (contact@goalmetrics.com)'}
@@ -330,7 +282,7 @@ def obtener_logo_equipo(nombre):
         except Exception:
             continue
             
-    # 3. Respaldo visual si no se encuentra
+    # Respaldo visual seguro si no se encuentra
     return f"https://api.dicebear.com/7.x/identicon/svg?seed={requests.utils.quote(nombre_limpio)}&backgroundColor=111827"
 
 st.sidebar.header("Configuracion")
