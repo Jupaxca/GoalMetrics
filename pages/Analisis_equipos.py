@@ -253,17 +253,42 @@ def normalizar_texto(texto):
     nfkd_form = unicodedata.normalize('NFKD', str(texto))
     return "".join([c for c in nfkd_form if not unicodedata.combining(c)]).lower().strip()
 
-# --- NUEVO MOTOR DINÁMICO DE ESCUDOS (IDÉNTICO AL DE JUGADORES) ---
+# --- SISTEMA HÍBRIDO ROBUSTO DE ESCUDOS (DICCIONARIO FIJO + WIKIPEDIA + INICIALES LIMPIAS) ---
 @st.cache_data(ttl=86400)
 def obtener_logo_equipo(nombre, liga=""):
     nombre_limpio = str(nombre).strip()
-    liga_limpia = str(liga).strip()
+    nombre_lower = normalizar_texto(nombre_limpio)
     
+    # 1. Diccionario de respaldo fijo para garantizar escudos oficiales infalibles
+    logos_fijos = {
+        "betis": "https://upload.wikimedia.org/wikipedia/en/thumb/1/13/Real_Betis_logo.svg/300px-Real_Betis_logo.svg.png",
+        "real betis": "https://upload.wikimedia.org/wikipedia/en/thumb/1/13/Real_Betis_logo.svg/300px-Real_Betis_logo.svg.png",
+        "arsenal": "https://upload.wikimedia.org/wikipedia/en/thumb/5/53/Arsenal_FC.svg/300px-Arsenal_FC.svg.png",
+        "freiburg": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a2/SC_Freiburg_logo.svg/300px-SC_Freiburg_logo.svg.png",
+        "sc freiburg": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a2/SC_Freiburg_logo.svg/300px-SC_Freiburg_logo.svg.png",
+        "barcelona": "https://upload.wikimedia.org/wikipedia/en/thumb/4/47/FC_Barcelona_%28crest%29.svg/300px-FC_Barcelona_%28crest%29.svg.png",
+        "real madrid": "https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Real_Madrid_CF.svg/300px-Real_Madrid_CF.svg.png",
+        "atletico de madrid": "https://upload.wikimedia.org/wikipedia/en/thumb/c/c1/Atletico_Madrid_2017_logo.svg/300px-Atletico_Madrid_2017_logo.svg.png",
+        "bayern munchen": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282002%29.svg/300px-FC_Bayern_M%C3%BCnchen_logo_%282002%29.svg.png",
+        "liverpool": "https://upload.wikimedia.org/wikipedia/en/thumb/0/0c/Liverpool_FC.svg/300px-Liverpool_FC.svg.png",
+        "manchester city": "https://upload.wikimedia.org/wikipedia/en/thumb/e/eb/Manchester_City_FC_badge.svg/300px-Manchester_City_FC_badge.svg.png",
+        "manchester united": "https://upload.wikimedia.org/wikipedia/en/thumb/7/7a/Manchester_United_FC_crest.svg/300px-Manchester_United_FC_crest.svg.png",
+        "chelsea": "https://upload.wikimedia.org/wikipedia/en/thumb/c/cc/Chelsea_FC.svg/300px-Chelsea_FC.svg.png",
+        "juventus": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Juventus_FC_2017_logo.svg/300px-Juventus_FC_2017_logo.svg.png",
+        "inter": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/FC_Internazionale_Milano_2021.svg/300px-FC_Internazionale_Milano_2021.svg.png"
+    }
+    
+    for clave, url in logos_fijos.items():
+        if clave in nombre_lower or nombre_lower in clave:
+            return url
+
+    # 2. Búsqueda dinámica en Wikipedia orientada a logos y escudos
+    liga_limpia = str(liga).strip()
     queries = [
-        f"{nombre_limpio} football club",
-        f"{nombre_limpio} {liga_limpia} football club",
-        f"{nombre_limpio} FC",
-        f"{nombre_limpio}"
+        f"{nombre_limpio} logo",
+        f"{nombre_limpio} crest",
+        f"{nombre_limpio} football club badge",
+        f"{nombre_limpio} {liga_limpia} football club"
     ]
     
     headers = {'User-Agent': 'GoalMetricsApp/1.0 (contact@goalmetrics.com)'}
@@ -284,8 +309,8 @@ def obtener_logo_equipo(nombre, liga=""):
         except Exception:
             continue
             
-    # Respaldo visual elegante si no encuentra imagen
-    return f"https://api.dicebear.com/7.x/identicon/png?seed={requests.utils.quote(nombre_limpio)}&backgroundColor=111827"
+    # 3. Respaldo definitivo elegante con iniciales (evita gráficos geométricos extraños)
+    return f"https://ui-avatars.com/api/?name={requests.utils.quote(nombre_limpio[:2])}&background=111827&color=fff&bold=true&size=128&format=png"
 
 st.sidebar.header("Configuracion")
 
