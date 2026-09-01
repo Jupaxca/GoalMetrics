@@ -316,7 +316,7 @@ st.caption("Asistente inteligente con semáforo de confiabilidad y gráficos int
 with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis?", expanded=False):
     st.markdown("""
     * **1. Semáforo de Confiabilidad:** Evalúa la robustez de la muestra. Verde = Muestra exacta suficiente; Amarillo = Respaldo inteligente activo; Rojo = Muestra escasa/crítica.
-    * **2. Dashboard Principal & Gráficos:** Integra el perfil de radar, tasas de conversión, volatilidad (desviación estándar) y las curvas acumuladas (Over X).
+    * **2. Dashboard Principal & Gráficos:** Integra el perfil de radar, tasas de conversión, volatilidad (desviación estándar) por variable y las curvas acumuladas (Over X).
     """)
 
 if "analizado_jugadores" not in st.session_state:
@@ -444,6 +444,9 @@ if st.session_state.analizado_jugadores:
     def prom_w(col):
         return float(np.average(historial[col].fillna(0), weights=pesos)) if col in historial.columns else 0.0
 
+    def std_w(col):
+        return float(historial[col].std()) if col in historial.columns and len(historial) > 1 else 0.0
+
     lam_g_raw = prom_w("Goles")
     lam_t_raw = prom_w("Tiros")
     lam_p_raw = prom_w("A Puerta")
@@ -521,7 +524,7 @@ if st.session_state.analizado_jugadores:
     ])
 
     with tab1:
-        st.subheader(f"Métricas, Eficiencia y Gráficos Acumulados")
+        st.subheader(f"Métricas, Volatilidad y Gráficos Acumulados")
         
         partidos_por_gol = 1.0 / lam_g if lam_g > 0 else 0.0
         partidos_por_asist = 1.0 / lam_a if lam_a > 0 else 0.0
@@ -543,8 +546,8 @@ if st.session_state.analizado_jugadores:
         else:
             estado_momentum = "⚖️ <b>Momentum estable:</b> Acorde a su promedio histórico."
 
-        volatilidad_goles_val = historial["Goles"].std() if "Goles" in historial and len(historial) > 1 else 0.0
-        volatilidad_puerta_val = historial["A Puerta"].std() if "A Puerta" in historial and len(historial) > 1 else 0.0
+        volatilidad_goles_val = std_w("Goles")
+        volatilidad_puerta_val = std_w("A Puerta")
 
         desc_vol_goles = "baja (consistente)" if volatilidad_goles_val < 0.6 else "alta (irregular/rachas)"
         desc_vol_puerta = "baja (estable al arco)" if volatilidad_puerta_val < 0.8 else "alta (variable al arco)"
@@ -561,18 +564,18 @@ if st.session_state.analizado_jugadores:
         st.markdown(f'<div class="veredicto-box"><b>📊 Resumen Analítico:</b><br>{analisis_tendencia}</div>', unsafe_allow_html=True)
 
         metrics_data = {
-            "Goles": {"prom": historial["Goles"].mean() if "Goles" in historial else 0, "lam": lam_g},
-            "Asistencias": {"prom": historial["Asistencias"].mean() if "Asistencias" in historial else 0, "lam": lam_a},
-            "Tiros": {"prom": historial["Tiros"].mean() if "Tiros" in historial else 0, "lam": lam_t},
-            "A Puerta": {"prom": historial["A Puerta"].mean() if "A Puerta" in historial else 0, "lam": lam_p},
-            "Faltas": {"prom": historial["Faltas"].mean() if "Faltas" in historial else 0, "lam": lam_f},
-            "Gol o Asistencia": {"prom": (historial["Goles"] + historial["Asistencias"]).mean() if "Goles" in historial else 0, "lam": lam_g + lam_a}
+            "Goles": {"prom": historial["Goles"].mean() if "Goles" in historial else 0, "lam": lam_g, "vol": std_w("Goles")},
+            "Asistencias": {"prom": historial["Asistencias"].mean() if "Asistencias" in historial else 0, "lam": lam_a, "vol": std_w("Asistencias")},
+            "Tiros": {"prom": historial["Tiros"].mean() if "Tiros" in historial else 0, "lam": lam_t, "vol": std_w("Tiros")},
+            "A Puerta": {"prom": historial["A Puerta"].mean() if "A Puerta" in historial else 0, "lam": lam_p, "vol": std_w("A Puerta")},
+            "Faltas": {"prom": historial["Faltas"].mean() if "Faltas" in historial else 0, "lam": lam_f, "vol": std_w("Faltas")},
+            "Gol o Asistencia": {"prom": (historial["Goles"] + historial["Asistencias"]).mean() if "Goles" in historial else 0, "lam": lam_g + lam_a, "vol": std_w("Goles")}
         }
 
         cols = st.columns(3)
         for i, (var, datos) in enumerate(metrics_data.items()):
             col_target = cols[i % 3]
-            col_target.metric(f"Prom. {var}", f"{datos['prom']:.2f}", f"λ: {datos['lam']:.2f}")
+            col_target.metric(f"Prom. {var}", f"{datos['prom']:.2f}", f"λ: {datos['lam']:.2f} | Vol (σ): {datos['vol']:.2f}")
 
         st.markdown("---")
         
