@@ -8,7 +8,6 @@ from collections import Counter
 import hashlib
 import colorsys
 import unicodedata
-import requests
 
 try:
     import xgboost as xgb
@@ -259,55 +258,50 @@ def obtener_iniciales(nombre):
         return (partes[0][0] + partes[1][0]).upper()
     return str(nombre)[:2].upper()
 
-# --- SISTEMA DE ESCUDOS PERFECTO: THESPORTSDB + FALLBACK HTML (ESTILO JUGADORES) ---
+# --- SISTEMA ROBUSTO ESTILO "JUGADORES" (Diccionario + HTML OnError Fallback) ---
 @st.cache_data(ttl=86400)
 def obtener_logo_equipo(nombre):
-    nombre_limpio = str(nombre).strip()
-    nombre_lower = normalizar_texto(nombre_limpio)
+    nombre_lower = normalizar_texto(nombre)
     
-    # 1. Diccionario súper rápido con enlaces robustos directamente a los escudos (sin pasar por Wikipedia)
-    logos_fijos = {
-        "arsenal": "https://www.thesportsdb.com/images/media/team/badge/uyhbfe1612467038.png",
-        "aston villa": "https://www.thesportsdb.com/images/media/team/badge/gev5ef1701344445.png",
-        "atletico": "https://www.thesportsdb.com/images/media/team/badge/cyysht1473243162.png",
-        "barcelona": "https://www.thesportsdb.com/images/media/team/badge/xqwpup1473502878.png",
-        "bayern": "https://www.thesportsdb.com/images/media/team/badge/xwsutx1473708233.png",
-        "benfica": "https://www.thesportsdb.com/images/media/team/badge/nt8w4i1549117621.png",
-        "betis": "https://www.thesportsdb.com/images/media/team/badge/wsvwpp1473243461.png",
-        "chelsea": "https://www.thesportsdb.com/images/media/team/badge/yvwvtu1448813215.png",
-        "dortmund": "https://www.thesportsdb.com/images/media/team/badge/yrvxvs1473707246.png",
-        "flamengo": "https://www.thesportsdb.com/images/media/team/badge/q9a7z11545479010.png",
-        "fluminense": "https://www.thesportsdb.com/images/media/team/badge/pqrstx1421443694.png",
-        "freiburg": "https://www.thesportsdb.com/images/media/team/badge/xurwxx1473707923.png",
-        "inter": "https://www.thesportsdb.com/images/media/team/badge/w76i2q1619869677.png",
-        "juventus": "https://www.thesportsdb.com/images/media/team/badge/yn2x8d1679051399.png",
-        "liverpool": "https://www.thesportsdb.com/images/media/team/badge/0nsz731688827725.png",
-        "manchester city": "https://www.thesportsdb.com/images/media/team/badge/vwpvry1467462651.png",
-        "manchester united": "https://www.thesportsdb.com/images/media/team/badge/xzqdr11517660252.png",
-        "newcastle": "https://www.thesportsdb.com/images/media/team/badge/uswsxx1421255866.png",
-        "palmeiras": "https://www.thesportsdb.com/images/media/team/badge/ttxssv1421443834.png",
-        "paranaense": "https://www.thesportsdb.com/images/media/team/badge/14cydz1545479636.png",
-        "porto": "https://www.thesportsdb.com/images/media/team/badge/uxspxy1473527265.png",
-        "psg": "https://www.thesportsdb.com/images/media/team/badge/rwqpsq1473505500.png",
-        "real madrid": "https://www.thesportsdb.com/images/media/team/badge/rxysuu1473502845.png"
+    # Diccionario ligero con escudos fiables
+    logos_verificados = {
+        "arsenal": "https://upload.wikimedia.org/wikipedia/en/thumb/5/53/Arsenal_FC.svg/300px-Arsenal_FC.svg.png",
+        "aston villa": "https://upload.wikimedia.org/wikipedia/en/thumb/f/f9/Aston_Villa_FC_crest_%282024%29.svg/300px-Aston_Villa_FC_crest_%282024%29.svg.png",
+        "atletico": "https://upload.wikimedia.org/wikipedia/en/thumb/c/c1/Atletico_Madrid_2017_logo.svg/300px-Atletico_Madrid_2017_logo.svg.png",
+        "barcelona": "https://upload.wikimedia.org/wikipedia/en/thumb/4/47/FC_Barcelona_%28crest%29.svg/300px-FC_Barcelona_%28crest%29.svg.png",
+        "bayern": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282002%29.svg/300px-FC_Bayern_M%C3%BCnchen_logo_%282002%29.svg.png",
+        "benfica": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a2/SL_Benfica_logo.svg/300px-SL_Benfica_logo.svg.png",
+        "betis": "https://upload.wikimedia.org/wikipedia/en/thumb/1/13/Real_Betis_logo.svg/300px-Real_Betis_logo.svg.png",
+        "chelsea": "https://upload.wikimedia.org/wikipedia/en/thumb/c/cc/Chelsea_FC.svg/300px-Chelsea_FC.svg.png",
+        "como": "https://upload.wikimedia.org/wikipedia/en/thumb/2/2f/Como_1907_logo.svg/300px-Como_1907_logo.svg.png",
+        "dortmund": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Borussia_Dortmund_logo.svg/300px-Borussia_Dortmund_logo.svg.png",
+        "flamengo": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/CR_Flamengo_logo.svg/300px-CR_Flamengo_logo.svg.png",
+        "fluminense": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ad/Fluminense_FC_crest.svg/300px-Fluminense_FC_crest.svg.png",
+        "freiburg": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a2/SC_Freiburg_logo.svg/300px-SC_Freiburg_logo.svg.png",
+        "inter": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/FC_Internazionale_Milano_2021.svg/300px-FC_Internazionale_Milano_2021.svg.png",
+        "juventus": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Juventus_FC_2017_logo.svg/300px-Juventus_FC_2017_logo.svg.png",
+        "liverpool": "https://upload.wikimedia.org/wikipedia/en/thumb/0/0c/Liverpool_FC.svg/300px-Liverpool_FC.svg.png",
+        "lyon": "https://upload.wikimedia.org/wikipedia/en/thumb/c/c6/Olympique_Lyonnais_logo.svg/300px-Olympique_Lyonnais_logo.svg.png",
+        "manchester city": "https://upload.wikimedia.org/wikipedia/en/thumb/e/eb/Manchester_City_FC_badge.svg/300px-Manchester_City_FC_badge.svg.png",
+        "manchester united": "https://upload.wikimedia.org/wikipedia/en/thumb/7/7a/Manchester_United_FC_crest.svg/300px-Manchester_United_FC_crest.svg.png",
+        "monaco": "https://upload.wikimedia.org/wikipedia/en/thumb/c/cba/AS_Monaco_FC.svg/300px-AS_Monaco_FC.svg.png",
+        "newcastle": "https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Newcastle_United_Logo.svg/300px-Newcastle_United_Logo.svg.png",
+        "palmeiras": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/SE_Palmeiras_logo_2020.svg/300px-SE_Palmeiras_logo_2020.svg.png",
+        "paranaense": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Club_Athletico_Paranaense_logo.svg/300px-Club_Athletico_Paranaense_logo.svg.png",
+        "porto": "https://upload.wikimedia.org/wikipedia/en/thumb/f/f1/FC_Porto_%28crest%29.svg/300px-FC_Porto_%28crest%29.svg.png",
+        "psg": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a7/Paris_Saint-Germain_F.C..svg/300px-Paris_Saint-Germain_F.C..svg.png",
+        "racing": "https://upload.wikimedia.org/wikipedia/en/thumb/5/5e/Real_Racing_Club_de_Santander_logo.svg/300px-Real_Racing_Club_de_Santander_logo.svg.png",
+        "real madrid": "https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Real_Madrid_CF.svg/300px-Real_Madrid_CF.svg.png",
+        "real sociedad": "https://upload.wikimedia.org/wikipedia/en/thumb/f/f1/Real_Sociedad_logo.svg/300px-Real_Sociedad_logo.svg.png",
+        "vasco": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/CR_Vasco_da_Gama_%28logo%29.svg/300px-CR_Vasco_da_Gama_%28logo%29.svg.png",
+        "bahia": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/Esporte_Clube_Bahia_logo.svg/300px-Esporte_Clube_Bahia_logo.svg.png"
     }
     
-    for clave, url in logos_fijos.items():
+    for clave, url in logos_verificados.items():
         if clave in nombre_lower:
             return url
-
-    # 2. Búsqueda dinámica EXCLUSIVA de escudos (TheSportsDB no devuelve estadios ni jugadores)
-    try:
-        url_api = f"https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t={requests.utils.quote(nombre_limpio)}"
-        res = requests.get(url_api, timeout=3).json()
-        if res and res.get("teams"):
-            badge = res["teams"][0].get("strTeamBadge") # Pide específicamente el escudo (Badge)
-            if badge:
-                return badge
-    except Exception:
-        pass
             
-    # 3. Si no existe ni en TheSportsDB, retornamos cadena vacía para activar el fallback de Iniciales HTML
+    # Si no está en el diccionario, entregamos una URL vacía para forzar el Error de HTML (fallback)
     return ""
 
 st.sidebar.header("Configuracion")
@@ -754,10 +748,10 @@ if st.session_state.analizado_equipos:
     # --- EL TRUCO ESTILO JUGADORES (ONERROR FALLBACK) ---
     logo_url = obtener_logo_equipo(equipo_sel)
     iniciales_eq = obtener_iniciales(equipo_sel)
-    # Generamos de antemano el avatar corporativo infalible por si falla la red o el equipo no existe
+    # Generamos de antemano el avatar corporativo infalible
     avatar_seguro = f"https://ui-avatars.com/api/?name={iniciales_eq}&background=111827&color=fff&bold=true&size=128&format=png"
 
-    # Si la URL principal falla, está vacía o está rota (onerror), el navegador carga instantáneamente avatar_seguro
+    # Si la URL principal falla o está rota (onerror), el navegador carga instantáneamente avatar_seguro
     st.markdown(
         f'<div class="header-box">'
         f'<img src="{logo_url}" onerror="this.onerror=null; this.src=\'{avatar_seguro}\';" style="height: 45px; width: 45px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,0.05); padding: 4px;" />'
