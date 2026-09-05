@@ -1196,26 +1196,20 @@ if st.session_state.analizado_equipos:
             st.info("ℹ️ Se requieren al menos 5 partidos en este filtro exacto para calcular las métricas de backtesting retrospectivo.")
 
         st.markdown("---")
-        st.markdown("#### 📘 Guía de Interpretación y Acción")
+        st.markdown("#### 📘 Guía de Interpretación: Log Loss & Brier Score")
         
-        df_guia_metricas = pd.DataFrame([
-            {
-                "Métrica de Error": "Log Loss",
-                "Excelente (< 0.50)": "0.50 a 0.69 (Aceptable)",
-                "Deficiente (> 0.69)": "Alta incertidumbre. Evita apostar o reduce el stake."
-            },
-            {
-                "Métrica de Error": "Brier Score",
-                "Excelente (< 0.15)": "0.16 a 0.25 (Aceptable)",
-                "Deficiente (> 0.25)": "Desviación alta. Las proyecciones no son confiables."
-            }
-        ])
-        # Nota: Tabla limpia compacta y explicación separada en viñetas cortas
         df_guia_limpia = pd.DataFrame([
-            {"Métrica": "Log Loss", "Excelente": "< 0.50 (Alta confianza)", "Aceptable": "0.50 - 0.69 (Reducir stake)", "Deficiente": "> 0.69 (Evitar operar)"},
-            {"Métrica": "Brier Score", "Excelente": "< 0.15 (Muy certero)", "Aceptable": "0.16 - 0.25 (Estándar)", "Deficiente": "> 0.25 (No confiable)"}
+            {"Métrica": "Log Loss", "Excelente": "< 0.50", "Aceptable": "0.50 - 0.69", "Deficiente": "> 0.69"},
+            {"Métrica": "Brier Score", "Excelente": "< 0.15", "Aceptable": "0.16 - 0.25", "Deficiente": "> 0.25"}
         ])
         st.dataframe(df_guia_limpia, hide_index=True, use_container_width=True)
+
+        st.markdown("""
+        **💡 Interpretación Práctica (¿Qué hacer en cada caso?):**
+        * **🟢 Rango Excelente:** El modelo está muy bien calibrado. Puedes operar con total confianza siguiendo el stake sugerido por Half-Kelly.
+        * **🟡 Rango Aceptable:** Margen moderado de error. El modelo es funcional, pero debido a la varianza histórica es recomendable **reducir ligeramente el stake**.
+        * **🔴 Rango Deficiente:** El modelo presenta alta desviación o descalibración para este filtro. La recomendación operativa es **evitar apostar o reducir drásticamente la exposición al riesgo**.
+        """)
 
         st.markdown("---")
         st.subheader("📋 Auditoría de Partidos Filtrados")
