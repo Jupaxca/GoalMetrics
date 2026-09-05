@@ -144,17 +144,12 @@ def bootstrap_lambda_intervalo(valores, pesos=None, n_bootstrap=500, alpha=0.05)
     return float(np.mean(vals)), float(lower), float(upper)
 
 def calcular_backtesting_retrospectivo(df_equipo_hist, features_modelo):
-    """Mínimo 5 partidos para calcular Log Loss y Brier Score."""
+    """Exige al menos 5 partidos reales en el filtro para calcular métricas fiables."""
     if len(df_equipo_hist) < 5:
         return None, None
     y_true, y_prob = [], []
     sub_df = df_equipo_hist.tail(30)
-    
-    # Si hay al menos 5 pero menos de 8, ajustamos la ventana de inicio interna
-    min_i = min(3, len(sub_df) - 2)
-    min_i = max(1, min_i)
-    
-    for i in range(min_i, len(sub_df)):
+    for i in range(2, len(sub_df)):
         train_window = sub_df.iloc[:i]
         test_row = sub_df.iloc[i:i+1]
         g_fav = test_row["Goles"].values[0]
@@ -172,6 +167,21 @@ def calcular_backtesting_retrospectivo(df_equipo_hist, features_modelo):
     log_loss = -np.mean(y_true * np.log(y_prob_clipped) + (1 - y_true) * np.log(1 - y_prob_clipped))
     brier_score = np.mean((y_prob - y_true) ** 2)
     return round(float(log_loss), 4), round(float(brier_score), 4)
+
+def generar_analisis_dinamico(equipo, condicion, nivel, n_obs, lam_f, lam_c, lam_t, triunfos, ambos_anotan):
+    """Genera un párrafo analítico dinámico según los números arrojados."""
+    tendencia = "ofensiva y dominante" if triunfos >= 55 else ("equilibrada pero disputada" if triunfos >= 40 else "con alta complejidad táctica")
+    goles_txt = f"promedia una producción alta de {lam_f:.2f} goles" if lam_f >= 1.5 else f"registra una media contenida de {lam_f:.2f} goles"
+    rival_txt = f"recibe en promedio {lam_c:.2f} goles"
+    
+    texto = (
+        f"<b>Análisis Dinámico Automatizado:</b> Para el encuentro de <b>{equipo}</b> jugando como <b>{condicion}</b> "
+        f"frente a rivales de nivel <b>{nivel}</b> (analizando una muestra filtrada de <b>{n_obs} partidos</b>), "
+        f"el modelo proyecta una dinámica <b>{tendencia}</b>. El conjunto local/visitante {goles_txt} y {rival_txt}. "
+        f"Con un volumen de <b>{lam_t:.1f} tiros totales</b> estimados y una probabilidad de BTTS del <b>{ambos_anotan:.1f}%</b>, "
+        f"las métricas sugieren prestar especial atención a las líneas de over y al control de posesión en mediocampo."
+    )
+    return texto
 
 def obtener_peso_tier(tier):
     t = str(tier).upper().strip()
@@ -549,6 +559,17 @@ header[data-testid="stHeader"] {{
     border: 1px solid #1f2937; border-left: 5px solid {color_equipo}; margin-bottom: 20px; font-size: 16px;
     box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
 }}
+.analisis-dinamico-box {{
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    padding: 20px;
+    border-radius: 14px;
+    border: 1px solid {color_equipo}66;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    font-size: 15px;
+    line-height: 1.6;
+    color: #e5e7eb;
+}}
 .value-box {{ padding: 14px 16px; border-radius: 12px; margin-bottom: 10px; font-size: 14px; border: 1px solid #1f2937; }}
 .value-yes {{ background-color: rgba(6, 78, 59, 0.4); border-left: 4px solid #10b981; }}
 .value-no {{ background-color: #111827; border-left: 4px solid #4b5563; }}
@@ -870,6 +891,11 @@ if st.session_state.analizado_equipos:
     render_header_equipo(liga_sel, equipo_sel, condicion_label, nivel_sel)
 
     st.markdown(f'<div class="veredicto-box"><b>Veredicto:</b> {html.escape(veredicto)}</div>', unsafe_allow_html=True)
+    
+    # NUEVO: Bloque de Análisis Dinámico Automatizado
+    analisis_texto = generar_analisis_dinamico(equipo_sel, condicion_label, nivel_sel, n_obs, lam_f, lam_c, lam_t, triunfos, ambos_anotan)
+    st.markdown(f'<div class="analisis-dinamico-box">{analisis_texto}</div>', unsafe_allow_html=True)
+
     st.caption(f"Base: {n_obs} partidos - {fuente_datos} | Half-Life Decay (30d) | IC 95% Bootstrap λ: [{lam_f_inf:.2f} - {lam_f_sup:.2f}]")
 
     if muestra_pequena:
@@ -1140,7 +1166,7 @@ if st.session_state.analizado_equipos:
             bc2.metric("Brier Score", f"{brier_val:.4f}", "Precisión global 0 a 1 (0 es perfecto)")
             st.caption("ℹ️ Estas métricas evalúan retrospectivamente el error de las probabilidades del modelo frente a los resultados reales de los últimos partidos del equipo.")
         else:
-            st.info("ℹ️ Se requieren al menos 5 partidos registrados para calcular las métricas de backtesting retrospectivo de este equipo.")
+            st.info("ℹ️ Se requieren al menos 5 partidos en este filtro para calcular las métricas de backtesting retrospectivo (actualmente hay menos registros exactos para este escenario).")
 
         st.markdown("---")
         st.subheader("📋 Auditoría de Partidos Filtrados")
