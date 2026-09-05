@@ -91,7 +91,6 @@ def obtener_foto_jugador(nombre, liga):
         "haaland": "Erling Haaland",
         "yamal": "Lamine Yamal",
         "raphina": "Raphinha",
-        "raphinha": "Raphinha",
         "kane": "Harry Kane",
         "olise": "Michael Olise",
         "bruno fernandez": "Bruno Fernandes",
@@ -195,6 +194,20 @@ def predecir_probabilidad_hibrida_jugador(prob_poisson, jugador_actual_df, featu
 def shrinkage_lambda(lam_obs, lam_prior, n_obs, k=5.0):
     n = max(float(n_obs), 0.0)
     return (n * lam_obs + k * lam_prior) / (n + k)
+
+def generar_analisis_dinamico_jugador(jugador, condicion, nivel, n_obs, lam_g, lam_t, lam_p, prob_goles):
+    """Genera un análisis dinámico automatizado para jugadores según sus métricas."""
+    tendencia = "altamente influyente y desequilibrante" if prob_goles >= 45 else ("con aportes esporádicos pero constantes" if prob_goles >= 25 else "con baja incidencia reciente")
+    goles_txt = f"una media de {lam_g:.2f} goles" if lam_g >= 0.3 else f"un registro contenido de {lam_g:.2f} goles"
+    tiros_txt = f"un volumen de {lam_t:.1f} tiros totales ({lam_p:.1f} a puerta)"
+    
+    texto = (
+        f"<b>Análisis Dinámico Automatizado:</b> Para el desempeño de <b>{jugador}</b> actuando como <b>{condicion}</b> "
+        f"frente a rivales de nivel <b>{nivel}</b> (analizando una muestra filtrada de <b>{n_obs} partidos</b>), "
+        f"el modelo proyecta un perfil <b>{tendencia}</b>. El jugador mantiene {goles_txt} y {tiros_txt} por encuentro. "
+        f"Las métricas sugieren vigilar de cerca las líneas de remates al arco y su participación en los últimos metros."
+    )
+    return texto
 
 def obtener_peso_tier(tier):
     t = str(tier).upper().strip()
@@ -327,7 +340,6 @@ else:
     else:
         st.sidebar.error("0 partidos exactos en este filtro")
 
-# --- ESTILOS MODERNOS (CON CORRECCIÓN DE NAVEGACIÓN) ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -341,7 +353,6 @@ html, body, [class*="css"] {
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 
-/* CORRECCIÓN: Forzar que el header y el botón de menú lateral sean visibles */
 header[data-testid="stHeader"] {
     visibility: visible !important;
     background: transparent !important;
@@ -390,6 +401,17 @@ header[data-testid="stHeader"] {
     padding: 18px 22px; border-radius: 14px; background-color: #111827;
     border: 1px solid #1f2937; border-left: 5px solid #3B82F6; margin-bottom: 20px; font-size: 16px;
     box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+}
+.analisis-dinamico-box {
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    padding: 20px;
+    border-radius: 14px;
+    border: 1px solid #3B82F666;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    font-size: 15px;
+    line-height: 1.6;
+    color: #e5e7eb;
 }
 .value-box { padding: 14px 16px; border-radius: 12px; margin-bottom: 10px; font-size: 14px; border: 1px solid #1f2937; }
 .value-yes { background-color: rgba(6, 78, 59, 0.4); border-left: 4px solid #10b981; }
@@ -621,7 +643,6 @@ if st.session_state.analizado_jugadores:
         f'</div>', 
         unsafe_allow_html=True
     )
-    st.caption(f"Base analizada: {n_obs} partidos | Fuente: {fuente} | Ensemble Híbrido Activo")
 
     hoy = pd.Timestamp.today().normalize()
     if "Fecha" in historial.columns:
@@ -707,6 +728,12 @@ if st.session_state.analizado_jugadores:
         {"nombre": f"Over {linea_faltas} Faltas", "prob": prob_faltas, "cuota": cuota_casa_faltas, "ev": calcular_ev(prob_faltas, cuota_casa_faltas)},
         {"nombre": f"Over {linea_contrib} Gol/Asist", "prob": prob_contrib, "cuota": cuota_casa_contrib, "ev": calcular_ev(prob_contrib, cuota_casa_contrib)}
     ]
+
+    # NUEVO: Bloque de Análisis Dinámico Automatizado para Jugadores
+    analisis_jugador_texto = generar_analisis_dinamico_jugador(jugador_sel, condicion_sel, nivel_sel, n_obs, lam_g, lam_t, lam_p, prob_goles)
+    st.markdown(f'<div class="analisis-dinamico-box">{analisis_jugador_texto}</div>', unsafe_allow_html=True)
+
+    st.caption(f"Base analizada: {n_obs} partidos | Fuente: {fuente} | Ensemble Híbrido Activo")
 
     tab1, tab2, tab3 = st.tabs([
         "📊 Dashboard Principal y Gráficos",
