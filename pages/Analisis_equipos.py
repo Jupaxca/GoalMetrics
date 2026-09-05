@@ -915,7 +915,6 @@ if st.session_state.analizado_equipos:
 
     st.markdown(f'<div class="veredicto-box"><b>Veredicto:</b> {html.escape(veredicto)}</div>', unsafe_allow_html=True)
     
-    # Reporte Analítico Profesional con Recomendaciones Basadas en Probabilidades Reales
     analisis_texto = generar_analisis_dinamico(
         equipo_sel, condicion_label, nivel_sel, n_obs, 
         lam_f, lam_c, lam_t, lam_tp, lam_co, 
@@ -1195,6 +1194,31 @@ if st.session_state.analizado_equipos:
             st.caption("ℹ️ Estas métricas evalúan retrospectivamente el error de las probabilidades del modelo frente a los resultados reales de los últimos partidos del equipo.")
         else:
             st.info("ℹ️ Se requieren al menos 5 partidos en este filtro para calcular las métricas de backtesting retrospectivo (actualmente hay menos registros exactos para este escenario).")
+
+        # NUEVO: Cuadro comparativo unificado para explicar Log Loss y Brier Score
+        st.markdown("---")
+        st.markdown("#### 📘 Guía de Interpretación: Log Loss & Brier Score")
+        
+        df_guia_metricas = pd.DataFrame([
+            {
+                "Métrica de Error": "Log Loss (Pérdida Logarítmica)",
+                "Excelente (Calibración Alta)": "Menor a 0.50",
+                "Aceptable (Margen Normal)": "0.50 a 0.69",
+                "Deficiente (Descalibrado)": "Mayor a 0.69"
+            },
+            {
+                "Métrica de Error": "Brier Score (Precisión Global)",
+                "Excelente (Calibración Alta)": "0.00 a 0.15",
+                "Aceptable (Margen Normal)": "0.16 a 0.25",
+                "Deficiente (Descalibrado)": "Mayor a 0.25"
+            }
+        ])
+        st.dataframe(df_guia_metricas, hide_index=True, use_container_width=True)
+        
+        st.markdown("""
+        * **Log Loss:** Mide cuánta incertidumbre penaliza el modelo al equivocarse en las probabilidades. Cerca de 0.0 indica que el modelo acierta con total seguridad y confianza matemática.
+        * **Brier Score:** Cuantifica el error cuadrático medio entre la probabilidad pronosticada y el resultado real (0 o 1). Un valor cercano a 0.0 representa una precisión perfecta.
+        """)
 
         st.markdown("---")
         st.subheader("📋 Auditoría de Partidos Filtrados")
