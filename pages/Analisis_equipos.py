@@ -168,14 +168,30 @@ def calcular_backtesting_retrospectivo(df_equipo_hist, features_modelo):
     brier_score = np.mean((y_prob - y_true) ** 2)
     return round(float(log_loss), 4), round(float(brier_score), 4)
 
-def generar_analisis_dinamico(equipo, condicion, nivel, n_obs, lam_f, lam_c, lam_t, lam_tp, lam_co, triunfos, ambos_anotan):
-    """Genera un reporte analítico dinámico de nivel profesional adaptado a cualquier equipo."""
+def generar_analisis_dinamico(equipo, condicion, nivel, n_obs, lam_f, lam_c, lam_t, lam_tp, lam_co, triunfos, ambos_anotan, prob_over_goles, prob_over_corners, prob_over_puerta):
+    """Genera un reporte analítico dinámico adaptado y personalizado según las probabilidades reales del equipo."""
+    
     if triunfos >= 55:
         perfil = "altamente proactivo, dominante y con clara tendencia a volcar el juego en campo rival"
     elif triunfos >= 40:
         perfil = "competitivo, equilibrado y con alta capacidad de alternar el ritmo del juego"
     else:
         perfil = "de alta exigencia táctica, con tramos de repliegue y partidos cerrados"
+
+    mercados_destacados = []
+    if prob_over_goles >= 55.0:
+        mercados_destacados.append(f"<b>Over de Goles del equipo</b> (alta probabilidad del <b>{prob_over_goles:.1f}%</b>)")
+    if prob_over_puerta >= 55.0:
+        mercados_destacados.append(f"<b>Líneas de Tiros a Puerta</b> (respaldado por un promedio de <b>{lam_tp:.1f}</b> remates al arco)")
+    if prob_over_corners >= 55.0:
+        mercados_destacados.append(f"<b>Mercado de Córners / Saques de Esquina</b> (proyectando una media de <b>{lam_co:.1f}</b>)")
+    if ambos_anotan >= 55.0:
+        mercados_destacados.append(f"<b>Ambos Anotan (BTTS Sí)</b> con un soporte del <b>{ambos_anotan:.1f}%</b>")
+    
+    if not mercados_destacados:
+        recomendacion_mercado = "escenarios conservadores, enfocándose en dobles oportunidades o líneas bajas debido a la paridad estadística del emparejamiento."
+    else:
+        recomendacion_mercado = "apostar con mayor probabilidad de éxito por: " + ", ".join(mercados_destacados) + "."
 
     texto = (
         f"<b>Reporte Analítico Táctico:</b> Para el planteamiento de <b>{equipo}</b> como <b>{condicion}</b> "
@@ -184,10 +200,9 @@ def generar_analisis_dinamico(equipo, condicion, nivel, n_obs, lam_f, lam_c, lam
         f"• <b>Producción Ofensiva y Remates:</b> El equipo registra una expectativa de <b>{lam_f:.2f} goles</b>, respaldada por un volumen "
         f"de <b>{lam_t:.1f} tiros totales</b> y <b>{lam_tp:.1f} remates dirigidos a puerta</b> por encuentro.<br>"
         f"• <b>Solidez y Exposición Defensiva:</b> Permite una media de <b>{lam_c:.2f} goles en contra</b>, situando la probabilidad "
-        f"de que ambos equipos marquen (BTTS) en un <b>{ambos_anotan:.1f}%</b>.<br>"
+        f"de que ambos marquen en un <b>{ambos_anotan:.1f}%</b>.<br>"
         f"• <b>Dinámica de Córners:</b> Se anticipa una media de <b>{lam_co:.1f} saques de esquina</b> favorables.<br>"
-        f"• <b>Implicaciones de Mercado:</b> Las métricas sugieren prestar especial atención al <b>Over de Goles del equipo</b>, "
-        f"las selecciones de <b>Tiros a Puerta</b> y los mercados de dominio territorial (córners), evitando sobreexposición en escenarios de alta varianza."
+        f"• <b>Implicaciones de Mercado (Basado en Probabilidades):</b> De acuerdo con las simulaciones, lo más probable a cumplirse y donde se concentra el mayor valor analítico es en {recomendacion_mercado}"
     )
     return texto
 
@@ -900,8 +915,13 @@ if st.session_state.analizado_equipos:
 
     st.markdown(f'<div class="veredicto-box"><b>Veredicto:</b> {html.escape(veredicto)}</div>', unsafe_allow_html=True)
     
-    # Reporte Analítico Profesional Mejorado
-    analisis_texto = generar_analisis_dinamico(equipo_sel, condicion_label, nivel_sel, n_obs, lam_f, lam_c, lam_t, lam_tp, lam_co, triunfos, ambos_anotan)
+    # Reporte Analítico Profesional con Recomendaciones Basadas en Probabilidades Reales
+    analisis_texto = generar_analisis_dinamico(
+        equipo_sel, condicion_label, nivel_sel, n_obs, 
+        lam_f, lam_c, lam_t, lam_tp, lam_co, 
+        triunfos, ambos_anotan, 
+        prob_over_goles, prob_over_corners, prob_over_puerta
+    )
     st.markdown(f'<div class="analisis-dinamico-box">{analisis_texto}</div>', unsafe_allow_html=True)
 
     st.caption(f"Base: {n_obs} partidos - {fuente_datos} | Half-Life Decay (30d) | IC 95% Bootstrap λ: [{lam_f_inf:.2f} - {lam_f_sup:.2f}]")
