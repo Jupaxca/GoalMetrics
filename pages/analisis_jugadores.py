@@ -195,17 +195,36 @@ def shrinkage_lambda(lam_obs, lam_prior, n_obs, k=5.0):
     n = max(float(n_obs), 0.0)
     return (n * lam_obs + k * lam_prior) / (n + k)
 
-def generar_analisis_dinamico_jugador(jugador, condicion, nivel, n_obs, lam_g, lam_t, lam_p, prob_goles):
-    """Genera un análisis dinámico automatizado para jugadores según sus métricas."""
-    tendencia = "altamente influyente y desequilibrante" if prob_goles >= 45 else ("con aportes esporádicos pero constantes" if prob_goles >= 25 else "con baja incidencia reciente")
-    goles_txt = f"una media de {lam_g:.2f} goles" if lam_g >= 0.3 else f"un registro contenido de {lam_g:.2f} goles"
-    tiros_txt = f"un volumen de {lam_t:.1f} tiros totales ({lam_p:.1f} a puerta)"
+def generar_analisis_dinamico_jugador(jugador, condicion, nivel, n_obs, lam_g, lam_t, lam_p, prob_goles, prob_puerta, prob_contrib):
+    """Genera un análisis dinámico automatizado y personalizado basado en las probabilidades reales del jugador."""
     
+    if prob_goles >= 45:
+        tendencia = "altamente influyente, punzante y con gran protagonismo ofensivo"
+    elif prob_goles >= 25:
+        tendencia = "constante, participativo y con aportes ofensivos recurrentes"
+    else:
+        tendencia = "de perfil táctico y contenido, con menor frecuencia rematadora reciente"
+    
+    mercados_destacados = []
+    if prob_goles >= 50.0:
+        mercados_destacados.append(f"<b>Línea de Goles / Anotar</b> (alta probabilidad estimada en <b>{prob_goles:.1f}%</b>)")
+    if prob_puerta >= 55.0:
+        mercados_destacados.append(f"<b>Tiros a Puerta</b> (respaldado por una media sólida de <b>{lam_p:.1f}</b> remates al arco)")
+    if prob_contrib >= 55.0:
+        mercados_destacados.append(f"<b>Gol o Asistencia (Contribución)</b> con una proyección de éxito del <b>{prob_contrib:.1f}%</b>")
+        
+    if not mercados_destacados:
+        recomendacion_mercado = "líneas conservadoras o mercados de menor exposición debido a la varianza y paridad del emparejamiento."
+    else:
+        recomendacion_mercado = "apostar con mayor respaldo estadístico por: " + ", ".join(mercados_destacados) + "."
+
     texto = (
         f"<b>Análisis Dinámico Automatizado:</b> Para el desempeño de <b>{jugador}</b> actuando como <b>{condicion}</b> "
         f"frente a rivales de nivel <b>{nivel}</b> (analizando una muestra filtrada de <b>{n_obs} partidos</b>), "
-        f"el modelo proyecta un perfil <b>{tendencia}</b>. El jugador mantiene {goles_txt} y {tiros_txt} por encuentro. "
-        f"Las métricas sugieren vigilar de cerca las líneas de remates al arco y su participación en los últimos metros."
+        f"el modelo proyecta un perfil <b>{tendencia}</b>. <br><br>"
+        f"• <b>Producción Ofensiva:</b> Mantiene una expectativa de <b>{lam_g:.2f} goles</b> por encuentro.<br>"
+        f"• <b>Volumen de Remates:</b> Registra una media de <b>{lam_t:.1f} tiros totales</b> y <b>{lam_p:.1f} remates dirigidos a puerta</b>.<br>"
+        f"• <b>Implicaciones de Mercado (Basado en Probabilidades):</b> De acuerdo con las simulaciones estocásticas, el mayor valor analítico y probabilidad de cumplimiento se concentra en {recomendacion_mercado}"
     )
     return texto
 
@@ -729,8 +748,12 @@ if st.session_state.analizado_jugadores:
         {"nombre": f"Over {linea_contrib} Gol/Asist", "prob": prob_contrib, "cuota": cuota_casa_contrib, "ev": calcular_ev(prob_contrib, cuota_casa_contrib)}
     ]
 
-    # NUEVO: Bloque de Análisis Dinámico Automatizado para Jugadores
-    analisis_jugador_texto = generar_analisis_dinamico_jugador(jugador_sel, condicion_sel, nivel_sel, n_obs, lam_g, lam_t, lam_p, prob_goles)
+    # Análisis Dinámico Automatizado Personalizado basado estrictamente en las probabilidades del jugador
+    analisis_jugador_texto = generar_analisis_dinamico_jugador(
+        jugador_sel, condicion_sel, nivel_sel, n_obs, 
+        lam_g, lam_t, lam_p, 
+        prob_goles, prob_puerta, prob_contrib
+    )
     st.markdown(f'<div class="analisis-dinamico-box">{analisis_jugador_texto}</div>', unsafe_allow_html=True)
 
     st.caption(f"Base analizada: {n_obs} partidos | Fuente: {fuente} | Ensemble Híbrido Activo")
