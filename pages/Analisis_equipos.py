@@ -143,12 +143,12 @@ def bootstrap_lambda_intervalo(valores, pesos=None, n_bootstrap=500, alpha=0.05)
     upper = np.percentile(boot_means, 100 * (1 - alpha / 2))
     return float(np.mean(vals)), float(lower), float(upper)
 
-def calcular_backtesting_retrospectivo(df_equipo_hist, features_modelo):
-    """Exige al menos 5 partidos reales en el filtro para calcular métricas fiables."""
-    if len(df_equipo_hist) < 5:
+def calcular_backtesting_retrospectivo(historial_filtrado):
+    """Calcula el backtesting utilizando estrictamente la muestra filtrada y procesada del escenario."""
+    if len(historial_filtrado) < 5:
         return None, None
     y_true, y_prob = [], []
-    sub_df = df_equipo_hist.tail(30)
+    sub_df = historial_filtrado.tail(30)
     for i in range(2, len(sub_df)):
         train_window = sub_df.iloc[:i]
         test_row = sub_df.iloc[i:i+1]
@@ -1185,40 +1185,35 @@ if st.session_state.analizado_equipos:
 
     with tab3:
         st.subheader("📈 Validación Retrospectiva (Backtesting & Métricas de Error)")
-        log_loss_val, brier_val = calcular_backtesting_retrospectivo(df_equipo, features_modelo)
+        # AQUÍ PASAMOS ESTRICTAMENTE EL HISTORIAL FILTRADO DEL ESCENARIO
+        log_loss_val, brier_val = calcular_backtesting_retrospectivo(historial)
         
         bc1, bc2 = st.columns(2)
         if log_loss_val is not None:
             bc1.metric("Log Loss (Pérdida Logarítmica)", f"{log_loss_val:.4f}", "Menor es mejor calibración")
             bc2.metric("Brier Score", f"{brier_val:.4f}", "Precisión global 0 a 1 (0 es perfecto)")
-            st.caption("ℹ️ Estas métricas evalúan retrospectivamente el error de las probabilidades del modelo frente a los resultados reales de los últimos partidos del equipo.")
+            st.caption("ℹ️ Estas métricas evalúan retrospectivamente el error de las probabilidades del modelo frente a los resultados reales en este escenario filtrado.")
         else:
-            st.info("ℹ️ Se requieren al menos 5 partidos en este filtro para calcular las métricas de backtesting retrospectivo (actualmente hay menos registros exactos para este escenario).")
+            st.info("ℹ️ Se requieren al menos 5 partidos en este filtro exacto para calcular las métricas de backtesting retrospectivo.")
 
-        # NUEVO: Cuadro comparativo unificado para explicar Log Loss y Brier Score
         st.markdown("---")
-        st.markdown("#### 📘 Guía de Interpretación: Log Loss & Brier Score")
+        st.markdown("#### 📘 Guía de Interpretación Operativa: ¿Qué hacer con estos valores?")
         
         df_guia_metricas = pd.DataFrame([
             {
-                "Métrica de Error": "Log Loss (Pérdida Logarítmica)",
-                "Excelente (Calibración Alta)": "Menor a 0.50",
-                "Aceptable (Margen Normal)": "0.50 a 0.69",
-                "Deficiente (Descalibrado)": "Mayor a 0.69"
+                "Métrica": "Log Loss",
+                "Excelente (< 0.50)": "Alta confianza. Las probabilidades del modelo son firmes; opera con normalidad según el Kelly sugerido.",
+                "Aceptable (0.50 - 0.69)": "Margen moderado. El modelo es funcional pero hay cierta varianza; reduce ligeramente el stake.",
+                "Deficiente (> 0.69)": "Modelo descalibrado para este filtro. Evita apostar o reduce drásticamente la exposición al riesgo."
             },
             {
-                "Métrica de Error": "Brier Score (Precisión Global)",
-                "Excelente (Calibración Alta)": "0.00 a 0.15",
-                "Aceptable (Margen Normal)": "0.16 a 0.25",
-                "Deficiente (Descalibrado)": "Mayor a 0.25"
+                "Métrica": "Brier Score",
+                "Excelente (< 0.15)": "Predicción muy certera. Las probabilidades reflejan con gran exactitud lo sucedido históricamente.",
+                "Aceptable (0.16 - 0.25)": "Calibración estándar. Coherente, aunque el contexto histórico presenta altibajos.",
+                "Deficiente (> 0.25)": "Alta desviación. Las proyecciones no coinciden de forma fiable con los resultados reales."
             }
         ])
         st.dataframe(df_guia_metricas, hide_index=True, use_container_width=True)
-        
-        st.markdown("""
-        * **Log Loss:** Mide cuánta incertidumbre penaliza el modelo al equivocarse en las probabilidades. Cerca de 0.0 indica que el modelo acierta con total seguridad y confianza matemática.
-        * **Brier Score:** Cuantifica el error cuadrático medio entre la probabilidad pronosticada y el resultado real (0 o 1). Un valor cercano a 0.0 representa una precisión perfecta.
-        """)
 
         st.markdown("---")
         st.subheader("📋 Auditoría de Partidos Filtrados")
