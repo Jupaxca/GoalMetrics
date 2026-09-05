@@ -1185,7 +1185,6 @@ if st.session_state.analizado_equipos:
 
     with tab3:
         st.subheader("📈 Validación Retrospectiva (Backtesting & Métricas de Error)")
-        # AQUÍ PASAMOS ESTRICTAMENTE EL HISTORIAL FILTRADO DEL ESCENARIO
         log_loss_val, brier_val = calcular_backtesting_retrospectivo(historial)
         
         bc1, bc2 = st.columns(2)
@@ -1197,23 +1196,26 @@ if st.session_state.analizado_equipos:
             st.info("ℹ️ Se requieren al menos 5 partidos en este filtro exacto para calcular las métricas de backtesting retrospectivo.")
 
         st.markdown("---")
-        st.markdown("#### 📘 Guía de Interpretación Operativa: ¿Qué hacer con estos valores?")
+        st.markdown("#### 📘 Guía de Interpretación y Acción")
         
         df_guia_metricas = pd.DataFrame([
             {
-                "Métrica": "Log Loss",
-                "Excelente (< 0.50)": "Alta confianza. Las probabilidades del modelo son firmes; opera con normalidad según el Kelly sugerido.",
-                "Aceptable (0.50 - 0.69)": "Margen moderado. El modelo es funcional pero hay cierta varianza; reduce ligeramente el stake.",
-                "Deficiente (> 0.69)": "Modelo descalibrado para este filtro. Evita apostar o reduce drásticamente la exposición al riesgo."
+                "Métrica de Error": "Log Loss",
+                "Excelente (< 0.50)": "0.50 a 0.69 (Aceptable)",
+                "Deficiente (> 0.69)": "Alta incertidumbre. Evita apostar o reduce el stake."
             },
             {
-                "Métrica": "Brier Score",
-                "Excelente (< 0.15)": "Predicción muy certera. Las probabilidades reflejan con gran exactitud lo sucedido históricamente.",
-                "Aceptable (0.16 - 0.25)": "Calibración estándar. Coherente, aunque el contexto histórico presenta altibajos.",
-                "Deficiente (> 0.25)": "Alta desviación. Las proyecciones no coinciden de forma fiable con los resultados reales."
+                "Métrica de Error": "Brier Score",
+                "Excelente (< 0.15)": "0.16 a 0.25 (Aceptable)",
+                "Deficiente (> 0.25)": "Desviación alta. Las proyecciones no son confiables."
             }
         ])
-        st.dataframe(df_guia_metricas, hide_index=True, use_container_width=True)
+        # Nota: Tabla limpia compacta y explicación separada en viñetas cortas
+        df_guia_limpia = pd.DataFrame([
+            {"Métrica": "Log Loss", "Excelente": "< 0.50 (Alta confianza)", "Aceptable": "0.50 - 0.69 (Reducir stake)", "Deficiente": "> 0.69 (Evitar operar)"},
+            {"Métrica": "Brier Score", "Excelente": "< 0.15 (Muy certero)", "Aceptable": "0.16 - 0.25 (Estándar)", "Deficiente": "> 0.25 (No confiable)"}
+        ])
+        st.dataframe(df_guia_limpia, hide_index=True, use_container_width=True)
 
         st.markdown("---")
         st.subheader("📋 Auditoría de Partidos Filtrados")
