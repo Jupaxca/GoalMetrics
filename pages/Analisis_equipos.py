@@ -168,18 +168,26 @@ def calcular_backtesting_retrospectivo(df_equipo_hist, features_modelo):
     brier_score = np.mean((y_prob - y_true) ** 2)
     return round(float(log_loss), 4), round(float(brier_score), 4)
 
-def generar_analisis_dinamico(equipo, condicion, nivel, n_obs, lam_f, lam_c, lam_t, triunfos, ambos_anotan):
-    """Genera un párrafo analítico dinámico según los números arrojados."""
-    tendencia = "ofensiva y dominante" if triunfos >= 55 else ("equilibrada pero disputada" if triunfos >= 40 else "con alta complejidad táctica")
-    goles_txt = f"promedia una producción alta de {lam_f:.2f} goles" if lam_f >= 1.5 else f"registra una media contenida de {lam_f:.2f} goles"
-    rival_txt = f"recibe en promedio {lam_c:.2f} goles"
-    
+def generar_analisis_dinamico(equipo, condicion, nivel, n_obs, lam_f, lam_c, lam_t, lam_tp, lam_co, triunfos, ambos_anotan):
+    """Genera un reporte analítico dinámico de nivel profesional adaptado a cualquier equipo."""
+    if triunfos >= 55:
+        perfil = "altamente proactivo, dominante y con clara tendencia a volcar el juego en campo rival"
+    elif triunfos >= 40:
+        perfil = "competitivo, equilibrado y con alta capacidad de alternar el ritmo del juego"
+    else:
+        perfil = "de alta exigencia táctica, con tramos de repliegue y partidos cerrados"
+
     texto = (
-        f"<b>Análisis Dinámico Automatizado:</b> Para el encuentro de <b>{equipo}</b> jugando como <b>{condicion}</b> "
-        f"frente a rivales de nivel <b>{nivel}</b> (analizando una muestra filtrada de <b>{n_obs} partidos</b>), "
-        f"el modelo proyecta una dinámica <b>{tendencia}</b>. El conjunto local/visitante {goles_txt} y {rival_txt}. "
-        f"Con un volumen de <b>{lam_t:.1f} tiros totales</b> estimados y una probabilidad de BTTS del <b>{ambos_anotan:.1f}%</b>, "
-        f"las métricas sugieren prestar especial atención a las líneas de over y al control de posesión en mediocampo."
+        f"<b>Reporte Analítico Táctico:</b> Para el planteamiento de <b>{equipo}</b> como <b>{condicion}</b> "
+        f"frente a bloques de nivel <b>{nivel}</b> (muestra analizada de <b>{n_obs} partidos</b>), el modelo estructural "
+        f"proyecta un comportamiento <b>{perfil}</b>. <br><br>"
+        f"• <b>Producción Ofensiva y Remates:</b> El equipo registra una expectativa de <b>{lam_f:.2f} goles</b>, respaldada por un volumen "
+        f"de <b>{lam_t:.1f} tiros totales</b> y <b>{lam_tp:.1f} remates dirigidos a puerta</b> por encuentro.<br>"
+        f"• <b>Solidez y Exposición Defensiva:</b> Permite una media de <b>{lam_c:.2f} goles en contra</b>, situando la probabilidad "
+        f"de que ambos equipos marquen (BTTS) en un <b>{ambos_anotan:.1f}%</b>.<br>"
+        f"• <b>Dinámica de Córners:</b> Se anticipa una media de <b>{lam_co:.1f} saques de esquina</b> favorables.<br>"
+        f"• <b>Implicaciones de Mercado:</b> Las métricas sugieren prestar especial atención al <b>Over de Goles del equipo</b>, "
+        f"las selecciones de <b>Tiros a Puerta</b> y los mercados de dominio territorial (córners), evitando sobreexposición en escenarios de alta varianza."
     )
     return texto
 
@@ -892,8 +900,8 @@ if st.session_state.analizado_equipos:
 
     st.markdown(f'<div class="veredicto-box"><b>Veredicto:</b> {html.escape(veredicto)}</div>', unsafe_allow_html=True)
     
-    # NUEVO: Bloque de Análisis Dinámico Automatizado
-    analisis_texto = generar_analisis_dinamico(equipo_sel, condicion_label, nivel_sel, n_obs, lam_f, lam_c, lam_t, triunfos, ambos_anotan)
+    # Reporte Analítico Profesional Mejorado
+    analisis_texto = generar_analisis_dinamico(equipo_sel, condicion_label, nivel_sel, n_obs, lam_f, lam_c, lam_t, lam_tp, lam_co, triunfos, ambos_anotan)
     st.markdown(f'<div class="analisis-dinamico-box">{analisis_texto}</div>', unsafe_allow_html=True)
 
     st.caption(f"Base: {n_obs} partidos - {fuente_datos} | Half-Life Decay (30d) | IC 95% Bootstrap λ: [{lam_f_inf:.2f} - {lam_f_sup:.2f}]")
