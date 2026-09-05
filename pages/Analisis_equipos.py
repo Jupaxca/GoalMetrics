@@ -144,44 +144,33 @@ def bootstrap_lambda_intervalo(valores, pesos=None, n_bootstrap=500, alpha=0.05)
     return float(np.mean(vals)), float(lower), float(upper)
 
 def calcular_backtesting_retrospectivo(df_equipo_hist, features_modelo):
-    """Calcula Log Loss y Brier Score retrospectivo sobre los últimos partidos."""
-    if len(df_equipo_hist) < 10:
+    """Mínimo 5 partidos para calcular Log Loss y Brier Score."""
+    if len(df_equipo_hist) < 5:
         return None, None
-    
-    y_true = []
-    y_prob = []
-    
-    # Evaluamos en ventana rodante sobre los últimos partidos
+    y_true, y_prob = [], []
     sub_df = df_equipo_hist.tail(30)
-    for i in range(5, len(sub_df)):
+    
+    # Si hay al menos 5 pero menos de 8, ajustamos la ventana de inicio interna
+    min_i = min(3, len(sub_df) - 2)
+    min_i = max(1, min_i)
+    
+    for i in range(min_i, len(sub_df)):
         train_window = sub_df.iloc[:i]
         test_row = sub_df.iloc[i:i+1]
-        
         g_fav = test_row["Goles"].values[0]
         g_con = test_row["Goles Rival"].values[0]
         actual_win = 1 if g_fav > g_con else 0
-        
-        # Probabilidad empírica simple basada en la media reciente o modelo
         mean_diff = train_window["Diff_Goles"].mean() if "Diff_Goles" in train_window.columns else 0.0
-        prob_est = 1.0 / (1.0 + np.exp(-mean_diff)) # Sigmoide básica de calibración
-        
+        prob_est = 1.0 / (1.0 + np.exp(-mean_diff))
         y_true.append(actual_win)
         y_prob.append(np.clip(prob_est, 0.01, 0.99))
-        
     if not y_true:
         return None, None
-        
-    y_true = np.array(y_true)
-    y_prob = np.array(y_prob)
-    
-    # Log Loss
+    y_true, y_prob = np.array(y_true), np.array(y_prob)
     eps = 1e-15
     y_prob_clipped = np.clip(y_prob, eps, 1 - eps)
     log_loss = -np.mean(y_true * np.log(y_prob_clipped) + (1 - y_true) * np.log(1 - y_prob_clipped))
-    
-    # Brier Score
     brier_score = np.mean((y_prob - y_true) ** 2)
-    
     return round(float(log_loss), 4), round(float(brier_score), 4)
 
 def obtener_peso_tier(tier):
@@ -201,29 +190,22 @@ def calcular_factores_respaldo(row_data, condicion_buscada, tier_objetivo):
     t_match = obtener_peso_tier(tier_partido)
 
     if cond_partido == condicion_buscada:
-        f_cond = 1.0
-        tipo_cond = "Misma condición"
+        f_cond, tipo_cond = 1.0, "Misma condición"
     else:
         if condicion_buscada == "visitante" and cond_partido == "local":
-            f_cond = 0.90
-            tipo_cond = "Cruzado (Casa -> Fuera)"
+            f_cond, tipo_cond = 0.90, "Cruzado (Casa -> Fuera)"
         elif condicion_buscada == "local" and cond_partido == "visitante":
-            f_cond = 1.05
-            tipo_cond = "Cruzado (Fuera -> Casa)"
+            f_cond, tipo_cond = 1.05, "Cruzado (Fuera -> Casa)"
         else:
-            f_cond = 1.0
-            tipo_cond = "Cruzado Estándar"
+            f_cond, tipo_cond = 1.0, "Cruzado Estándar"
 
     diff = tier_objetivo - t_match
     if diff == 0:
-        f_tier = 1.0
-        tipo_tier = "Tier equivalente"
+        f_tier, tipo_tier = 1.0, "Tier equivalente"
     elif diff > 0:
-        f_tier = max(0.65, 1.0 - (diff * 0.12))
-        tipo_tier = "Ajuste a la baja"
+        f_tier, tipo_tier = max(0.65, 1.0 - (diff * 0.12)), "Ajuste a la baja"
     else:
-        f_tier = min(1.35, 1.0 + (abs(diff) * 0.10))
-        tipo_tier = "Ajuste al alza"
+        f_tier, tipo_tier = min(1.35, 1.0 + (abs(diff) * 0.10)), "Ajuste al alza"
 
     return f_cond * f_tier, f"Respaldo | {tipo_cond} | {tipo_tier} ({tier_partido})"
 
@@ -628,17 +610,14 @@ def calcular_ev(prob, cuota):
     return round((prob / 100 * cuota) - 1, 4)
 
 def calcular_kelly_seguro(prob, cuota, n_obs):
-    """Calcula Half-Kelly con Cap estricto y protección para muestras pequeñas."""
     if cuota <= 1.0 or prob <= 0 or n_obs < 3:
         return 0.0
     p, b = prob / 100.0, cuota - 1.0
     if b <= 0:
         return 0.0
-    
     kelly_fraction = ((p * cuota - 1.0) / b) * 0.5
     if kelly_fraction <= 0:
         return 0.0
-        
     cap_max = 0.01 if n_obs < 6 else 0.02
     stake_final = min(kelly_fraction, cap_max)
     return round(stake_final * 100, 2)
@@ -659,16 +638,23 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, n_obs, muestra_pequ
     )
 
 st.markdown("### GoalMetrics - Análisis de Equipos (Híbrido Pro)")
-st.caption("Simulación con Poisson, Dixon-Coles, XGBoost cacheado, Bootstrap, Half-Life Decay y Backtesting de precisión.")
+st.caption("Simulación con Poisson, Dixon-Coles, Ensemble XGBoost, Bootstrap, Half-Life Decay, Backtesting y gestión de bankroll.")
 
 with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis de Equipos?", expanded=False):
     st.markdown("""
-    Bienvenido al **Centro de Análisis de Equipos de GoalMetrics**. Esta herramienta combina estadística avanzada y Machine Learning optimizado.
+    Bienvenido al **Centro de Análisis de Equipos de GoalMetrics**. Esta herramienta combina estadística avanzada y Machine Learning. Aquí te detallamos cómo opera cada módulo interno:
     
-    * **1. Semáforo de Confiabilidad:** Evalúa la robustez de la muestra de partidos exactos.
-    * **2. Shrinkage, Bootstrap e Intervalos:** Corrige sesgos y calcula incertidumbre en muestras pequeñas.
-    * **3. Half-Life Decay:** Ponderación temporal exponencial (vida media de 30 días) para dar más peso al rendimiento reciente.
-    * **4. Backtesting (Log Loss & Brier Score):** Auditoría interna para medir el error predictivo y calibración real del modelo.
+    * **1. Semáforo de Confiabilidad:** Evalúa al instante la robustez de la muestra de partidos exactos. 
+      * 🟢 *Verde:* Suficientes partidos exactos en el escenario buscado (>= 2).
+      * 🟡 *Amarillo:* Muestra mixta o con 1 solo partido exacto, activando el respaldo inteligente ajustado por *Tier*.
+      * 🔴 *Rojo:* Muestra crítica o escasa, requiere máxima precaución.
+    * **2. Shrinkage (Compensación Estadística):** Cuando un equipo cuenta con pocos partidos en un escenario específico, los promedios empíricos pueden estar sesgados. El **Shrinkage** corrige esto ponderando la tasa observada hacia una media previa (*prior*) de la liga para ese mismo nivel de rival.
+    * **3. Modelo Dixon-Coles (Corrección de Empates y Bajas):** Introduce un factor de corrección (tau) controlado por el parámetro de correlación $\rho$ para ajustar la probabilidad en marcadores cerrados y de baja anotación.
+    * **4. Ensemble Híbrido (Poisson/Dixon-Coles + XGBoost):** Integra la solidez estocástica de las distribuciones de goles con modelos de Machine Learning (XGBoost).
+    * **5. Value Bets & Criterio de Half-Kelly con Cap:** Evalúa el Valor Esperado (EV) contrastando las probabilidades frente a las cuotas de las casas de apuestas, aplicando un límite estricto de stake en muestras pequeñas para blindar el capital real.
+    * **6. Bootstrap e Intervalos de Confianza:** Remuestreo no paramétrico que repite el cálculo de la tasa de goles ($\lambda$) cientos de veces para entregarte un intervalo de confianza real (IC 95%) y medir la incertidumbre.
+    * **7. Half-Life Decay (Decaimiento Exponencial Temporal):** Asigna mayor peso a los partidos recientes mediante una vida media de 30 días, haciendo que los encuentros más antiguos pierdan peso analítico de forma no lineal para reflejar mejor el momento actual del equipo.
+    * **8. Validación Retrospectiva (Log Loss & Brier Score):** Auditoría interna en ventana rodante que mide el error logarítmico y la calibración real de las probabilidades del modelo frente a los resultados históricos.
     """)
 
 if "analizado_equipos" not in st.session_state:
@@ -787,7 +773,6 @@ if st.session_state.analizado_equipos:
     half_life_days = 30.0
     if "Fecha" in historial.columns:
         historial["Dias_Pasados"] = (hoy - pd.to_datetime(historial["Fecha"])).dt.days.clip(lower=0)
-        # Fórmula de vida media exponencial: w = 0.5 ^ (dias / half_life)
         historial["Peso_Temporal"] = np.power(0.5, historial["Dias_Pasados"] / half_life_days)
     else:
         historial["Peso_Temporal"] = 1.0
@@ -812,7 +797,6 @@ if st.session_state.analizado_equipos:
     lam_co_raw, lam_fa_raw = prom("Corners"), prom("Faltas")
     lam_co_rival_raw = prom("Corners Rival") if "Corners Rival" in historial.columns else prom("Corners")
 
-    # Análisis Bootstrap de incertidumbre para la tasa de goles
     goles_vals = historial["Goles"].fillna(0).values if "Goles" in historial.columns else np.array([0])
     _, lam_f_inf, lam_f_sup = bootstrap_lambda_intervalo(goles_vals, pesos.values if len(pesos)==len(goles_vals) else None)
 
@@ -848,7 +832,6 @@ if st.session_state.analizado_equipos:
         sg_con = rng.poisson(max(lam_c, 0.01), num_sim)
 
     s_tir, s_tpuerta, s_corn, s_faltas = simular_stats_poisson(lam_t, lam_tp, lam_co, lam_fa, num_sim=num_sim)
-    s_corn_rival = np.random.default_rng(42).poisson(max(lam_co_rival, 0.01), num_sim)
 
     triunfos_base = (sg_fav > sg_con).mean() * 100
     empates = (sg_fav == sg_con).mean() * 100
@@ -965,6 +948,67 @@ if st.session_state.analizado_equipos:
         st.plotly_chart(fig_matrix, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
+        st.markdown("---")
+        st.subheader("📈 Curvas de Probabilidad Acumulada (Over X)")
+        
+        max_g_sim = int(max(sg_fav)) + 2
+        goal_vals = [float(i + 0.5) for i in range(max_g_sim)]
+        cum_probs_goles = [float((sg_fav > g).mean() * 100) for g in goal_vals]
+
+        fig_cum_goles = go.Figure(data=go.Scatter(
+            x=goal_vals, y=cum_probs_goles, mode='lines+markers+text',
+            text=[f"{p:.1f}%" if p > 1.0 else "" for p in cum_probs_goles], textposition="top center",
+            line=dict(color="#10b981", width=3), marker=dict(size=8)
+        ))
+        fig_cum_goles.update_layout(
+            title=dict(text=f"<b>Acumulada de Goles (Over X)</b>", font=dict(size=14, color="#F3F4F6")),
+            xaxis=dict(title="Línea de Goles", tickmode='array', tickvals=goal_vals, ticktext=[str(g) for g in goal_vals], color="#9ca3af", gridcolor="#1f2937"),
+            yaxis=dict(title="Probabilidad (%)", color="#9ca3af", gridcolor="#1f2937", range=[0, 115]),
+            paper_bgcolor="#111827", plot_bgcolor="#111827", font=dict(color="#F3F4F6"),
+            height=350, margin=dict(l=30, r=20, t=40, b=30)
+        )
+        st.markdown('<div class="saas-card">', unsafe_allow_html=True)
+        st.plotly_chart(fig_cum_goles, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        max_c = int(max(s_corn)) + 2
+        step_tick = 2 if max_c > 12 else 1
+        corner_vals = list(range(0, max_c, step_tick))
+        cum_probs_corners = [float((s_corn > c).mean() * 100) for c in corner_vals]
+
+        fig_cum_corners = go.Figure(data=go.Scatter(
+            x=corner_vals, y=cum_probs_corners, mode='lines+markers+text',
+            text=[f"{p:.1f}%" if p > 5.0 else "" for p in cum_probs_corners], textposition="top center",
+            line=dict(color=color_equipo, width=3), marker=dict(size=8)
+        ))
+        fig_cum_corners.update_layout(
+            title=dict(text=f"<b>Acumulada de Córners (Over X)</b>", font=dict(size=14, color="#F3F4F6")),
+            xaxis=dict(title="Línea de Córners", tickmode='array', tickvals=corner_vals, ticktext=[str(c) for c in corner_vals], color="#9ca3af", gridcolor="#1f2937"),
+            yaxis=dict(title="Probabilidad (%)", color="#9ca3af", gridcolor="#1f2937", range=[0, 115]),
+            paper_bgcolor="#111827", plot_bgcolor="#111827", font=dict(color="#F3F4F6"),
+            height=350, margin=dict(l=30, r=20, t=40, b=30)
+        )
+        st.markdown('<div class="saas-card">', unsafe_allow_html=True)
+        st.plotly_chart(fig_cum_corners, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        if not historial.empty and "A Puerta" in historial.columns and "Goles" in historial.columns:
+            st.markdown("---")
+            fig_scatter = go.Figure()
+            fig_scatter.add_trace(go.Scatter(
+                x=historial["A Puerta"], y=historial["Goles"], mode="markers+text",
+                text=historial.get("Rival", ""), textposition="top center",
+                marker=dict(size=12, color=color_equipo, line=dict(width=2, color="white"), opacity=0.85),
+                hovertemplate="<b>Rival:</b> %{text}<br><b>Tiros a Puerta:</b> %{x}<br><b>Goles Anotados:</b> %{y}<extra></extra>"
+            ))
+            fig_scatter.update_layout(
+                title="Tiros a Puerta vs Goles por Partido", xaxis_title="Tiros a Puerta", yaxis_title="Goles Anotados",
+                paper_bgcolor="#111827", plot_bgcolor="#111827", font=dict(color="#F3F4F6"), height=350, margin=dict(l=40, r=40, t=40, b=40)
+            )
+            st.markdown('<div class="saas-card">', unsafe_allow_html=True)
+            st.plotly_chart(fig_scatter, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
     with tab2:
         st.subheader("💰 Value Bet y Half-Kelly Seguro")
         items_1x2 = [
@@ -1032,6 +1076,60 @@ if st.session_state.analizado_equipos:
         else:
             st.info("ℹ️ No hay mercados con EV positivo estricto en este momento.")
 
+        st.markdown("---")
+        st.subheader("🔗 Constructor de Combinada Inteligente (Parlay)")
+        nombres_mercados_eq = [m["nombre"] for m in lista_mercados_eq_dict]
+        parlay_eq = st.multiselect("Elige los mercados para tu combinada:", options=nombres_mercados_eq, key="parlay_eq_input")
+
+        mercados_goles_bool = {
+            "Victoria (1)": sg_fav > sg_con,
+            "Empate (X)": sg_fav == sg_con,
+            "Derrota (2)": sg_fav < sg_con,
+            "1X": sg_fav >= sg_con,
+            "X2": sg_fav <= sg_con,
+            "BTTS Si": (sg_fav > 0) & (sg_con > 0),
+            "BTTS No": ~((sg_fav > 0) & (sg_con > 0)),
+            f"Over {linea_goles} Goles": sg_fav > linea_goles,
+            f"Over {linea_total_partido} Goles partido": (sg_fav + sg_con) > linea_total_partido,
+        }
+
+        if parlay_eq:
+            legs_goles = [n for n in parlay_eq if n in mercados_goles_bool]
+            legs_independientes = [n for n in parlay_eq if n not in mercados_goles_bool]
+
+            if legs_goles:
+                mask_conjunta = np.ones(num_sim, dtype=bool)
+                for n in legs_goles:
+                    mask_conjunta &= mercados_goles_bool[n]
+                p_goles_conjunta = float(mask_conjunta.mean())
+            else:
+                p_goles_conjunta = 1.0
+
+            p_indep = 1.0
+            for n in legs_independientes:
+                m_info = next(m for m in lista_mercados_eq_dict if m["nombre"] == n)
+                p_indep *= (m_info["prob"] / 100.0)
+
+            p_conj = p_goles_conjunta * p_indep
+            p_conj_pct = p_conj * 100.0
+            c_justa_parlay = round(100 / p_conj_pct, 2) if p_conj_pct > 0 else 99.0
+
+            st.markdown(f"**Probabilidad Conjunta:** `{p_conj_pct:.2f}%`")
+            st.markdown(f"**Cuota Justa Combinada:** `{c_justa_parlay}`")
+
+            cuota_casa_parlay_eq = st.number_input("Cuota total que paga la casa:", min_value=1.01, value=c_justa_parlay * 0.95, step=0.05, format="%.2f", key="cuota_parlay_eq_input")
+            ev_parlay_eq = calcular_ev(p_conj_pct, cuota_casa_parlay_eq)
+            stake_parlay_eq = calcular_kelly_seguro(p_conj_pct, cuota_casa_parlay_eq, n_obs)
+            
+            col_ep1, col_ep2 = st.columns(2)
+            col_ep1.metric("EV de la Combinada", f"{ev_parlay_eq:+.2%}")
+            if ev_parlay_eq > 0:
+                col_ep2.metric("Stake Sugerido", f"{stake_parlay_eq}% del Bank")
+                st.success(f"🎉 ¡Combinada con EV positivo! Stake recomendado: {stake_parlay_eq}%.")
+            else:
+                col_ep2.metric("Stake Sugerido", "0%")
+                st.warning("⚠️ EV Negativo.")
+
     with tab3:
         st.subheader("📈 Validación Retrospectiva (Backtesting & Métricas de Error)")
         log_loss_val, brier_val = calcular_backtesting_retrospectivo(df_equipo, features_modelo)
@@ -1042,7 +1140,7 @@ if st.session_state.analizado_equipos:
             bc2.metric("Brier Score", f"{brier_val:.4f}", "Precisión global 0 a 1 (0 es perfecto)")
             st.caption("ℹ️ Estas métricas evalúan retrospectivamente el error de las probabilidades del modelo frente a los resultados reales de los últimos partidos del equipo.")
         else:
-            st.info("ℹ️ Se requieren al menos 10 partidos registrados para calcular las métricas de backtesting retrospectivo de este equipo.")
+            st.info("ℹ️ Se requieren al menos 5 partidos registrados para calcular las métricas de backtesting retrospectivo de este equipo.")
 
         st.markdown("---")
         st.subheader("📋 Auditoría de Partidos Filtrados")
