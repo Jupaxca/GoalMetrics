@@ -10,9 +10,18 @@ import unicodedata
 
 try:
     import xgboost as xgb
+    import sklearn  # requerido por XGBClassifier
     XGB_DISPONIBLE = True
 except ImportError:
     XGB_DISPONIBLE = False
+    xgb = None
+
+st.set_page_config(
+    page_title="GoalMetrics | Análisis de Jugadores (Híbrido Pro)",
+    page_icon="⚽",
+    layout="wide"
+)
+
 
 @st.cache_data(ttl=600)
 def cargar_datos_jugadores():
@@ -171,15 +180,19 @@ def entrenar_predictor_xgboost_jugadores(df_historico, features_modelo):
     X = df_clean[list(features_modelo)]
     y = df_clean["Target_Gol"]
     
-    model = xgb.XGBClassifier(
-        n_estimators=60,
-        max_depth=3,
-        learning_rate=0.05,
-        random_state=42,
-        eval_metric="logloss"
-    )
-    model.fit(X, y)
-    return model
+    try:
+        model = xgb.XGBClassifier(
+            n_estimators=60,
+            max_depth=3,
+            learning_rate=0.05,
+            random_state=42,
+            eval_metric="logloss",
+        )
+        model.fit(X, y)
+        return model
+    except Exception:
+        # Sin sklearn u otro fallo: sigue solo con Poisson
+        return None
 
 def predecir_probabilidad_hibrida_jugador(prob_poisson, jugador_actual_df, features_modelo, modelo_xgb, n_obs):
     if modelo_xgb is None or jugador_actual_df.empty or n_obs < 5:
@@ -611,12 +624,12 @@ with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis?", expande
     Bienvenido al centro analítico de jugadores. A continuación se detalla cómo operan los módulos principales:
     
     * **1. Semáforo de Confiabilidad:** Clasifica la robustez de la muestra de partidos exactos. 
-      * 🟢 *Verde:* Suficientes partidos exactos en el escenario buscado ($\ge 2$).
+      * 🟢 *Verde:* Suficientes partidos exactos en el escenario buscado (≥ 2).
       * 🟡 *Amarillo:* Muestra mixta o con 1 solo partido exacto, activando el respaldo inteligente ajustado por *Tier*.
       * 🔴 *Rojo:* Muestra crítica o escasa, requiere máxima precaución.
     * **2. Shrinkage (Compensación Estadística):** Cuando un jugador cuenta con pocos partidos en un escenario específico, sus promedios aparentes pueden estar sesgados. El **Shrinkage** corrige esto encogiendo o ajustando las tasas empíricas hacia una media previa (*prior*) de la liga para ese mismo nivel de rival.
     * **3. Modelo Híbrido (Poisson + XGBoost):** Modela las variables de conteo mediante distribuciones de Poisson y refina las probabilidades con Machine Learning (XGBoost), evaluando momentum y medias móviles recientes de rendimiento.
-    * **4. Métricas, Volatilidad ($\sigma$) e Intervalos (IC 95%):** Cada tarjeta muestra la tasa esperada ($\lambda$) junto con su desviación estándar e intervalos de confianza generados por Bootstrap (remuestreo 500x) para cuantificar la incertidumbre.
+    * **4. Métricas, Volatilidad (σ) e Intervalos (IC 95%):** Cada tarjeta muestra la tasa esperada (λ) junto con su desviación estándar e intervalos de confianza generados por Bootstrap (remuestreo 500x) para cuantificar la incertidumbre.
     * **5. Value Bets & Criterio de Half-Kelly:** Evalúa el Valor Esperado (EV) comparando la probabilidad del modelo frente a las cuotas de la casa de apuestas y dimensiona el stake de forma conservadora usando el criterio fraccional de Kelly.
     * **6. Validación y Curva de Calibración:** El sistema evalúa retrospectivamente su precisión prediciendo si el jugador anotará (Log Loss / Brier Score) y lo mapea visualmente para detectar sesgos.
     """)
