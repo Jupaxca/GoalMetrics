@@ -115,7 +115,6 @@ def _entrenar_xgboost_real(df_historico, features_modelo):
         model.fit(X, y)
         return model
     except Exception:
-        # Sin sklearn u otro fallo: continúa solo con Poisson/Dixon-Coles
         return None
 
 def predecir_probabilidad_hibrida(prob_poisson, equipo_actual_df, features_modelo, modelo_xgb, n_obs):
@@ -206,7 +205,6 @@ def calcular_backtesting_retrospectivo(historial_filtrado):
     log_loss = -np.mean(y_true * np.log(y_prob_clipped) + (1 - y_true) * np.log(1 - y_prob_clipped))
     brier_score = np.mean((y_prob - y_true) ** 2)
     
-    # Generar Curva de Calibración (Buckets 10%)
     bins = np.linspace(0, 1, 11)
     binned_prob = []
     binned_true = []
@@ -592,22 +590,45 @@ liga_sel_html = html.escape(liga_sel)
 
 st.markdown(f"""
 <style>
+/* Estilo SaaS de Élite y Tipografía Inter */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+html, body, [class*="css"] {{
+    font-family: 'Inter', sans-serif;
+    background-color: #0b0f19;
+    color: #f3f4f6;
+}}
+
+#MainMenu {{visibility: hidden;}}
+footer {{visibility: hidden;}}
+
 header[data-testid="stHeader"] {{
     visibility: visible !important;
     background: transparent !important;
 }}
 
+.block-container {{
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    max-width: 1400px;
+}}
+
+[data-testid="stSidebar"] {{
+    background-color: #111827;
+    border-right: 1px solid #1f2937;
+}}
+
 .header-box {{
-    background: linear-gradient(135deg, {color_equipo} 0%, #111827 100%);
+    background: linear-gradient(135deg, {color_equipo} 0%, #0f172a 100%);
     padding: 24px 30px; 
     border-radius: 16px; 
     color: white;
     font-weight: 700; 
-    font-size: 26px; 
-    margin-bottom: 20px; 
+    font-size: 24px; 
+    margin-bottom: 25px; 
     text-align: center;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.15);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -636,32 +657,58 @@ header[data-testid="stHeader"] {{
 }}
 .analisis-dinamico-box {{
     background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
-    padding: 20px;
+    padding: 22px;
     border-radius: 14px;
     border: 1px solid {color_equipo}66;
     margin-bottom: 20px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
     font-size: 15px;
     line-height: 1.6;
     color: #e5e7eb;
 }}
-.value-box {{ padding: 14px 16px; border-radius: 12px; margin-bottom: 10px; font-size: 14px; border: 1px solid #1f2937; }}
+.value-box {{ padding: 14px 16px; border-radius: 12px; margin-bottom: 12px; font-size: 14px; border: 1px solid #1f2937; transition: all 0.2s ease; }}
 .value-yes {{ background-color: rgba(6, 78, 59, 0.4); border-left: 4px solid #10b981; }}
 .value-no {{ background-color: #111827; border-left: 4px solid #4b5563; }}
-.top-pick-box {{ background: linear-gradient(135deg, rgba(6, 95, 70, 0.8) 0%, #111827 100%); padding: 22px; border-radius: 14px; border: 2px solid #10b981; margin-bottom: 20px; box-shadow: 0 8px 20px rgba(16, 185, 129, 0.15); }}
+.top-pick-box {{ background: linear-gradient(135deg, rgba(6, 95, 70, 0.8) 0%, #111827 100%); padding: 24px; border-radius: 14px; border: 2px solid #10b981; margin-bottom: 20px; box-shadow: 0 10px 25px rgba(16, 185, 129, 0.2); }}
 
 .saas-card {{
     background-color: #111827;
-    border: 1px solid {color_equipo}44;
+    border: 1px solid #1f2937;
     border-radius: 14px;
-    padding: 20px;
+    padding: 22px;
     margin-bottom: 20px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    transition: all 0.2s ease-in-out;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
+    transition: all 0.25s ease-in-out;
 }}
 .saas-card:hover {{
     border-color: {color_equipo};
-    box-shadow: 0 6px 25px {color_equipo}22;
+    box-shadow: 0 10px 30px {color_equipo}22;
+}}
+
+div[data-testid="stMetric"] {{
+    background-color: #111827;
+    border: 1px solid #1f2937;
+    padding: 16px 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease-in-out;
+    margin-bottom: 12px;
+}}
+div[data-testid="stMetric"]:hover {{
+    border-color: #374151;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+}}
+div[data-testid="stMetric"] label {{
+    color: #9ca3af !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}}
+div[data-testid="stMetric"] [data-testid="stMetricValue"] {{
+    color: #ffffff !important;
+    font-size: 1.6rem !important;
+    font-weight: 700 !important;
 }}
 
 [data-testid="stDataFrame"] {{
@@ -697,7 +744,8 @@ def renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa):
         y=alt.Y("Metrica:N", sort="-x", title=None),
         color=alt.value(color_equipo),
         tooltip=["Metrica", "Puntuacion"],
-    ).properties(height=220)
+    ).properties(height=220, background="#111827")
+    chart = chart.configure_view(stroke=None).configure_axis(gridColor="#1f2937", labelColor="#9ca3af")
     st.altair_chart(chart, use_container_width=True)
 
 def calcular_ev(prob, cuota):
@@ -740,24 +788,24 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, n_obs, muestra_pequ
         unsafe_allow_html=True,
     )
 
-st.markdown("### GoalMetrics - Análisis de Equipos (Híbrido Pro)")
-st.caption("Simulación con Poisson, Dixon-Coles, Ensemble XGBoost, Bootstrap, Half-Life Decay, Backtesting y gestión de bankroll.")
+st.markdown("### Centro de Análisis de Equipos (Híbrido Pro)")
+st.caption("Simulación avanzada con Poisson, Dixon-Coles, Ensemble XGBoost, Bootstrap, Half-Life Decay, Backtesting y gestión de bankroll.")
 
 with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis de Equipos?", expanded=False):
     st.markdown("""
     Bienvenido al **Centro de Análisis de Equipos de GoalMetrics**. Esta herramienta combina estadística avanzada y Machine Learning. Aquí te detallamos cómo opera cada módulo interno:
     
     * **1. Semáforo de Confiabilidad:** Evalúa al instante la robustez de la muestra de partidos exactos. 
-      * 🟢 *Verde:* Suficientes partidos exactos en el escenario buscado (>= 2).
+      * 🟢 *Verde:* Suficientes partidos exactos en el escenario buscado ($\ge 2$).
       * 🟡 *Amarillo:* Muestra mixta o con 1 solo partido exacto, activando el respaldo inteligente ajustado por *Tier*.
       * 🔴 *Rojo:* Muestra crítica o escasa, requiere máxima precaución.
     * **2. Shrinkage (Compensación Estadística):** Cuando un equipo cuenta con pocos partidos en un escenario específico, los promedios empíricos pueden estar sesgados. El **Shrinkage** corrige esto ponderando la tasa observada hacia una media previa (*prior*) de la liga para ese mismo nivel de rival.
-    * **3. Modelo Dixon-Coles (Corrección de Empates y Bajas):** Introduce un factor de corrección (tau) controlado por el parámetro de correlación $\rho$ para ajustar la probabilidad en marcadores cerrados y de baja anotación.
+    * **3. Modelo Dixon-Coles (Corrección de Empates y Bajas):** Introduce un factor de corrección controlado por el parámetro de correlación $\rho$ para ajustar la probabilidad en marcadores cerrados y de baja anotación.
     * **4. Ensemble Híbrido (Poisson/Dixon-Coles + XGBoost + De-vig de Mercado):** Integra la solidez estocástica de las distribuciones de goles, Machine Learning y ajuste probabilístico frente a las cuotas de las casas.
     * **5. Value Bets & Criterio de Half-Kelly con Cap:** Evalúa el Valor Esperado (EV) contrastando las probabilidades frente a las cuotas, aplicando un límite estricto de stake en muestras pequeñas para blindar el capital real.
-    * **6. Bootstrap e Intervalos de Confianza (95%):** Remuestreo no paramétrico que repite el cálculo de la tasa de acierto en todas las estadísticas principales (Goles, Tiros, Córners) para entregarte un intervalo real y medir la incertidumbre.
+    * **6. Bootstrap e Intervalos de Confianza (95%):** Remuestreo no paramétrico que repite el cálculo de la tasa de acierto en todas las estadísticas principales para entregarte un intervalo real y medir la incertidumbre.
     * **7. Half-Life Decay (Decaimiento Exponencial Temporal):** Asigna mayor peso a los partidos recientes mediante una vida media de 30 días, haciendo que los encuentros más antiguos pierdan peso analítico de forma no lineal.
-    * **8. Validación Retrospectiva & Curva de Calibración:** Auditoría interna que mide el error (Log Loss, Brier Score) y un Diagrama de Confiabilidad (Reliability Diagram) para visualizar si el modelo peca de optimista o pesimista en distintos rangos de probabilidad.
+    * **8. Validación Retrospectiva & Curva de Calibración:** Auditoría interna que mide el error (Log Loss, Brier Score) y un Diagrama de Confiabilidad para visualizar si el modelo peca de optimista o pesimista.
     """)
 
 if "analizado_equipos" not in st.session_state:
@@ -871,7 +919,6 @@ if st.session_state.analizado_equipos:
             '</div>', unsafe_allow_html=True
         )
 
-    # Decaimiento Exponencial Temporal Avanzado (Half-Life Decay de 30 días)
     hoy = pd.Timestamp.today().normalize()
     half_life_days = 30.0
     if "Fecha" in historial.columns:
@@ -906,7 +953,6 @@ if st.session_state.analizado_equipos:
     lam_co_raw, lam_fa_raw = prom("Corners"), prom("Faltas")
     lam_co_rival_raw = prom("Corners Rival") if "Corners Rival" in historial.columns else prom("Corners")
 
-    # IC 95% Bootstrap para variables clave
     ic_goles = calc_ci("Goles")
     ic_goles_rival = calc_ci("Goles Rival")
     ic_tiros = calc_ci("Tiros")
@@ -965,7 +1011,6 @@ if st.session_state.analizado_equipos:
         empates_hibrido = resto / 2.0
         derrotas_hibrido = resto / 2.0
 
-    # Aplicar De-vig y Blending con cuotas de mercado para 1X2
     triunfos, empates, derrotas = aplicar_devig_y_blend_1x2(
         triunfos_hibrido, empates_hibrido, derrotas_hibrido, cuota_casa_1, cuota_casa_x, cuota_casa_2
     )
@@ -1317,7 +1362,7 @@ if st.session_state.analizado_equipos:
         **💡 Interpretación Práctica (¿Qué hacer en cada caso?):**
         * **🟢 Rango Excelente:** El modelo está muy bien calibrado. Puedes operar con total confianza siguiendo el stake sugerido por Half-Kelly.
         * **🟡 Rango Aceptable:** Margen moderado de error. El modelo es funcional, pero debido a la varianza histórica es recomendable **reducir ligeramente el stake**.
-        * **🔴 Rango Deficiente:** El modelo presenta alta desviación o descalibración para este filtro. La recomendación operativa es **evitar apostar o reducir drásticamente la exposición al riesgo**.
+        * **🔴 Rango Deficiente:** El modelo presenta alta desviación o descalibración para este filtro. La recomendación operativa es **evitar apostar o reducir drásticamente la exposición al riesgo**.___
         """)
 
         st.markdown("---")
