@@ -205,6 +205,72 @@ def shrinkage_lambda(lam_obs, lam_prior, n_obs, k=5.0):
     n = max(float(n_obs), 0.0)
     return (n * lam_obs + k * lam_prior) / (n + k)
 
+def bootstrap_lambda_intervalo(valores, pesos=None, n_bootstrap=500, alpha=0.05):
+    if len(valores) == 0:
+        return 0.0, 0.0, 0.0
+    vals = np.array(valores)
+    if pesos is not None:
+        p = np.array(pesos)
+        p = p / p.sum()
+    else:
+        p = None
+        
+    boot_means = []
+    rng = np.random.default_rng(42)
+    for _ in range(n_bootstrap):
+        indices = rng.choice(len(vals), size=len(vals), replace=True, p=p)
+        muestra = vals[indices]
+        boot_means.append(np.mean(muestra))
+        
+    lower = np.percentile(boot_means, 100 * (alpha / 2))
+    upper = np.percentile(boot_means, 100 * (1 - alpha / 2))
+    return float(np.mean(vals)), float(lower), float(upper)
+
+def calcular_backtesting_retrospectivo_jugadores(historial_filtrado):
+    if len(historial_filtrado) < 5:
+        return None, None, None, None, None
+    y_true, y_prob = [], []
+    sub_df = historial_filtrado.tail(30).copy()
+    
+    for i in range(2, len(sub_df)):
+        train_window = sub_df.iloc[:i]
+        test_row = sub_df.iloc[i:i+1]
+        
+        g_jugador = test_row["Goles"].values[0]
+        actual_gol = 1 if g_jugador > 0 else 0
+        
+        # Usamos la media móvil del jugador como estimador de lambda para evaluar el error retrospectivo
+        mean_goles = train_window["Goles"].mean()
+        prob_est = 1.0 - np.exp(-mean_goles)
+        
+        y_true.append(actual_gol)
+        y_prob.append(np.clip(prob_est, 0.01, 0.99))
+        
+    if not y_true:
+        return None, None, None, None, None
+        
+    y_true, y_prob = np.array(y_true), np.array(y_prob)
+    eps = 1e-15
+    y_prob_clipped = np.clip(y_prob, eps, 1 - eps)
+    
+    log_loss = -np.mean(y_true * np.log(y_prob_clipped) + (1 - y_true) * np.log(1 - y_prob_clipped))
+    brier_score = np.mean((y_prob - y_true) ** 2)
+    
+    bins = np.linspace(0, 1, 11)
+    binned_prob = []
+    binned_true = []
+    counts = []
+    for i in range(10):
+        lower = bins[i]
+        upper = bins[i+1] if i < 9 else 1.01
+        mask = (y_prob >= lower) & (y_prob < upper)
+        if np.any(mask):
+            binned_prob.append(float(y_prob[mask].mean()))
+            binned_true.append(float(y_true[mask].mean()))
+            counts.append(int(np.sum(mask)))
+            
+    return round(float(log_loss), 4), round(float(brier_score), 4), binned_prob, binned_true, counts
+
 def generar_analisis_dinamico_jugador(jugador, condicion, nivel, n_obs, lam_g, lam_t, lam_p, prob_goles, prob_puerta, prob_contrib):
     if prob_goles >= 45:
         tendencia = "altamente influyente, punzante y con gran protagonismo ofensivo"
@@ -544,7 +610,7 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, n_obs, real=None, m
     )
 
 st.markdown("### Centro de Analisis Individual de Jugadores (Híbrido Pro)")
-st.caption("Asistente inteligente con semáforo de confiabilidad, compensación estadística (Shrinkage) y gráficos integrados.")
+st.caption("Asistente inteligente con semáforo de confiabilidad, compensación estadística (Shrinkage), Bootstrap IC y gráficos integrados.")
 
 with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis?", expanded=False):
     st.markdown("""
@@ -556,8 +622,9 @@ with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis?", expande
       * 🔴 *Rojo:* Muestra crítica o escasa, requiere máxima precaución.
     * **2. Shrinkage (Compensación Estadística):** Cuando un jugador cuenta con pocos partidos en un escenario específico, sus promedios aparentes pueden estar sesgados. El **Shrinkage** corrige esto encogiendo o ajustando las tasas empíricas hacia una media previa (*prior*) de la liga para ese mismo nivel de rival.
     * **3. Modelo Híbrido (Poisson + XGBoost):** Modela las variables de conteo mediante distribuciones de Poisson y refina las probabilidades con Machine Learning (XGBoost), evaluando momentum y medias móviles recientes de rendimiento.
-    * **4. Métricas, Volatilidad ($\sigma$) y Radar:** Cada tarjeta muestra la tasa esperada ($\lambda$) junto con su desviación estándar o volatilidad exacta, acompañada de un gráfico de radar para evaluar el perfil global del jugador.
+    * **4. Métricas, Volatilidad ($\sigma$) e Intervalos (IC 95%):** Cada tarjeta muestra la tasa esperada ($\lambda$) junto con su desviación estándar e intervalos de confianza generados por Bootstrap (remuestreo 500x) para cuantificar la incertidumbre.
     * **5. Value Bets & Criterio de Half-Kelly:** Evalúa el Valor Esperado (EV) comparando la probabilidad del modelo frente a las cuotas de la casa de apuestas y dimensiona el stake de forma conservadora usando el criterio fraccional de Kelly.
+    * **6. Validación y Curva de Calibración:** El sistema evalúa retrospectivamente su precisión prediciendo si el jugador anotará (Log Loss / Brier Score) y lo mapea visualmente para detectar sesgos.
     """)
 
 if "analizado_jugadores" not in st.session_state:
@@ -702,11 +769,30 @@ if st.session_state.analizado_jugadores:
     def std_w(col):
         return float(historial[col].std()) if col in historial.columns and len(historial) > 1 else 0.0
 
+    def calc_ci(col_name):
+        vals = historial[col_name].fillna(0).values if col_name in historial.columns else np.array([0])
+        w = pesos.values if len(pesos) == len(vals) else None
+        _, inf, sup = bootstrap_lambda_intervalo(vals, w)
+        return inf, sup
+
     lam_g_raw = prom_w("Goles")
     lam_t_raw = prom_w("Tiros")
     lam_p_raw = prom_w("A Puerta")
     lam_a_raw = prom_w("Asistencias")
     lam_f_raw = prom_w("Faltas")
+
+    # IC 95% Bootstrap para variables de jugador
+    ic_goles = calc_ci("Goles")
+    ic_asist = calc_ci("Asistencias")
+    ic_tiros = calc_ci("Tiros")
+    ic_puerta = calc_ci("A Puerta")
+    ic_faltas = calc_ci("Faltas")
+    
+    # IC 95% especial para Contribucion (Goles + Asistencias)
+    vals_contrib = (historial["Goles"].fillna(0) + historial["Asistencias"].fillna(0)).values if "Goles" in historial and "Asistencias" in historial else np.array([0])
+    _, inf_c, sup_c = bootstrap_lambda_intervalo(vals_contrib, pesos.values if len(pesos) == len(vals_contrib) else None)
+    ic_contrib = (inf_c, sup_c)
+    std_contrib = float(pd.Series(vals_contrib).std()) if len(vals_contrib) > 1 else 0.0
 
     df_tier_liga = df_liga[df_liga["Nivel Rival"] == nivel_sel]
     if len(df_tier_liga) == 0:
@@ -790,7 +876,7 @@ if st.session_state.analizado_jugadores:
     ])
 
     with tab1:
-        st.subheader(f"Métricas, Volatilidad y Gráficos Acumulados")
+        st.subheader(f"Métricas, Volatilidad e Intervalos de Confianza")
         
         partidos_por_gol = 1.0 / lam_g if lam_g > 0 else 0.0
         partidos_por_asist = 1.0 / lam_a if lam_a > 0 else 0.0
@@ -830,18 +916,19 @@ if st.session_state.analizado_jugadores:
         st.markdown(f'<div class="veredicto-box"><b>📊 Resumen Analítico:</b><br>{analisis_tendencia}</div>', unsafe_allow_html=True)
 
         metrics_data = {
-            "Goles": {"prom": historial["Goles"].mean() if "Goles" in historial else 0, "lam": lam_g, "vol": std_w("Goles")},
-            "Asistencias": {"prom": historial["Asistencias"].mean() if "Asistencias" in historial else 0, "lam": lam_a, "vol": std_w("Asistencias")},
-            "Tiros": {"prom": historial["Tiros"].mean() if "Tiros" in historial else 0, "lam": lam_t, "vol": std_w("Tiros")},
-            "A Puerta": {"prom": historial["A Puerta"].mean() if "A Puerta" in historial else 0, "lam": lam_p, "vol": std_w("A Puerta")},
-            "Faltas": {"prom": historial["Faltas"].mean() if "Faltas" in historial else 0, "lam": lam_f, "vol": std_w("Faltas")},
-            "Gol o Asistencia": {"prom": (historial["Goles"] + historial["Asistencias"]).mean() if "Goles" in historial else 0, "lam": lam_g + lam_a, "vol": std_w("Goles")}
+            "Goles": {"prom": historial["Goles"].mean() if "Goles" in historial else 0, "lam": lam_g, "vol": std_w("Goles"), "ic": ic_goles},
+            "Asistencias": {"prom": historial["Asistencias"].mean() if "Asistencias" in historial else 0, "lam": lam_a, "vol": std_w("Asistencias"), "ic": ic_asist},
+            "Tiros": {"prom": historial["Tiros"].mean() if "Tiros" in historial else 0, "lam": lam_t, "vol": std_w("Tiros"), "ic": ic_tiros},
+            "A Puerta": {"prom": historial["A Puerta"].mean() if "A Puerta" in historial else 0, "lam": lam_p, "vol": std_w("A Puerta"), "ic": ic_puerta},
+            "Faltas": {"prom": historial["Faltas"].mean() if "Faltas" in historial else 0, "lam": lam_f, "vol": std_w("Faltas"), "ic": ic_faltas},
+            "Gol o Asistencia": {"prom": (historial["Goles"] + historial["Asistencias"]).mean() if "Goles" in historial else 0, "lam": lam_g + lam_a, "vol": std_contrib, "ic": ic_contrib}
         }
 
         cols = st.columns(3)
         for i, (var, datos) in enumerate(metrics_data.items()):
             col_target = cols[i % 3]
-            col_target.metric(f"Prom. {var}", f"{datos['prom']:.2f}", f"λ: {datos['lam']:.2f} | Vol (σ): {datos['vol']:.2f}")
+            ic_text = f" | IC 95%: [{datos['ic'][0]:.2f} - {datos['ic'][1]:.2f}]"
+            col_target.metric(f"Prom. {var}", f"{datos['prom']:.2f}", f"λ: {datos['lam']:.2f} | σ: {datos['vol']:.2f}{ic_text}")
 
         st.markdown("---")
         
@@ -969,6 +1056,44 @@ if st.session_state.analizado_jugadores:
                 st.warning(f"⚠️ Combinada con EV negativo ({ev_parlay:+.2%}).")
 
     with tab3:
+        st.subheader("📈 Validación Retrospectiva (Anotar Gol)")
+        log_loss_val, brier_val, bin_p, bin_t, bin_c = calcular_backtesting_retrospectivo_jugadores(historial)
+        
+        bc1, bc2 = st.columns(2)
+        if log_loss_val is not None:
+            bc1.metric("Log Loss (Pérdida Logarítmica)", f"{log_loss_val:.4f}", "Menor es mejor calibración")
+            bc2.metric("Brier Score", f"{brier_val:.4f}", "Precisión global 0 a 1 (0 es perfecto)")
+            st.caption("ℹ️ Evalúa retrospectivamente el error histórico del modelo al predecir si el jugador logrará anotar (Goles > 0).")
+            
+            st.markdown("---")
+            st.markdown("#### 🎯 Diagrama de Confiabilidad (Reliability Curve)")
+            st.write("Visualiza si el modelo subestima o sobreestima la capacidad de anotar del jugador en distintos rangos de probabilidad.")
+            
+            if bin_p and len(bin_p) > 0:
+                fig_cal = go.Figure()
+                fig_cal.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode='lines', name='Calibración Perfecta', line=dict(dash='dash', color='#9ca3af')))
+                fig_cal.add_trace(go.Scatter(
+                    x=bin_p, y=bin_t, mode='lines+markers', name='Modelo Empírico',
+                    text=[f"Partidos evaluados: {c}" for c in bin_c], hoverinfo='text+x+y',
+                    marker=dict(size=[max(8, c*3) for c in bin_c], color='#3B82F6', line=dict(width=2, color='white')),
+                    line=dict(color='#3B82F6', width=2)
+                ))
+                fig_cal.update_layout(
+                    xaxis_title="Probabilidad Predicha (Anotar Gol)",
+                    yaxis_title="Frecuencia Real de Anotar",
+                    paper_bgcolor="#111827", plot_bgcolor="#111827", font=dict(color="#F3F4F6"),
+                    xaxis=dict(range=[0, 1], gridcolor="#1f2937", tickformat='.0%'),
+                    yaxis=dict(range=[0, 1], gridcolor="#1f2937", tickformat='.0%'),
+                    height=380, margin=dict(l=40, r=40, t=40, b=40),
+                    legend=dict(yanchor="top", y=0.95, xanchor="left", x=0.05)
+                )
+                st.markdown('<div class="saas-card">', unsafe_allow_html=True)
+                st.plotly_chart(fig_cal, use_container_width=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.info("ℹ️ Se requieren al menos 5 partidos en este filtro exacto para calcular las métricas de backtesting retrospectivo y la curva de calibración.")
+            
+        st.markdown("---")
         st.subheader("📋 Auditoría de Partidos Filtrados")
         h_mostrar = historial.copy()
         if "Fecha" in h_mostrar.columns:
