@@ -408,9 +408,9 @@ if st.sidebar.button("Cerrar sesión", use_container_width=True):
     cerrar_sesion()
     st.rerun()
 
-# Rutas en minúsculas (Linux / Streamlit Cloud es case-sensitive)
+# Definición correcta de las páginas apuntando a la carpeta pages/
 analisis_equipos = st.Page(
-    "pages/Analisis_equipos.py",
+    "pages/analisis_equipos.py",
     title="Equipos",
     icon="📊",
     default=True,
