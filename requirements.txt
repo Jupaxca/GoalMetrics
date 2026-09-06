@@ -6,3 +6,4 @@ plotly
 altair
 xgboost
 requests
+scikit-learn
