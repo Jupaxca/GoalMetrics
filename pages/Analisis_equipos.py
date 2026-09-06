@@ -728,7 +728,7 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, n_obs, muestra_pequ
     caution = " (muestra pequeña)" if muestra_pequena and es_value else ""
     st.markdown(
         f'<div class="value-box {clase}"><b>{html.escape(nombre)}</b>{caution}<br>'
-        f"Prob: <b>{prob:.1f}%</b> | Justa: <b>{cuota_justa}</b> | Casa: <b>{cuota_casa}</b>{kelly_txt}<br>'
+        f"Prob: <b>{prob:.1f}%</b> | Justa: <b>{cuota_justa}</b> | Casa: <b>{cuota_casa}</b>{kelly_txt}<br>"
         f'<span style="color:{color_ev}; font-weight:bold; font-size:15px;">'
         f"EV: {ev:+.2%} -> {'VALUE' if es_value else 'Sin valor'}</span></div>",
         unsafe_allow_html=True,
