@@ -14,17 +14,12 @@ try:
 except ImportError:
     XGB_DISPONIBLE = False
 
-st.set_page_config(
-    page_title="GoalMetrics | Análisis de Jugadores (Híbrido Pro)",
-    page_icon="⚽",
-    layout="wide"
-)
-
 @st.cache_data(ttl=600)
 def cargar_datos_jugadores():
-    sheet_id = st.secrets.get("JUGADORES_SHEET_ID")
+    # Intenta buscar JUGADORES_SHEET_ID, si no está, recurre a EQUIPOS_SHEET_ID de respaldo
+    sheet_id = st.secrets.get("JUGADORES_SHEET_ID") or st.secrets.get("EQUIPOS_SHEET_ID")
     if not sheet_id:
-        st.error("Error crítico: No se ha configurado 'JUGADORES_SHEET_ID' en st.secrets.")
+        st.error("Error crítico: No se ha configurado 'JUGADORES_SHEET_ID' ni 'EQUIPOS_SHEET_ID' en st.secrets.")
         st.stop()
         
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
@@ -239,7 +234,6 @@ def calcular_backtesting_retrospectivo_jugadores(historial_filtrado):
         g_jugador = test_row["Goles"].values[0]
         actual_gol = 1 if g_jugador > 0 else 0
         
-        # Usamos la media móvil del jugador como estimador de lambda para evaluar el error retrospectivo
         mean_goles = train_window["Goles"].mean()
         prob_est = 1.0 - np.exp(-mean_goles)
         
@@ -781,14 +775,12 @@ if st.session_state.analizado_jugadores:
     lam_a_raw = prom_w("Asistencias")
     lam_f_raw = prom_w("Faltas")
 
-    # IC 95% Bootstrap para variables de jugador
     ic_goles = calc_ci("Goles")
     ic_asist = calc_ci("Asistencias")
     ic_tiros = calc_ci("Tiros")
     ic_puerta = calc_ci("A Puerta")
     ic_faltas = calc_ci("Faltas")
     
-    # IC 95% especial para Contribucion (Goles + Asistencias)
     vals_contrib = (historial["Goles"].fillna(0) + historial["Asistencias"].fillna(0)).values if "Goles" in historial and "Asistencias" in historial else np.array([0])
     _, inf_c, sup_c = bootstrap_lambda_intervalo(vals_contrib, pesos.values if len(pesos) == len(vals_contrib) else None)
     ic_contrib = (inf_c, sup_c)
