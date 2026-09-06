@@ -304,7 +304,7 @@ if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
     cerrar_sesion()
     st.rerun()
 
-analisis_equipos = st.Page("pages/analisis_equipos.py", title="Analisis equipos", icon="📊", default=True)
+analisis_equipos = st.Page("pages/Analisis_equipos.py", title="Analisis equipos", icon="📊", default=True)
 analisis_jugadores = st.Page("pages/analisis_jugadores.py", title="Analisis jugadores", icon="👥")
 tracker_apuestas = st.Page("pages/tracker_apuestas.py", title="Tracker de Apuestas", icon="📈")
 coach_ia = st.Page("pages/coach_ia.py", title="Coach IA", icon="🤖")
