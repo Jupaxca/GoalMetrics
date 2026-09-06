@@ -1,11 +1,19 @@
 [theme]
-primaryColor = "#10B981"
-backgroundColor = "#0F172A"
-secondaryBackgroundColor = "#1E293B"
-textColor = "#F8FAFC"
+base = "dark"
+primaryColor = "#3B82F6"
+backgroundColor = "#0B0F19"
+secondaryBackgroundColor = "#111827"
+textColor = "#F3F4F6"
 font = "sans serif"
 
 [server]
 headless = true
 enableCORS = false
-enableXsrfProtection = false
+# En producción es más seguro dejar XSRF activado
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
+
+[client]
+showSidebarNavigation = true
