@@ -6,12 +6,131 @@ from datetime import datetime, timedelta
 st.set_page_config(page_title="Coach | GoalMetrics", page_icon="🤖", layout="wide")
 
 # ----------------------------------------------------------------------
+# Estilos CSS de Élite y Animaciones (SaaS Theme)
+# ----------------------------------------------------------------------
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+    background-color: #0b0f19;
+    color: #f3f4f6;
+}
+
+/* ================== KEYFRAMES ANIMACIONES ================== */
+@keyframes fadeInUp {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes glowPulse {
+    0% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); }
+    50% { box-shadow: 0 0 15px rgba(16, 185, 129, 0.5); border-color: rgba(16, 185, 129, 0.8); }
+    100% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); }
+}
+/* =========================================================== */
+
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+
+header[data-testid="stHeader"] {
+    visibility: visible !important;
+    background: transparent !important;
+}
+
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    max-width: 1400px;
+}
+
+[data-testid="stSidebar"] {
+    background-color: #111827;
+    border-right: 1px solid #1f2937;
+}
+
+.header-box {
+    background: linear-gradient(135deg, #8B5CF6 0%, #0f172a 100%);
+    padding: 24px 30px; 
+    border-radius: 16px; 
+    color: white;
+    font-weight: 700; 
+    font-size: 24px; 
+    margin-bottom: 25px; 
+    text-align: center;
+    box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.veredicto-box {
+    padding: 18px 22px; border-radius: 14px; background-color: #111827;
+    border: 1px solid #1f2937; border-left: 5px solid #8B5CF6; margin-bottom: 20px; font-size: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    animation: fadeInUp 0.7s ease-out forwards;
+    transition: transform 0.3s ease;
+}
+.veredicto-box:hover {
+    transform: translateY(-2px);
+}
+
+/* Animación en cascada para los KPIs */
+div[data-testid="stMetric"] {
+    background-color: #111827;
+    border: 1px solid #1f2937;
+    padding: 16px 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease-in-out;
+    margin-bottom: 12px;
+    opacity: 0;
+    animation: fadeInUp 0.5s ease-out forwards;
+}
+div[data-testid="stMetric"]:nth-child(1) { animation-delay: 0.1s; }
+div[data-testid="stMetric"]:nth-child(2) { animation-delay: 0.2s; }
+div[data-testid="stMetric"]:nth-child(3) { animation-delay: 0.3s; }
+div[data-testid="stMetric"]:nth-child(4) { animation-delay: 0.4s; }
+
+div[data-testid="stMetric"]:hover {
+    border-color: #374151;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+    transform: translateY(-2px) scale(1.02);
+}
+div[data-testid="stMetric"] label {
+    color: #9ca3af !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+    color: #ffffff !important;
+    font-size: 1.6rem !important;
+    font-weight: 700 !important;
+}
+
+[data-testid="stDataFrame"] {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #1f2937;
+    animation: fadeInUp 0.8s ease-out forwards;
+}
+[data-testid="stDataFrame"] th {
+    background-color: #1f2937 !important;
+    color: #f3f4f6 !important;
+    font-weight: 600 !important;
+}
+[data-testid="stDataFrame"] td {
+    background-color: #111827 !important;
+    color: #9ca3af !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ----------------------------------------------------------------------
 # Cliente de Supabase
 # ----------------------------------------------------------------------
-# Igual que en tracker_apuestas.py: reutilizamos el cliente creado por
-# app.py y guardado en st.session_state, en vez de crear uno propio con
-# @st.cache_resource (que se comparte entre todos los usuarios).
-
 user = st.session_state.get("user")
 if not user:
     st.warning("Por favor inicia sesión en la página principal para ver tu Coach.")
@@ -24,7 +143,10 @@ if "supabase_client" not in st.session_state:
 supabase = st.session_state.supabase_client
 user_id = user.id
 
-st.markdown("## 🤖 Coach de Rendimiento")
+st.markdown(
+    '<div class="header-box">🤖 Coach de Rendimiento</div>',
+    unsafe_allow_html=True
+)
 st.caption("Winrate · ROI · Break-even · Rachas · Últimos 30 días")
 
 # ====================== CARGA ======================
@@ -121,7 +243,6 @@ stake_medio = df_decididas["stake"].mean()
 # Cuota media y break-even
 cuotas_validas = df_decididas["cuota"].dropna()
 cuota_media = float(cuotas_validas.mean()) if len(cuotas_validas) else np.nan
-# Break-even winrate (%) = 100 / cuota_media
 break_even = (100 / cuota_media) if cuota_media and cuota_media > 1 else np.nan
 edge_vs_be = (winrate - break_even) if not np.isnan(break_even) else np.nan
 
@@ -131,7 +252,7 @@ if df_decididas["_fecha"].notna().any():
     mask_30 = df_decididas["_fecha"] >= hace_30
     df_30 = df_decididas[mask_30].copy()
 else:
-    df_30 = df_decididas.copy()  # sin fechas → usar todo y avisar
+    df_30 = df_decididas.copy()
 
 total_30 = len(df_30)
 if total_30 > 0:
@@ -197,7 +318,7 @@ def consejo_prioritario():
 
 # ====================== UI ======================
 st.markdown("---")
-st.success(consejo_prioritario())
+st.markdown(f'<div class="veredicto-box">{consejo_prioritario()}</div>', unsafe_allow_html=True)
 
 st.markdown("### 📊 Resumen global")
 c1, c2, c3, c4 = st.columns(4)
