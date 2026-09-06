@@ -796,7 +796,7 @@ with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis de Equipos
     Bienvenido al **Centro de Análisis de Equipos de GoalMetrics**. Esta herramienta combina estadística avanzada y Machine Learning. Aquí te detallamos cómo opera cada módulo interno:
     
     * **1. Semáforo de Confiabilidad:** Evalúa al instante la robustez de la muestra de partidos exactos. 
-      * 🟢 *Verde:* Suficientes partidos exactos en el escenario buscado ($\ge 2$).
+      * 🟢 *Verde:* Suficientes partidos exactos en el escenario buscado (≥ 2).
       * 🟡 *Amarillo:* Muestra mixta o con 1 solo partido exacto, activando el respaldo inteligente ajustado por *Tier*.
       * 🔴 *Rojo:* Muestra crítica o escasa, requiere máxima precaución.
     * **2. Shrinkage (Compensación Estadística):** Cuando un equipo cuenta con pocos partidos en un escenario específico, los promedios empíricos pueden estar sesgados. El **Shrinkage** corrige esto ponderando la tasa observada hacia una media previa (*prior*) de la liga para ese mismo nivel de rival.
@@ -901,23 +901,11 @@ if st.session_state.analizado_equipos:
     muestra_pequena = n_obs <= 2
 
     if len(df_exactos) >= 2:
-        st.markdown(
-            '<div class="pill-badge pill-green">'
-            '🟢 <b>Semáforo de Confiabilidad: ALTA</b> — Muestra robusta con suficientes partidos exactos.'
-            '</div>', unsafe_allow_html=True
-        )
+        semaforo_val = "verde"
     elif len(df_exactos) == 1:
-        st.markdown(
-            '<div class="pill-badge pill-yellow">'
-            '🟡 <b>Semáforo de Confiabilidad: MEDIA</b> — 1 partido exacto encontrado. Respaldo inteligente activo.'
-            '</div>', unsafe_allow_html=True
-        )
+        semaforo_val = "amarillo"
     else:
-        st.markdown(
-            '<div class="pill-badge pill-red">'
-            '🔴 <b>Semáforo de Confiabilidad: BAJA</b> — Muestra escasa, interpretar con máxima precaución.'
-            '</div>', unsafe_allow_html=True
-        )
+        semaforo_val = "rojo"
 
     hoy = pd.Timestamp.today().normalize()
     half_life_days = 30.0
@@ -1031,200 +1019,213 @@ if st.session_state.analizado_equipos:
     conteo = Counter(marcadores)
     marcador_mas_comun = conteo.most_common(1)[0][0]
 
-    if triunfos > 50:
-        veredicto = f"Tendencia Fuerte - Marcador proyectado {marcador_mas_comun}"
-    elif derrotas > 50:
-        veredicto = f"Alerta de Complicacion - Marcador proyectado {marcador_mas_comun}"
-    else:
-        veredicto = f"Partido Muy Parejo - Marcador proyectado {marcador_mas_comun}"
+    analisis_texto = generar_analisis_dinamico(
+        equipo_sel, condicion_label, nivel_sel, n_obs,
+        lam_f, lam_c, lam_t, lam_tp, lam_co,
+        triunfos, ambos_anotan,
+        prob_over_goles, prob_over_corners, prob_over_puerta,
+    )
 
+    # ---- Precalcular items value (para KPI Top EV y tab Value) ----
+    items_1x2 = [
+        ("Victoria (1)", round(100 / triunfos, 2) if triunfos > 0 else 99, cuota_casa_1, calcular_ev(triunfos, cuota_casa_1), triunfos),
+        ("Empate (X)", round(100 / empates, 2) if empates > 0 else 99, cuota_casa_x, calcular_ev(empates, cuota_casa_x), empates),
+        ("Derrota (2)", round(100 / derrotas, 2) if derrotas > 0 else 99, cuota_casa_2, calcular_ev(derrotas, cuota_casa_2), derrotas),
+        ("1X", round(100 / doble_1x, 2) if doble_1x > 0 else 99, cuota_casa_1x, calcular_ev(doble_1x, cuota_casa_1x), doble_1x),
+        ("X2", round(100 / doble_x2, 2) if doble_x2 > 0 else 99, cuota_casa_x2, calcular_ev(doble_x2, cuota_casa_x2), doble_x2),
+        ("BTTS Si", round(100 / ambos_anotan, 2) if ambos_anotan > 0 else 99, cuota_casa_btts_si, calcular_ev(ambos_anotan, cuota_casa_btts_si), ambos_anotan),
+        ("BTTS No", round(100 / (100 - ambos_anotan), 2) if ambos_anotan < 100 else 99, cuota_casa_btts_no, calcular_ev(100 - ambos_anotan, cuota_casa_btts_no), 100 - ambos_anotan),
+        ("DNB", round(100 / dnb, 2) if dnb > 0 else 99, cuota_casa_dnb, calcular_ev(dnb, cuota_casa_dnb), dnb),
+    ]
+    items_lineas = [
+        (f"Over {linea_goles} Goles", round(100 / prob_over_goles, 2) if prob_over_goles > 0 else 99, cuota_over_goles, calcular_ev(prob_over_goles, cuota_over_goles), prob_over_goles),
+        (f"Over {linea_tiros} Tiros", round(100 / prob_over_tiros, 2) if prob_over_tiros > 0 else 99, cuota_over_tiros, calcular_ev(prob_over_tiros, cuota_over_tiros), prob_over_tiros),
+        (f"Over {linea_tiros_puerta} a Puerta", round(100 / prob_over_puerta, 2) if prob_over_puerta > 0 else 99, cuota_over_puerta, calcular_ev(prob_over_puerta, cuota_over_puerta), prob_over_puerta),
+        (f"Over {linea_corners} Corners", round(100 / prob_over_corners, 2) if prob_over_corners > 0 else 99, cuota_over_corners, calcular_ev(prob_over_corners, cuota_over_corners), prob_over_corners),
+        (f"Over {linea_faltas} Faltas", round(100 / prob_over_faltas, 2) if prob_over_faltas > 0 else 99, cuota_over_faltas, calcular_ev(prob_over_faltas, cuota_over_faltas), prob_over_faltas),
+        (f"Over {linea_total_partido} Goles partido", round(100 / prob_over_total, 2) if prob_over_total > 0 else 99, cuota_over_total, calcular_ev(prob_over_total, cuota_over_total), prob_over_total),
+    ]
+    items_1x2.sort(key=lambda x: x[3], reverse=True)
+    items_lineas.sort(key=lambda x: x[3], reverse=True)
+    todos_mercados_eq = items_1x2 + items_lineas
+    lista_mercados_eq_dict = [{"nombre": m[0], "prob": m[4], "cuota": m[2], "ev": m[3]} for m in todos_mercados_eq]
+    value_bets_eq = [m for m in lista_mercados_eq_dict if m["ev"] > 0]
+    if value_bets_eq:
+        top_eq = max(value_bets_eq, key=lambda x: x["ev"])
+        stake_top_eq = calcular_kelly_seguro(top_eq["prob"], top_eq["cuota"], n_obs)
+        top_ev_val, top_ev_nombre = top_eq["ev"], top_eq["nombre"]
+    else:
+        top_eq = None
+        stake_top_eq = 0.0
+        top_ev_val, top_ev_nombre = 0.0, "Sin value"
+
+    # ===================== UI LIMPIA =====================
     render_header_equipo(liga_sel, equipo_sel, condicion_label, nivel_sel)
 
-    st.markdown(f'<div class="veredicto-box"><b>Veredicto:</b> {html.escape(veredicto)} (con De-vig de Mercado)</div>', unsafe_allow_html=True)
-    
-    analisis_texto = generar_analisis_dinamico(
-        equipo_sel, condicion_label, nivel_sel, n_obs, 
-        lam_f, lam_c, lam_t, lam_tp, lam_co, 
-        triunfos, ambos_anotan, 
-        prob_over_goles, prob_over_corners, prob_over_puerta
+    if semaforo_val == "verde":
+        st.markdown(
+            '<div class="pill-badge pill-green">Alta confianza · muestra robusta</div>',
+            unsafe_allow_html=True,
+        )
+    elif semaforo_val == "amarillo":
+        st.markdown(
+            '<div class="pill-badge pill-yellow">Confianza media · respaldo activo</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div class="pill-badge pill-red">Baja confianza · máxima precaución</div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown(
+        f'<div class="veredicto-box">'
+        f"<b>Marcador más probable:</b> {html.escape(str(marcador_mas_comun))}"
+        f' &nbsp;·&nbsp; <span style="color:#9ca3af;font-size:0.9rem;">De-vig de mercado aplicado</span>'
+        f"</div>",
+        unsafe_allow_html=True,
     )
-    st.markdown(f'<div class="analisis-dinamico-box">{analisis_texto}</div>', unsafe_allow_html=True)
 
-    st.caption(f"Base: {n_obs} partidos - {fuente_datos} | Half-Life Decay (30d)")
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Victoria", f"{triunfos:.1f}%")
+    try:
+        ic_txt = f"IC [{ic_goles[0]:.2f}–{ic_goles[1]:.2f}]"
+    except Exception:
+        ic_txt = None
+    k2.metric("Goles esperados (λ)", f"{lam_f:.2f}", ic_txt)
+    k3.metric("Top EV", f"{top_ev_val:+.1%}", top_ev_nombre)
+    k4.metric("Stake sugerido", f"{stake_top_eq:.2f}%", "Half-Kelly" if top_ev_val > 0 else "Sin value")
 
+    st.caption(f"{n_obs} partidos · {fuente_datos} · half-life 30d")
     if muestra_pequena:
-        st.warning("Muestra pequeña (Respaldo activo con 1-2 partidos). Stake limitado por seguridad.")
+        st.caption("Muestra pequeña: stake limitado por seguridad.")
 
-    tab1, tab2, tab3 = st.tabs([
-        "📊 Dashboard Principal & Gráficos",
-        "💰 Value Bets & Inteligencia",
-        "📋 Análisis Táctico & Auditoría"
-    ])
+    tab_resumen, tab_value, tab_datos = st.tabs(["Resumen", "Value", "Datos"])
 
-    with tab1:
-        st.subheader("ADN del Equipo y Métricas Probabilísticas")
-        renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa)
-        
-        a, b, c, d = st.columns(4)
-        a.metric("Victoria", f"{triunfos:.1f}%")
-        b.metric("Empate", f"{empates:.1f}%")
-        c.metric("Derrota", f"{derrotas:.1f}%")
-        d.metric("BTTS", f"{ambos_anotan:.1f}%")
-        
-        e, f, g = st.columns(3)
-        e.metric("1X", f"{doble_1x:.1f}%")
-        f.metric("X2", f"{doble_x2:.1f}%")
-        g.metric("DNB", f"{dnb:.1f}%")
-        
-        metrics_data_eq = {
-            "Goles": {"val": lam_f, "vol": std_w("Goles"), "ic": ic_goles, "format": ".2f"},
-            "Goles Rival": {"val": lam_c, "vol": std_w("Goles Rival"), "ic": ic_goles_rival, "format": ".2f"},
-            "Tiros": {"val": lam_t, "vol": std_w("Tiros"), "ic": ic_tiros, "format": ".1f"},
-            "A Puerta": {"val": lam_tp, "vol": std_w("A Puerta"), "ic": ic_puerta, "format": ".1f"},
-            "Corners": {"val": lam_co, "vol": std_w("Corners"), "ic": ic_corners, "format": ".1f"},
-        }
+    # ---------- RESUMEN ----------
+    with tab_resumen:
+        c_a, c_b, c_c, c_d = st.columns(4)
+        c_a.metric("Empate", f"{empates:.1f}%")
+        c_b.metric("Derrota", f"{derrotas:.1f}%")
+        c_c.metric("BTTS", f"{ambos_anotan:.1f}%")
+        c_d.metric("Goles rival (λ)", f"{lam_c:.2f}")
 
-        cols_m = st.columns(3)
-        for i, (var, data) in enumerate(metrics_data_eq.items()):
-            col_target = cols_m[i % 3]
-            fmt = data["format"]
-            ic_text = f" | IC 95%: [{data['ic'][0]:.1f} - {data['ic'][1]:.1f}]"
-            col_target.metric(var, f"{data['val']:{fmt}}", f"λ: {data['val']:{fmt}} | σ: {data['vol']:.2f}{ic_text}")
+        r2a, r2b, r2c = st.columns(3)
+        r2a.metric("1X", f"{doble_1x:.1f}%")
+        r2b.metric("X2", f"{doble_x2:.1f}%")
+        r2c.metric("DNB", f"{dnb:.1f}%")
 
-        st.markdown("---")
-        st.subheader("🎯 Matriz de Probabilidad del Resultado Exacto")
-        max_g = 5
-        matriz_probs = np.zeros((max_g + 1, max_g + 1))
-        text_data = []
-        
-        for f_g in range(max_g + 1):
-            fila_texto = []
-            for c_g in range(max_g + 1):
-                prob = float(((sg_fav == f_g) & (sg_con == c_g)).mean() * 100.0)
-                matriz_probs[f_g, c_g] = prob
-                if prob >= 0.1:
-                    fila_texto.append(f"{prob:.1f}%")
-                else:
-                    fila_texto.append("<0.1%")
-            text_data.append(fila_texto)
+        with st.expander("ADN del equipo", expanded=False):
+            renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa)
 
-        fig_matrix = go.Figure(data=go.Heatmap(
-            z=matriz_probs,
-            x=[str(i) for i in range(max_g + 1)],
-            y=[str(i) for i in range(max_g + 1)],
-            text=text_data,
-            texttemplate="%{text}",
-            textfont={"size": 13, "color": "white"},
-            colorscale=[[0, "#111827"], [0.5, "#1d4ed8"], [1, "#10b981"]],
-            showscale=False
-        ))
-        fig_matrix.update_layout(
-            title=f"Goles Rival (Eje X) vs Goles {equipo_sel} (Eje Y)",
-            xaxis_title="Goles Rival",
-            yaxis_title=f"Goles {equipo_sel}",
-            paper_bgcolor="#111827", plot_bgcolor="#111827",
-            font=dict(color="#F3F4F6"), height=380, margin=dict(l=40, r=40, t=40, b=40)
-        )
-        st.markdown('<div class="saas-card">', unsafe_allow_html=True)
-        st.plotly_chart(fig_matrix, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("---")
-        st.subheader("📈 Curvas de Probabilidad Acumulada (Over X)")
-        
-        max_g_sim = int(max(sg_fav)) + 2
-        goal_vals = [float(i + 0.5) for i in range(max_g_sim)]
-        cum_probs_goles = [float((sg_fav > g).mean() * 100) for g in goal_vals]
-
-        fig_cum_goles = go.Figure(data=go.Scatter(
-            x=goal_vals, y=cum_probs_goles, mode='lines+markers+text',
-            text=[f"{p:.1f}%" if p > 1.0 else "" for p in cum_probs_goles], textposition="top center",
-            line=dict(color="#10b981", width=3), marker=dict(size=8)
-        ))
-        fig_cum_goles.update_layout(
-            title=dict(text=f"<b>Acumulada de Goles (Over X)</b>", font=dict(size=14, color="#F3F4F6")),
-            xaxis=dict(title="Línea de Goles", tickmode='array', tickvals=goal_vals, ticktext=[str(g) for g in goal_vals], color="#9ca3af", gridcolor="#1f2937"),
-            yaxis=dict(title="Probabilidad (%)", color="#9ca3af", gridcolor="#1f2937", range=[0, 115]),
-            paper_bgcolor="#111827", plot_bgcolor="#111827", font=dict(color="#F3F4F6"),
-            height=350, margin=dict(l=30, r=20, t=40, b=30)
-        )
-        st.markdown('<div class="saas-card">', unsafe_allow_html=True)
-        st.plotly_chart(fig_cum_goles, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        max_c = int(max(s_corn)) + 2
-        step_tick = 2 if max_c > 12 else 1
-        corner_vals = list(range(0, max_c, step_tick))
-        cum_probs_corners = [float((s_corn > c).mean() * 100) for c in corner_vals]
-
-        fig_cum_corners = go.Figure(data=go.Scatter(
-            x=corner_vals, y=cum_probs_corners, mode='lines+markers+text',
-            text=[f"{p:.1f}%" if p > 5.0 else "" for p in cum_probs_corners], textposition="top center",
-            line=dict(color=color_equipo, width=3), marker=dict(size=8)
-        ))
-        fig_cum_corners.update_layout(
-            title=dict(text=f"<b>Acumulada de Córners (Over X)</b>", font=dict(size=14, color="#F3F4F6")),
-            xaxis=dict(title="Línea de Córners", tickmode='array', tickvals=corner_vals, ticktext=[str(c) for c in corner_vals], color="#9ca3af", gridcolor="#1f2937"),
-            yaxis=dict(title="Probabilidad (%)", color="#9ca3af", gridcolor="#1f2937", range=[0, 115]),
-            paper_bgcolor="#111827", plot_bgcolor="#111827", font=dict(color="#F3F4F6"),
-            height=350, margin=dict(l=30, r=20, t=40, b=30)
-        )
-        st.markdown('<div class="saas-card">', unsafe_allow_html=True)
-        st.plotly_chart(fig_cum_corners, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        if not historial.empty and "A Puerta" in historial.columns and "Goles" in historial.columns:
-            st.markdown("---")
-            fig_scatter = go.Figure()
-            fig_scatter.add_trace(go.Scatter(
-                x=historial["A Puerta"], y=historial["Goles"], mode="markers+text",
-                text=historial.get("Rival", ""), textposition="top center",
-                marker=dict(size=12, color=color_equipo, line=dict(width=2, color="white"), opacity=0.85),
-                hovertemplate="<b>Rival:</b> %{text}<br><b>Tiros a Puerta:</b> %{x}<br><b>Goles Anotados:</b> %{y}<extra></extra>"
+        with st.expander("Matriz de marcador", expanded=False):
+            max_g = 5
+            matriz_probs = np.zeros((max_g + 1, max_g + 1))
+            text_data = []
+            for f_g in range(max_g + 1):
+                fila_texto = []
+                for c_g in range(max_g + 1):
+                    prob = float(((sg_fav == f_g) & (sg_con == c_g)).mean() * 100.0)
+                    matriz_probs[f_g, c_g] = prob
+                    fila_texto.append(f"{prob:.1f}%" if prob >= 0.1 else "<0.1%")
+                text_data.append(fila_texto)
+            fig_matrix = go.Figure(data=go.Heatmap(
+                z=matriz_probs,
+                x=[str(i) for i in range(max_g + 1)],
+                y=[str(i) for i in range(max_g + 1)],
+                text=text_data,
+                texttemplate="%{text}",
+                textfont={"size": 13, "color": "white"},
+                colorscale=[[0, "#111827"], [0.5, "#1d4ed8"], [1, "#10b981"]],
+                showscale=False,
             ))
-            fig_scatter.update_layout(
-                title="Tiros a Puerta vs Goles por Partido", xaxis_title="Tiros a Puerta", yaxis_title="Goles Anotados",
-                paper_bgcolor="#111827", plot_bgcolor="#111827", font=dict(color="#F3F4F6"), height=350, margin=dict(l=40, r=40, t=40, b=40)
+            fig_matrix.update_layout(
+                title=f"Goles Rival (X) vs Goles {equipo_sel} (Y)",
+                xaxis_title="Goles Rival",
+                yaxis_title=f"Goles {equipo_sel}",
+                paper_bgcolor="#111827",
+                plot_bgcolor="#111827",
+                font=dict(color="#F3F4F6"),
+                height=380,
+                margin=dict(l=40, r=40, t=40, b=40),
             )
-            st.markdown('<div class="saas-card">', unsafe_allow_html=True)
-            st.plotly_chart(fig_scatter, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.plotly_chart(fig_matrix, use_container_width=True)
 
-    with tab2:
-        st.subheader("💰 Value Bet y Half-Kelly Seguro")
-        items_1x2 = [
-            ("Victoria (1)", round(100/triunfos,2) if triunfos>0 else 99, cuota_casa_1, calcular_ev(triunfos, cuota_casa_1), triunfos),
-            ("Empate (X)", round(100/empates,2) if empates>0 else 99, cuota_casa_x, calcular_ev(empates, cuota_casa_x), empates),
-            ("Derrota (2)", round(100/derrotas,2) if derrotas>0 else 99, cuota_casa_2, calcular_ev(derrotas, cuota_casa_2), derrotas),
-            ("1X", round(100/doble_1x,2) if doble_1x>0 else 99, cuota_casa_1x, calcular_ev(doble_1x, cuota_casa_1x), doble_1x),
-            ("X2", round(100/doble_x2,2) if doble_x2>0 else 99, cuota_casa_x2, calcular_ev(doble_x2, cuota_casa_x2), doble_x2),
-            ("BTTS Si", round(100/ambos_anotan,2) if ambos_anotan>0 else 99, cuota_casa_btts_si, calcular_ev(ambos_anotan, cuota_casa_btts_si), ambos_anotan),
-            ("BTTS No", round(100/(100-ambos_anotan),2) if ambos_anotan<100 else 99, cuota_casa_btts_no, calcular_ev(100-ambos_anotan, cuota_casa_btts_no), 100-ambos_anotan),
-            ("DNB", round(100/dnb,2) if dnb>0 else 99, cuota_casa_dnb, calcular_ev(dnb, cuota_casa_dnb), dnb),
-        ]
-        items_1x2.sort(key=lambda x: x[3], reverse=True)
+        with st.expander("Curvas Over (goles / córners)", expanded=False):
+            max_g_sim = int(max(sg_fav)) + 2
+            goal_vals = [float(i + 0.5) for i in range(max_g_sim)]
+            cum_probs_goles = [float((sg_fav > g).mean() * 100) for g in goal_vals]
+            fig_cum_goles = go.Figure(data=go.Scatter(
+                x=goal_vals, y=cum_probs_goles, mode="lines+markers+text",
+                text=[f"{p:.1f}%" if p > 1.0 else "" for p in cum_probs_goles],
+                textposition="top center",
+                line=dict(color="#10b981", width=3), marker=dict(size=8),
+            ))
+            fig_cum_goles.update_layout(
+                title="Acumulada de Goles (Over X)",
+                xaxis=dict(title="Línea de Goles", color="#9ca3af", gridcolor="#1f2937"),
+                yaxis=dict(title="Probabilidad (%)", color="#9ca3af", gridcolor="#1f2937", range=[0, 115]),
+                paper_bgcolor="#111827", plot_bgcolor="#111827",
+                font=dict(color="#F3F4F6"), height=320,
+                margin=dict(l=30, r=20, t=40, b=30),
+            )
+            st.plotly_chart(fig_cum_goles, use_container_width=True)
+
+            max_c = int(max(s_corn)) + 2
+            step_tick = 2 if max_c > 12 else 1
+            corner_vals = list(range(0, max_c, step_tick))
+            cum_probs_corners = [float((s_corn > c).mean() * 100) for c in corner_vals]
+            fig_cum_corners = go.Figure(data=go.Scatter(
+                x=corner_vals, y=cum_probs_corners, mode="lines+markers+text",
+                text=[f"{p:.1f}%" if p > 5.0 else "" for p in cum_probs_corners],
+                textposition="top center",
+                line=dict(color=color_equipo, width=3), marker=dict(size=8),
+            ))
+            fig_cum_corners.update_layout(
+                title="Acumulada de Córners (Over X)",
+                xaxis=dict(title="Línea de Córners", color="#9ca3af", gridcolor="#1f2937"),
+                yaxis=dict(title="Probabilidad (%)", color="#9ca3af", gridcolor="#1f2937", range=[0, 115]),
+                paper_bgcolor="#111827", plot_bgcolor="#111827",
+                font=dict(color="#F3F4F6"), height=320,
+                margin=dict(l=30, r=20, t=40, b=30),
+            )
+            st.plotly_chart(fig_cum_corners, use_container_width=True)
+
+        with st.expander("Reporte táctico", expanded=False):
+            st.markdown(f'<div class="analisis-dinamico-box">{analisis_texto}</div>', unsafe_allow_html=True)
+
+    # ---------- VALUE ----------
+    with tab_value:
+        if top_eq is not None:
+            st.markdown(
+                f'<div class="top-pick-box">'
+                f"<h3>Top Value Bet</h3>"
+                f'<p style="font-size: 16px; margin-bottom: 8px;">Mercado: <b>{html.escape(top_eq["nombre"])}</b></p>'
+                f"<ul>"
+                f'<li>Probabilidad: <b>{top_eq["prob"]:.1f}%</b></li>'
+                f'<li>Cuota casa: <b>{top_eq["cuota"]}</b></li>'
+                f'<li><b>EV: {top_eq["ev"]:+.2%}</b></li>'
+                f"</ul>"
+                f'<p style="color: #10b981; font-weight: bold; margin-top: 10px;">Stake: <b>{stake_top_eq}% bank</b> (Half-Kelly)</p>'
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.info("No hay mercados con EV positivo en este momento.")
+
+        st.markdown("##### 1X2 y dobles")
         ca, cb = st.columns(2)
-        mid = (len(items_1x2)+1)//2
+        mid = (len(items_1x2) + 1) // 2
         with ca:
             for it in items_1x2[:mid]:
                 mostrar_value(it[0], it[1], it[2], it[3], it[4], n_obs=n_obs, muestra_pequena=muestra_pequena)
         with cb:
             for it in items_1x2[mid:]:
                 mostrar_value(it[0], it[1], it[2], it[3], it[4], n_obs=n_obs, muestra_pequena=muestra_pequena)
-                
-        st.markdown("---")
-        st.subheader("Lineas (Over)")
-        items_lineas = [
-            (f"Over {linea_goles} Goles", round(100/prob_over_goles,2) if prob_over_goles>0 else 99, cuota_over_goles, calcular_ev(prob_over_goles, cuota_over_goles), prob_over_goles),
-            (f"Over {linea_tiros} Tiros", round(100/prob_over_tiros,2) if prob_over_tiros>0 else 99, cuota_over_tiros, calcular_ev(prob_over_tiros, cuota_over_tiros), prob_over_tiros),
-            (f"Over {linea_tiros_puerta} a Puerta", round(100/prob_over_puerta,2) if prob_over_puerta>0 else 99, cuota_over_puerta, calcular_ev(prob_over_puerta, cuota_over_puerta), prob_over_puerta),
-            (f"Over {linea_corners} Corners", round(100/prob_over_corners,2) if prob_over_corners>0 else 99, cuota_over_corners, calcular_ev(prob_over_corners, cuota_over_corners), prob_over_corners),
-            (f"Over {linea_faltas} Faltas", round(100/prob_over_faltas,2) if prob_over_faltas>0 else 99, cuota_over_faltas, calcular_ev(prob_over_faltas, cuota_over_faltas), prob_over_faltas),
-            (f"Over {linea_total_partido} Goles partido", round(100/prob_over_total,2) if prob_over_total>0 else 99, cuota_over_total, calcular_ev(prob_over_total, cuota_over_total), prob_over_total),
-        ]
-        items_lineas.sort(key=lambda x: x[3], reverse=True)
+
+        st.markdown("##### Líneas (Over)")
         cc, cd = st.columns(2)
-        mid2 = (len(items_lineas)+1)//2
+        mid2 = (len(items_lineas) + 1) // 2
         with cc:
             for it in items_lineas[:mid2]:
                 mostrar_value(it[0], it[1], it[2], it[3], it[4], n_obs=n_obs, muestra_pequena=muestra_pequena)
@@ -1232,144 +1233,114 @@ if st.session_state.analizado_equipos:
             for it in items_lineas[mid2:]:
                 mostrar_value(it[0], it[1], it[2], it[3], it[4], n_obs=n_obs, muestra_pequena=muestra_pequena)
 
-        st.markdown("---")
-        st.subheader("🤖 Panel Inteligente & Parlay Híbrido")
-        todos_mercados_eq = items_1x2 + items_lineas
-        lista_mercados_eq_dict = [{"nombre": m[0], "prob": m[4], "cuota": m[2], "ev": m[3]} for m in todos_mercados_eq]
-        value_bets_eq = [m for m in lista_mercados_eq_dict if m["ev"] > 0]
-
-        if value_bets_eq:
-            top_eq = max(value_bets_eq, key=lambda x: x["ev"])
-            stake_top_eq = calcular_kelly_seguro(top_eq["prob"], top_eq["cuota"], n_obs)
-            st.markdown(
-                f'<div class="top-pick-box">'
-                f'<h3>🏆 La Joya del Partido (Top Value Bet)</h3>'
-                f'<p style="font-size: 16px; margin-bottom: 8px;">Mercado recomendado: <b>{html.escape(top_eq["nombre"])}</b></p>'
-                f'<ul>'
-                f'<li>Probabilidad Híbrida del Modelo: <b>{top_eq["prob"]:.1f}%</b></li>'
-                f'<li>Cuota Casa: <b>{top_eq["cuota"]}</b></li>'
-                f'<li><b>EV Matemático: {top_eq["ev"]:+.2%}</b></li>'
-                f'</ul>'
-                f'<p style="color: #10b981; font-weight: bold; margin-top: 10px;">👉 Sugerencia de Stake: <b>{stake_top_eq}% del Bank (Half-Kelly con Cap)</b></p>'
-                f'</div>',
-                unsafe_allow_html=True
+        with st.expander("Constructor de combinada", expanded=False):
+            nombres_mercados_eq = [m["nombre"] for m in lista_mercados_eq_dict]
+            parlay_eq = st.multiselect(
+                "Elige mercados para la combinada:",
+                options=nombres_mercados_eq,
+                key="parlay_eq_input",
             )
-        else:
-            st.info("ℹ️ No hay mercados con EV positivo estricto en este momento.")
-
-        st.markdown("---")
-        st.subheader("🔗 Constructor de Combinada Inteligente (Parlay)")
-        nombres_mercados_eq = [m["nombre"] for m in lista_mercados_eq_dict]
-        parlay_eq = st.multiselect("Elige los mercados para tu combinada:", options=nombres_mercados_eq, key="parlay_eq_input")
-
-        mercados_goles_bool = {
-            "Victoria (1)": sg_fav > sg_con,
-            "Empate (X)": sg_fav == sg_con,
-            "Derrota (2)": sg_fav < sg_con,
-            "1X": sg_fav >= sg_con,
-            "X2": sg_fav <= sg_con,
-            "BTTS Si": (sg_fav > 0) & (sg_con > 0),
-            "BTTS No": ~((sg_fav > 0) & (sg_con > 0)),
-            f"Over {linea_goles} Goles": sg_fav > linea_goles,
-            f"Over {linea_total_partido} Goles partido": (sg_fav + sg_con) > linea_total_partido,
-        }
-
-        if parlay_eq:
-            legs_goles = [n for n in parlay_eq if n in mercados_goles_bool]
-            legs_independientes = [n for n in parlay_eq if n not in mercados_goles_bool]
-
-            if legs_goles:
-                mask_conjunta = np.ones(num_sim, dtype=bool)
-                for n in legs_goles:
-                    mask_conjunta &= mercados_goles_bool[n]
-                p_goles_conjunta = float(mask_conjunta.mean())
-            else:
-                p_goles_conjunta = 1.0
-
-            p_indep = 1.0
-            for n in legs_independientes:
-                m_info = next(m for m in lista_mercados_eq_dict if m["nombre"] == n)
-                p_indep *= (m_info["prob"] / 100.0)
-
-            p_conj = p_goles_conjunta * p_indep
-            p_conj_pct = p_conj * 100.0
-            c_justa_parlay = round(100 / p_conj_pct, 2) if p_conj_pct > 0 else 99.0
-
-            st.markdown(f"**Probabilidad Conjunta:** `{p_conj_pct:.2f}%`")
-            st.markdown(f"**Cuota Justa Combinada:** `{c_justa_parlay}`")
-
-            cuota_casa_parlay_eq = st.number_input("Cuota total que paga la casa:", min_value=1.01, value=c_justa_parlay * 0.95, step=0.05, format="%.2f", key="cuota_parlay_eq_input")
-            ev_parlay_eq = calcular_ev(p_conj_pct, cuota_casa_parlay_eq)
-            stake_parlay_eq = calcular_kelly_seguro(p_conj_pct, cuota_casa_parlay_eq, n_obs)
-            
-            col_ep1, col_ep2 = st.columns(2)
-            col_ep1.metric("EV de la Combinada", f"{ev_parlay_eq:+.2%}")
-            if ev_parlay_eq > 0:
-                col_ep2.metric("Stake Sugerido", f"{stake_parlay_eq}% del Bank")
-                st.success(f"🎉 ¡Combinada con EV positivo! Stake recomendado: {stake_parlay_eq}%.")
-            else:
-                col_ep2.metric("Stake Sugerido", "0%")
-                st.warning("⚠️ EV Negativo.")
-
-    with tab3:
-        st.subheader("📈 Validación Retrospectiva (Backtesting & Métricas de Error)")
-        log_loss_val, brier_val, bin_p, bin_t, bin_c = calcular_backtesting_retrospectivo(historial)
-        
-        bc1, bc2 = st.columns(2)
-        if log_loss_val is not None:
-            bc1.metric("Log Loss (Pérdida Logarítmica)", f"{log_loss_val:.4f}", "Menor es mejor calibración")
-            bc2.metric("Brier Score", f"{brier_val:.4f}", "Precisión global 0 a 1 (0 es perfecto)")
-            st.caption("ℹ️ Estas métricas evalúan retrospectivamente el error de las probabilidades del modelo frente a los resultados reales en este escenario filtrado.")
-            
-            st.markdown("---")
-            st.markdown("#### 🎯 Diagrama de Confiabilidad (Reliability / Calibration Curve)")
-            st.write("Visualiza si el modelo peca de optimista o pesimista al estimar probabilidades de victoria.")
-            
-            if bin_p and len(bin_p) > 0:
-                fig_cal = go.Figure()
-                fig_cal.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode='lines', name='Calibración Perfecta', line=dict(dash='dash', color='#9ca3af')))
-                fig_cal.add_trace(go.Scatter(
-                    x=bin_p, y=bin_t, mode='lines+markers', name='Modelo Empírico',
-                    text=[f"Partidos evaluados: {c}" for c in bin_c], hoverinfo='text+x+y',
-                    marker=dict(size=[max(8, c*3) for c in bin_c], color='#3B82F6', line=dict(width=2, color='white')),
-                    line=dict(color='#3B82F6', width=2)
-                ))
-                fig_cal.update_layout(
-                    xaxis_title="Probabilidad Predicha por el Modelo",
-                    yaxis_title="Frecuencia Real de Victoria",
-                    paper_bgcolor="#111827", plot_bgcolor="#111827", font=dict(color="#F3F4F6"),
-                    xaxis=dict(range=[0, 1], gridcolor="#1f2937", tickformat='.0%'),
-                    yaxis=dict(range=[0, 1], gridcolor="#1f2937", tickformat='.0%'),
-                    height=380, margin=dict(l=40, r=40, t=40, b=40),
-                    legend=dict(yanchor="top", y=0.95, xanchor="left", x=0.05)
+            mercados_goles_bool = {
+                "Victoria (1)": sg_fav > sg_con,
+                "Empate (X)": sg_fav == sg_con,
+                "Derrota (2)": sg_fav < sg_con,
+                "1X": sg_fav >= sg_con,
+                "X2": sg_fav <= sg_con,
+                "BTTS Si": (sg_fav > 0) & (sg_con > 0),
+                "BTTS No": ~((sg_fav > 0) & (sg_con > 0)),
+                f"Over {linea_goles} Goles": sg_fav > linea_goles,
+                f"Over {linea_total_partido} Goles partido": (sg_fav + sg_con) > linea_total_partido,
+            }
+            if parlay_eq:
+                legs_goles = [n for n in parlay_eq if n in mercados_goles_bool]
+                legs_independientes = [n for n in parlay_eq if n not in mercados_goles_bool]
+                if legs_goles:
+                    mask_conjunta = np.ones(num_sim, dtype=bool)
+                    for n in legs_goles:
+                        mask_conjunta &= mercados_goles_bool[n]
+                    p_goles_conjunta = float(mask_conjunta.mean())
+                else:
+                    p_goles_conjunta = 1.0
+                p_indep = 1.0
+                for n in legs_independientes:
+                    m_info = next(m for m in lista_mercados_eq_dict if m["nombre"] == n)
+                    p_indep *= m_info["prob"] / 100.0
+                p_conj = p_goles_conjunta * p_indep
+                p_conj_pct = p_conj * 100.0
+                c_justa_parlay = round(100 / p_conj_pct, 2) if p_conj_pct > 0 else 99.0
+                st.markdown(f"**Probabilidad conjunta:** `{p_conj_pct:.2f}%`")
+                st.markdown(f"**Cuota justa:** `{c_justa_parlay}`")
+                cuota_casa_parlay_eq = st.number_input(
+                    "Cuota total que paga la casa:",
+                    min_value=1.01,
+                    value=float(c_justa_parlay * 0.95),
+                    step=0.05,
+                    format="%.2f",
+                    key="cuota_parlay_eq_input",
                 )
-                st.markdown('<div class="saas-card">', unsafe_allow_html=True)
-                st.plotly_chart(fig_cal, use_container_width=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-        else:
-            st.info("ℹ️ Se requieren al menos 5 partidos en este filtro exacto para calcular las métricas de backtesting retrospectivo y la curva de calibración.")
+                ev_parlay_eq = calcular_ev(p_conj_pct, cuota_casa_parlay_eq)
+                stake_parlay_eq = calcular_kelly_seguro(p_conj_pct, cuota_casa_parlay_eq, n_obs)
+                col_ep1, col_ep2 = st.columns(2)
+                col_ep1.metric("EV combinada", f"{ev_parlay_eq:+.2%}")
+                if ev_parlay_eq > 0:
+                    col_ep2.metric("Stake", f"{stake_parlay_eq}% bank")
+                    st.success(f"Combinada con EV positivo. Stake: {stake_parlay_eq}%.")
+                else:
+                    col_ep2.metric("Stake", "0%")
+                    st.warning("EV negativo.")
 
-        st.markdown("---")
-        st.markdown("#### 📘 Guía de Interpretación: Log Loss & Brier Score")
-        
-        df_guia_limpia = pd.DataFrame([
-            {"Métrica": "Log Loss", "Excelente": "< 0.50", "Aceptable": "0.50 - 0.69", "Deficiente": "> 0.69"},
-            {"Métrica": "Brier Score", "Excelente": "< 0.15", "Aceptable": "0.16 - 0.25", "Deficiente": "> 0.25"}
-        ])
-        st.dataframe(df_guia_limpia, hide_index=True, use_container_width=True)
+    # ---------- DATOS ----------
+    with tab_datos:
+        with st.expander("Backtesting y calibración", expanded=True):
+            log_loss_val, brier_val, bin_p, bin_t, bin_c = calcular_backtesting_retrospectivo(historial)
+            bc1, bc2 = st.columns(2)
+            if log_loss_val is not None:
+                bc1.metric("Log Loss", f"{log_loss_val:.4f}", "Menor es mejor")
+                bc2.metric("Brier Score", f"{brier_val:.4f}", "0 = perfecto")
+                if bin_p and len(bin_p) > 0:
+                    fig_cal = go.Figure()
+                    fig_cal.add_trace(go.Scatter(
+                        x=[0, 1], y=[0, 1], mode="lines", name="Calibración perfecta",
+                        line=dict(dash="dash", color="#9ca3af"),
+                    ))
+                    fig_cal.add_trace(go.Scatter(
+                        x=bin_p, y=bin_t, mode="lines+markers", name="Modelo",
+                        text=[f"n={c}" for c in bin_c], hoverinfo="text+x+y",
+                        marker=dict(size=[max(8, c * 3) for c in bin_c], color="#3B82F6"),
+                        line=dict(color="#3B82F6", width=2),
+                    ))
+                    fig_cal.update_layout(
+                        xaxis_title="Probabilidad predicha",
+                        yaxis_title="Frecuencia real",
+                        paper_bgcolor="#111827", plot_bgcolor="#111827",
+                        font=dict(color="#F3F4F6"),
+                        xaxis=dict(range=[0, 1], gridcolor="#1f2937", tickformat=".0%"),
+                        yaxis=dict(range=[0, 1], gridcolor="#1f2937", tickformat=".0%"),
+                        height=360, margin=dict(l=40, r=40, t=30, b=40),
+                    )
+                    st.plotly_chart(fig_cal, use_container_width=True)
+            else:
+                st.info("Se necesitan al menos 5 partidos en el filtro para backtesting.")
 
-        st.markdown("""
-        **💡 Interpretación Práctica (¿Qué hacer en cada caso?):**
-        * **🟢 Rango Excelente:** El modelo está muy bien calibrado. Puedes operar con total confianza siguiendo el stake sugerido por Half-Kelly.
-        * **🟡 Rango Aceptable:** Margen moderado de error. El modelo es funcional, pero debido a la varianza histórica es recomendable **reducir ligeramente el stake**.
-        * **🔴 Rango Deficiente:** El modelo presenta alta desviación o descalibración para este filtro. La recomendación operativa es **evitar apostar o reducir drásticamente la exposición al riesgo**.___
-        """)
+        with st.expander("Partidos usados en el modelo", expanded=True):
+            h_mostrar = historial.copy().sort_values(by="Fecha", ascending=False)
+            h_mostrar["Fecha"] = pd.to_datetime(h_mostrar["Fecha"]).dt.strftime("%Y-%m-%d")
+            cols = [c for c in [
+                "Fecha", "Liga", "Condición", "Rival", "Nivel Rival",
+                "Goles", "Goles Rival", "Tiros", "A Puerta", "Corners", "Faltas",
+                "Tipo_Uso", "Factor_Ajuste",
+            ] if c in h_mostrar.columns]
+            st.dataframe(h_mostrar[cols], hide_index=True, use_container_width=True)
 
-        st.markdown("---")
-        st.subheader("📋 Auditoría de Partidos Filtrados")
-        h_mostrar = historial.copy().sort_values(by="Fecha", ascending=False)
-        h_mostrar["Fecha"] = pd.to_datetime(h_mostrar["Fecha"]).dt.strftime("%Y-%m-%d")
-        cols = [c for c in ["Fecha", "Liga", "Condición", "Rival", "Nivel Rival", "Goles", "Goles Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Tipo_Uso", "Factor_Ajuste"] if c in h_mostrar.columns]
-        st.dataframe(h_mostrar[cols], hide_index=True, use_container_width=True)
+        with st.expander("Guía de métricas", expanded=False):
+            st.dataframe(
+                pd.DataFrame([
+                    {"Métrica": "Log Loss", "Excelente": "< 0.50", "Aceptable": "0.50 - 0.69", "Deficiente": "> 0.69"},
+                    {"Métrica": "Brier Score", "Excelente": "< 0.15", "Aceptable": "0.16 - 0.25", "Deficiente": "> 0.25"},
+                ]),
+                hide_index=True,
+                use_container_width=True,
+            )
+
 else:
     st.info("Configura el partido en la barra lateral y pulsa Analizar.")
