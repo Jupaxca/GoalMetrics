@@ -12,9 +12,11 @@ import requests
 
 try:
     import xgboost as xgb
+    import sklearn  # XGBClassifier lo requiere
     XGB_DISPONIBLE = True
 except ImportError:
     XGB_DISPONIBLE = False
+    xgb = None
 
 st.set_page_config(
     page_title="GoalMetrics | Análisis de Equipos (Híbrido Pro)",
@@ -102,15 +104,19 @@ def _entrenar_xgboost_real(df_historico, features_modelo):
     X = df_clean[list(features_modelo)]
     y = df_clean["Target_Victoria"]
     
-    model = xgb.XGBClassifier(
-        n_estimators=60,
-        max_depth=3,
-        learning_rate=0.05,
-        random_state=42,
-        eval_metric="logloss"
-    )
-    model.fit(X, y)
-    return model
+    try:
+        model = xgb.XGBClassifier(
+            n_estimators=60,
+            max_depth=3,
+            learning_rate=0.05,
+            random_state=42,
+            eval_metric="logloss",
+        )
+        model.fit(X, y)
+        return model
+    except Exception:
+        # Sin sklearn u otro fallo: continúa solo con Poisson/Dixon-Coles
+        return None
 
 def predecir_probabilidad_hibrida(prob_poisson, equipo_actual_df, features_modelo, modelo_xgb, n_obs):
     if modelo_xgb is None or equipo_actual_df.empty or n_obs < 5:
