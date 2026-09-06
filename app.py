@@ -7,18 +7,18 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 st.set_page_config(
-    page_title="GoalMetrics | Football Analytics",
+    page_title="GoalMetrics | Football Analytics Pro",
     page_icon="⚽",
     layout="wide"
 )
 
 # ---------------------------------------------------------------------
-# CSS AVANZADO (Estilo SaaS Profesional + Banner Hero + Menú Móvil Activo)
+# CSS AVANZADO (Estilo SaaS de Élite + Banner Hero Dinámico + UI/UX Pro)
 # ---------------------------------------------------------------------
 st.markdown("""
 <style>
-    /* 1. Importar tipografía moderna de la industria (Inter) */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    /* 1. Tipografía Global e Interfaz Moderna */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
     html, body, [class*="css"] {
         font-family: 'Inter', sans-serif;
@@ -26,14 +26,14 @@ st.markdown("""
         color: #f3f4f6;
     }
 
-    /* 2. Ocultar elementos nativos pero MANTENER el header activo para móviles */
+    /* 2. Ocultar elementos nativos manteniendo la barra superior móvil activa */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    /* header {visibility: hidden;} -> Activo para que aparezca el botón hamburguesa en celulares */
     
     .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
+        max-width: 1400px;
     }
 
     /* 3. Estilo global para la barra lateral (Sidebar) */
@@ -42,66 +42,86 @@ st.markdown("""
         border-right: 1px solid #1f2937;
     }
 
-    /* 4. Banner Hero Principal (Estilo superior que te gusta) */
+    /* 4. Banner Hero Principal (Estilo SaaS de Alto Rendimiento) */
     .hero-box {
-        background: linear-gradient(135deg, #3B82F6 0%, #111827 100%);
-        padding: 40px;
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        padding: 45px 35px;
         border-radius: 20px;
         color: white;
         text-align: center;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(59, 130, 246, 0.2);
         margin-bottom: 30px;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .hero-box::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0; height: 3px;
+        background: linear-gradient(90deg, #3b82f6, #10b981, #6366f1);
     }
 
-    /* 5. Tarjetas y contenedores estilo SaaS */
+    /* 5. Tarjetas y contenedores con efectos Glassmorphism / Hover */
     .saas-card {
         background-color: #111827;
         border: 1px solid #1f2937;
-        border-radius: 12px;
-        padding: 20px;
-        margin-bottom: 16px;
+        border-radius: 14px;
+        padding: 24px;
+        margin-bottom: 20px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
+        transition: all 0.25s ease-in-out;
+    }
+    
+    .saas-card:hover {
+        border-color: rgba(59, 130, 246, 0.5);
+        box-shadow: 0 10px 30px rgba(59, 130, 246, 0.1);
     }
 
-    /* 6. Estilización de Pestañas (Tabs) */
+    /* 6. Estilización Avanzada de Pestañas (Tabs) */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
+        gap: 10px;
         background-color: #0b0f19;
-        padding: 4px;
-        border-radius: 10px;
+        padding: 6px;
+        border-radius: 12px;
+        border: 1px solid #1f2937;
     }
 
     .stTabs [data-baseweb="tab"] {
         background-color: #111827;
         border-radius: 8px;
         color: #9ca3af;
-        padding: 10px 20px;
-        font-weight: 500;
+        padding: 12px 24px;
+        font-weight: 600;
+        font-size: 0.95rem;
         border: 1px solid #1f2937;
+        transition: all 0.2s ease;
     }
 
     .stTabs [aria-selected="true"] {
         background: linear-gradient(135deg, #1f2937 0%, #111827 100%) !important;
         color: #ffffff !important;
         border-color: #3b82f6 !important;
-        box-shadow: 0 0 15px rgba(59, 130, 246, 0.15);
+        box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
     }
 
-    /* 7. Botones principales */
+    /* 7. Botones principales estilo Trading Pro */
     .stButton button[kind="primary"] {
-        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
         color: white;
         border: none;
-        border-radius: 8px;
+        border-radius: 10px;
         font-weight: 600;
-        padding: 0.5rem 1rem;
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        padding: 0.6rem 1.2rem;
+        box-shadow: 0 4px 15px rgba(37, 99, 235, 0.35);
         transition: all 0.2s ease;
     }
     
     .stButton button[kind="primary"]:hover {
-        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+        background: linear-gradient(135deg, #2563eb 100%);
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+        transform: translateY(-1px);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -166,30 +186,30 @@ if "user" not in st.session_state:
 
 
 # ----------------------------------------------------------------------
-# Zona pública: login / registro / recuperación de clave con Banner Hero
+# Zona pública: login / registro / recuperación de clave con Banner Hero Pro
 # ----------------------------------------------------------------------
 if st.session_state.user is None:
-    # Banner Hero Superior que querías conservar
     st.markdown("""
     <div class="hero-box">
-        <h1>⚽ GoalMetrics Pro</h1>
-        <p style="font-size: 18px; color: #93c5fd; margin-top: 10px;">
-            Inicia sesión para acceder a tu centro de análisis avanzado
+        <h1 style="font-weight: 800; font-size: 36px; margin-bottom: 8px; letter-spacing: -0.5px;">⚽ GoalMetrics <span style="color: #3b82f6;">Pro</span></h1>
+        <p style="font-size: 16px; color: #93c5fd; max-width: 600px; margin: 0 auto; line-height: 1.5;">
+            Plataforma híbrida avanzada de modelado estadístico, Machine Learning y análisis de valor en mercados deportivos.
         </p>
     </div>
     """, unsafe_allow_html=True)
 
-    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+    col_l1, col_l2, col_l3 = st.columns([1, 2.2, 1])
     with col_l2:
-        tab1, tab2, tab3 = st.tabs(["Iniciar Sesión", "Registrarse", "Recuperar Clave"])
+        st.markdown('<div class="saas-card">', unsafe_allow_html=True)
+        tab1, tab2, tab3 = st.tabs(["🔑 Iniciar Sesión", "📝 Registrarse", "🔄 Recuperar"])
 
         # --- Iniciar sesión ---
         with tab1:
             with st.form("login_form"):
-                st.subheader("🔑 Acceso al Sistema")
+                st.subheader("Acceso a la Terminal")
                 email = st.text_input("Correo electrónico")
                 password = st.text_input("Contraseña", type="password")
-                submitted = st.form_submit_button("Entrar", use_container_width=True)
+                submitted = st.form_submit_button("Entrar al Sistema", use_container_width=True)
 
                 if submitted:
                     if not email or not password:
@@ -197,7 +217,7 @@ if st.session_state.user is None:
                     elif not EMAIL_REGEX.match(email):
                         st.error("Ingresa un correo electrónico válido.")
                     else:
-                        with st.spinner("Verificando credenciales..."):
+                        with st.spinner("Autenticando credenciales seguras..."):
                             try:
                                 res = st.session_state.supabase_client.auth.sign_in_with_password(
                                     {"email": email, "password": password}
@@ -206,7 +226,7 @@ if st.session_state.user is None:
                                     st.error("No se pudo iniciar sesión. Intenta de nuevo.")
                                 else:
                                     guardar_sesion(res)
-                                    st.success("¡Bienvenido!")
+                                    st.success("¡Bienvenido al sistema!")
                                     st.rerun()
                             except Exception as e:
                                 logger.warning("Fallo de login para %s: %s", email, e)
@@ -215,11 +235,11 @@ if st.session_state.user is None:
         # --- Registro ---
         with tab2:
             with st.form("signup_form"):
-                st.subheader("📝 Crear Cuenta Nueva")
+                st.subheader("Nueva Cuenta Pro")
                 email_su = st.text_input("Correo electrónico")
                 password_su = st.text_input("Contraseña (mínimo 6 caracteres)", type="password")
                 password_su_confirm = st.text_input("Confirmar contraseña", type="password")
-                submitted_su = st.form_submit_button("Crear cuenta", use_container_width=True)
+                submitted_su = st.form_submit_button("Crear cuenta de analista", use_container_width=True)
 
                 if submitted_su:
                     if not email_su or not password_su:
@@ -231,12 +251,12 @@ if st.session_state.user is None:
                     elif password_su != password_su_confirm:
                         st.error("Las contraseñas no coinciden. Por favor, revísalas.")
                     else:
-                        with st.spinner("Creando cuenta..."):
+                        with st.spinner("Registrando perfil..."):
                             try:
                                 st.session_state.supabase_client.auth.sign_up(
                                     {"email": email_su, "password": password_su}
                                 )
-                                st.success("¡Cuenta creada! Revisa tu correo para confirmar.")
+                                st.success("¡Cuenta creada! Revisa tu bandeja para confirmar.")
                             except Exception as e:
                                 logger.warning("Fallo de signup para %s: %s", email_su, e)
                                 st.error(mensaje_error_supabase(e, "No se pudo crear la cuenta."))
@@ -244,11 +264,11 @@ if st.session_state.user is None:
         # --- Recuperar clave ---
         with tab3:
             with st.form("reset_form"):
-                st.subheader("🔄 Recuperar Contraseña")
-                st.write("Ingresa tu correo y te enviaremos un enlace de recuperación.")
+                st.subheader("Restablecer Acceso")
+                st.write("Ingresa tu correo registrado para recibir el enlace de recuperación.")
                 email_reset = st.text_input("Correo de la cuenta")
                 submitted_reset = st.form_submit_button(
-                    "Enviar enlace de recuperación", use_container_width=True
+                    "Enviar instrucciones", use_container_width=True
                 )
 
                 if submitted_reset:
@@ -261,10 +281,11 @@ if st.session_state.user is None:
                                     email_reset,
                                     {"redirect_to": st.secrets.get("APP_URL", "")},
                                 )
-                                st.success("¡Correo enviado! Revisa tu bandeja de entrada.")
+                                st.success("¡Correo enviado con éxito!")
                             except Exception as e:
                                 logger.warning("Fallo de reset para %s: %s", email_reset, e)
                                 st.error(mensaje_error_supabase(e, "No se pudo enviar el correo."))
+        st.markdown('</div>', unsafe_allow_html=True)
 
     st.stop()
 
@@ -283,7 +304,7 @@ if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
     cerrar_sesion()
     st.rerun()
 
-analisis_equipos = st.Page("pages/Analisis_equipos.py", title="Analisis equipos", icon="📊", default=True)
+analisis_equipos = st.Page("pages/analisis_equipos.py", title="Analisis equipos", icon="📊", default=True)
 analisis_jugadores = st.Page("pages/analisis_jugadores.py", title="Analisis jugadores", icon="👥")
 tracker_apuestas = st.Page("pages/tracker_apuestas.py", title="Tracker de Apuestas", icon="📈")
 coach_ia = st.Page("pages/coach_ia.py", title="Coach IA", icon="🤖")
