@@ -590,7 +590,7 @@ liga_sel_html = html.escape(liga_sel)
 
 st.markdown(f"""
 <style>
-/* Estilo SaaS de Élite y Tipografía Inter */
+/* Estilo SaaS de Élite, Animaciones y Tipografía Inter */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 html, body, [class*="css"] {{
@@ -598,6 +598,25 @@ html, body, [class*="css"] {{
     background-color: #0b0f19;
     color: #f3f4f6;
 }}
+
+/* ================== KEYFRAMES ANIMACIONES ================== */
+@keyframes fadeInUp {{
+    0% {{ opacity: 0; transform: translateY(20px); }}
+    100% {{ opacity: 1; transform: translateY(0); }}
+}}
+
+@keyframes glowPulse {{
+    0% {{ box-shadow: 0 0 5px rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); }}
+    50% {{ box-shadow: 0 0 15px rgba(16, 185, 129, 0.5); border-color: rgba(16, 185, 129, 0.8); }}
+    100% {{ box-shadow: 0 0 5px rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); }}
+}}
+
+@keyframes floatElement {{
+    0% {{ transform: translateY(0px); }}
+    50% {{ transform: translateY(-4px); }}
+    100% {{ transform: translateY(0px); }}
+}}
+/* =========================================================== */
 
 #MainMenu {{visibility: hidden;}}
 footer {{visibility: hidden;}}
@@ -633,6 +652,7 @@ header[data-testid="stHeader"] {{
     align-items: center;
     justify-content: center;
     gap: 16px;
+    animation: fadeInUp 0.5s ease-out forwards;
 }}
 .pill-badge {{
     display: inline-flex;
@@ -645,6 +665,7 @@ header[data-testid="stHeader"] {{
     margin-bottom: 20px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    animation: fadeInUp 0.6s ease-out forwards;
 }}
 .pill-green {{ background-color: rgba(6, 78, 59, 0.7); color: #34d399; border-color: rgba(16, 185, 129, 0.3); }}
 .pill-yellow {{ background-color: rgba(120, 53, 15, 0.7); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }}
@@ -654,7 +675,13 @@ header[data-testid="stHeader"] {{
     padding: 18px 22px; border-radius: 14px; background-color: #111827;
     border: 1px solid #1f2937; border-left: 5px solid {color_equipo}; margin-bottom: 20px; font-size: 16px;
     box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    animation: fadeInUp 0.7s ease-out forwards;
+    transition: transform 0.3s ease;
 }}
+.veredicto-box:hover {{
+    transform: translateY(-2px);
+}}
+
 .analisis-dinamico-box {{
     background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
     padding: 22px;
@@ -665,11 +692,44 @@ header[data-testid="stHeader"] {{
     font-size: 15px;
     line-height: 1.6;
     color: #e5e7eb;
+    animation: fadeInUp 0.8s ease-out forwards;
 }}
-.value-box {{ padding: 14px 16px; border-radius: 12px; margin-bottom: 12px; font-size: 14px; border: 1px solid #1f2937; transition: all 0.2s ease; }}
-.value-yes {{ background-color: rgba(6, 78, 59, 0.4); border-left: 4px solid #10b981; }}
+
+/* Efecto de las Tarjetas de Value Bet */
+.value-box {{ 
+    padding: 14px 16px; 
+    border-radius: 12px; 
+    margin-bottom: 12px; 
+    font-size: 14px; 
+    border: 1px solid #1f2937; 
+    transition: all 0.3s ease; 
+    opacity: 0;
+    animation: fadeInUp 0.6s ease-out forwards;
+}}
+.value-yes {{ 
+    background-color: rgba(6, 78, 59, 0.4); 
+    border-left: 4px solid #10b981; 
+}}
+.value-yes:hover {{
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.15);
+}}
 .value-no {{ background-color: #111827; border-left: 4px solid #4b5563; }}
-.top-pick-box {{ background: linear-gradient(135deg, rgba(6, 95, 70, 0.8) 0%, #111827 100%); padding: 24px; border-radius: 14px; border: 2px solid #10b981; margin-bottom: 20px; box-shadow: 0 10px 25px rgba(16, 185, 129, 0.2); }}
+
+/* Tarjeta Top Pick animada con GLOW */
+.top-pick-box {{ 
+    background: linear-gradient(135deg, rgba(6, 95, 70, 0.8) 0%, #111827 100%); 
+    padding: 24px; 
+    border-radius: 14px; 
+    border: 2px solid #10b981; 
+    margin-bottom: 20px; 
+    box-shadow: 0 10px 25px rgba(16, 185, 129, 0.2); 
+    animation: fadeInUp 0.5s ease-out forwards, glowPulse 3s infinite;
+    transition: transform 0.3s ease;
+}}
+.top-pick-box:hover {{
+    transform: translateY(-4px);
+}}
 
 .saas-card {{
     background-color: #111827;
@@ -678,25 +738,37 @@ header[data-testid="stHeader"] {{
     padding: 22px;
     margin-bottom: 20px;
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
-    transition: all 0.25s ease-in-out;
+    transition: all 0.3s ease-in-out;
+    opacity: 0;
+    animation: fadeInUp 0.7s ease-out forwards;
 }}
 .saas-card:hover {{
     border-color: {color_equipo};
-    box-shadow: 0 10px 30px {color_equipo}22;
+    box-shadow: 0 10px 30px {color_equipo}33;
+    transform: translateY(-3px);
 }}
 
+/* Animación en cascada para los KPIs */
 div[data-testid="stMetric"] {{
     background-color: #111827;
     border: 1px solid #1f2937;
     padding: 16px 20px;
     border-radius: 12px;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    transition: all 0.2s ease-in-out;
+    transition: all 0.3s ease-in-out;
     margin-bottom: 12px;
+    opacity: 0;
+    animation: fadeInUp 0.5s ease-out forwards;
 }}
+div[data-testid="stMetric"]:nth-child(1) {{ animation-delay: 0.1s; }}
+div[data-testid="stMetric"]:nth-child(2) {{ animation-delay: 0.2s; }}
+div[data-testid="stMetric"]:nth-child(3) {{ animation-delay: 0.3s; }}
+div[data-testid="stMetric"]:nth-child(4) {{ animation-delay: 0.4s; }}
+
 div[data-testid="stMetric"]:hover {{
     border-color: #374151;
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+    transform: translateY(-2px) scale(1.02);
 }}
 div[data-testid="stMetric"] label {{
     color: #9ca3af !important;
@@ -715,6 +787,7 @@ div[data-testid="stMetric"] [data-testid="stMetricValue"] {{
     border-radius: 12px;
     overflow: hidden;
     border: 1px solid #1f2937;
+    animation: fadeInUp 0.8s ease-out forwards;
 }}
 [data-testid="stDataFrame"] th {{
     background-color: #1f2937 !important;
@@ -780,8 +853,10 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, n_obs, muestra_pequ
         kelly_txt = ""
 
     caution = " (muestra pequeña)" if muestra_pequena and es_value else ""
+    # Se añade animación en cascada mediante inyección style="animation-delay"
+    delay_rnd = np.random.uniform(0.1, 0.5)
     st.markdown(
-        f'<div class="value-box {clase}"><b>{html.escape(nombre)}</b>{caution}<br>'
+        f'<div class="value-box {clase}" style="animation-delay: {delay_rnd:.1f}s;"><b>{html.escape(nombre)}</b>{caution}<br>'
         f"Prob: <b>{prob:.1f}%</b> | Justa: <b>{cuota_justa}</b> | Casa: <b>{cuota_casa}</b>{kelly_txt}<br>"
         f'<span style="color:{color_ev}; font-weight:bold; font-size:15px;">'
         f"EV: {ev:+.2%} -> {'VALUE' if es_value else 'Sin valor'}</span></div>",
@@ -821,245 +896,246 @@ with c2:
         st.rerun()
 
 if st.session_state.analizado_equipos:
-    df_equipo = df_liga[df_liga["Equipo"] == equipo_sel].copy()
-    if "Fecha" in df_equipo.columns:
-        df_equipo = df_equipo.sort_values("Fecha")
+    # --- AQUÍ INICIA EL SPINNER DE CARGA VISUAL ---
+    with st.spinner("⏳ Procesando Motor Híbrido: Modelos de Poisson, Dixon-Coles y XGBoost (Procesando 10,000 escenarios)..."):
+        df_equipo = df_liga[df_liga["Equipo"] == equipo_sel].copy()
+        if "Fecha" in df_equipo.columns:
+            df_equipo = df_equipo.sort_values("Fecha")
 
-    if "Condición" in df_equipo.columns and "Nivel Rival" in df_equipo.columns:
-        df_exactos = df_equipo[(df_equipo["Condición"] == condicion_sel) & (df_equipo["Nivel Rival"] == nivel_sel)].copy()
-    else:
-        df_exactos = pd.DataFrame()
-
-    if len(df_exactos) == 0:
-        st.error(f"❌ No se puede realizar el análisis: Hay 0 partidos exactos registrados para **{equipo_sel}** como **{condicion_label}** contra rivales nivel **{nivel_sel}** en la liga **{liga_sel}**.")
-        st.stop()
-
-    UMBRAL_MINIMO = 2
-    t_target = obtener_peso_tier(nivel_sel)
-    historial_list = []
-
-    for _, row in df_exactos.iterrows():
-        r = row.to_dict()
-        r["Factor_Ajuste"] = 1.0
-        r["Tipo_Uso"] = f"Exacto ({condicion_label} vs {nivel_sel})"
-        r["Peso_Contexto"] = 1.0
-        historial_list.append(r)
-        
-    fuente_datos = f"Exactos ({len(historial_list)} partidos)"
-
-    if len(historial_list) < UMBRAL_MINIMO:
-        if "Condición" in df_equipo.columns:
-            df_misma_cond = df_equipo[(df_equipo["Condición"] == condicion_sel) & (df_equipo["Nivel Rival"] != nivel_sel)].copy()
+        if "Condición" in df_equipo.columns and "Nivel Rival" in df_equipo.columns:
+            df_exactos = df_equipo[(df_equipo["Condición"] == condicion_sel) & (df_equipo["Nivel Rival"] == nivel_sel)].copy()
         else:
-            df_misma_cond = pd.DataFrame()
+            df_exactos = pd.DataFrame()
 
-        faltantes = UMBRAL_MINIMO - len(historial_list)
-        comodines_tier = df_misma_cond.tail(faltantes)
+        if len(df_exactos) == 0:
+            st.error(f"❌ No se puede realizar el análisis: Hay 0 partidos exactos registrados para **{equipo_sel}** como **{condicion_label}** contra rivales nivel **{nivel_sel}** en la liga **{liga_sel}**.")
+            st.stop()
 
-        for _, row in comodines_tier.iterrows():
+        UMBRAL_MINIMO = 2
+        t_target = obtener_peso_tier(nivel_sel)
+        historial_list = []
+
+        for _, row in df_exactos.iterrows():
             r = row.to_dict()
-            f_tot, desc = calcular_factores_respaldo(r, condicion_sel, t_target)
-            r["Factor_Ajuste"] = f_tot
-            r["Tipo_Uso"] = desc
-            r["Peso_Contexto"] = 0.85
+            r["Factor_Ajuste"] = 1.0
+            r["Tipo_Uso"] = f"Exacto ({condicion_label} vs {nivel_sel})"
+            r["Peso_Contexto"] = 1.0
             historial_list.append(r)
-        if len(historial_list) > len(df_exactos):
-            fuente_datos = "Muestra mixta (1 Exacto + Respaldo ajustado por Tier)"
+            
+        fuente_datos = f"Exactos ({len(historial_list)} partidos)"
 
-    if len(historial_list) < UMBRAL_MINIMO:
-        opuesto_lower = "local" if condicion_sel == "visitante" else "visitante"
-        if "Condición" in df_equipo.columns:
-            df_contrarios = df_equipo[df_equipo["Condición"] == opuesto_lower].copy()
+        if len(historial_list) < UMBRAL_MINIMO:
+            if "Condición" in df_equipo.columns:
+                df_misma_cond = df_equipo[(df_equipo["Condición"] == condicion_sel) & (df_equipo["Nivel Rival"] != nivel_sel)].copy()
+            else:
+                df_misma_cond = pd.DataFrame()
+
+            faltantes = UMBRAL_MINIMO - len(historial_list)
+            comodines_tier = df_misma_cond.tail(faltantes)
+
+            for _, row in comodines_tier.iterrows():
+                r = row.to_dict()
+                f_tot, desc = calcular_factores_respaldo(r, condicion_sel, t_target)
+                r["Factor_Ajuste"] = f_tot
+                r["Tipo_Uso"] = desc
+                r["Peso_Contexto"] = 0.85
+                historial_list.append(r)
+            if len(historial_list) > len(df_exactos):
+                fuente_datos = "Muestra mixta (1 Exacto + Respaldo ajustado por Tier)"
+
+        if len(historial_list) < UMBRAL_MINIMO:
+            opuesto_lower = "local" if condicion_sel == "visitante" else "visitante"
+            if "Condición" in df_equipo.columns:
+                df_contrarios = df_equipo[df_equipo["Condición"] == opuesto_lower].copy()
+            else:
+                df_contrarios = pd.DataFrame()
+
+            faltantes_cruzados = UMBRAL_MINIMO - len(historial_list)
+            comodines_cruzados = df_contrarios.tail(faltantes_cruzados)
+
+            for _, row in comodines_cruzados.iterrows():
+                r = row.to_dict()
+                f_tot, desc = calcular_factores_respaldo(r, condicion_sel, t_target)
+                r["Factor_Ajuste"] = f_tot
+                r["Tipo_Uso"] = desc
+                r["Peso_Contexto"] = 0.75
+                historial_list.append(r)
+            fuente_datos = "Muestra adaptada con respaldo cruzado y ajuste de tier"
+
+        historial = pd.DataFrame(historial_list)
+
+        cols_numericas_ajustar = ["Goles", "Goles Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Atajadas", "Amarillas", "Rojas", "Corners Rival", "Tiros a Puerta Rival"]
+        for col in cols_numericas_ajustar:
+            if col in historial.columns:
+                historial[col] = historial[col] * historial["Factor_Ajuste"]
+
+        if "Goles" in historial.columns and "Goles Rival" in historial.columns:
+            historial["Diff_Goles"] = historial["Goles"] - historial["Goles Rival"]
+        if "Goles Rival" in historial.columns and "Atajadas" in historial.columns:
+            historial["Tiros a Puerta Rival"] = historial["Goles Rival"] + historial["Atajadas"]
+
+        n_obs = len(historial)
+        muestra_pequena = n_obs <= 2
+
+        if len(df_exactos) >= 2:
+            semaforo_val = "verde"
+        elif len(df_exactos) == 1:
+            semaforo_val = "amarillo"
         else:
-            df_contrarios = pd.DataFrame()
+            semaforo_val = "rojo"
 
-        faltantes_cruzados = UMBRAL_MINIMO - len(historial_list)
-        comodines_cruzados = df_contrarios.tail(faltantes_cruzados)
+        hoy = pd.Timestamp.today().normalize()
+        half_life_days = 30.0
+        if "Fecha" in historial.columns:
+            historial["Dias_Pasados"] = (hoy - pd.to_datetime(historial["Fecha"])).dt.days.clip(lower=0)
+            historial["Peso_Temporal"] = np.power(0.5, historial["Dias_Pasados"] / half_life_days)
+        else:
+            historial["Peso_Temporal"] = 1.0
 
-        for _, row in comodines_cruzados.iterrows():
-            r = row.to_dict()
-            f_tot, desc = calcular_factores_respaldo(r, condicion_sel, t_target)
-            r["Factor_Ajuste"] = f_tot
-            r["Tipo_Uso"] = desc
-            r["Peso_Contexto"] = 0.75
-            historial_list.append(r)
-        fuente_datos = "Muestra adaptada con respaldo cruzado y ajuste de tier"
+        if "Peso_Contexto" not in historial.columns:
+            historial["Peso_Contexto"] = 1.0
 
-    historial = pd.DataFrame(historial_list)
+        historial["Peso_Total"] = historial["Peso_Temporal"] * historial["Peso_Contexto"]
+        suma_pesos = historial["Peso_Total"].sum()
+        pesos = historial["Peso_Total"] / suma_pesos if suma_pesos > 0 else np.ones(len(historial)) / len(historial)
 
-    cols_numericas_ajustar = ["Goles", "Goles Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Atajadas", "Amarillas", "Rojas", "Corners Rival", "Tiros a Puerta Rival"]
-    for col in cols_numericas_ajustar:
-        if col in historial.columns:
-            historial[col] = historial[col] * historial["Factor_Ajuste"]
+        def prom(col):
+            if col not in historial.columns or len(historial) == 0:
+                return 0.05
+            return round(float(np.average(historial[col].fillna(0), weights=pesos)), 4)
 
-    if "Goles" in historial.columns and "Goles Rival" in historial.columns:
-        historial["Diff_Goles"] = historial["Goles"] - historial["Goles Rival"]
-    if "Goles Rival" in historial.columns and "Atajadas" in historial.columns:
-        historial["Tiros a Puerta Rival"] = historial["Goles Rival"] + historial["Atajadas"]
+        def std_w(col):
+            return float(historial[col].std()) if col in historial.columns and len(historial) > 1 else 0.0
+            
+        def calc_ci(col_name):
+            vals = historial[col_name].fillna(0).values if col_name in historial.columns else np.array([0])
+            w = pesos.values if len(pesos) == len(vals) else None
+            _, inf, sup = bootstrap_lambda_intervalo(vals, w)
+            return inf, sup
 
-    n_obs = len(historial)
-    muestra_pequena = n_obs <= 2
+        lam_f_raw, lam_c_raw = prom("Goles"), prom("Goles Rival")
+        lam_t_raw, lam_tp_raw = prom("Tiros"), prom("A Puerta")
+        lam_co_raw, lam_fa_raw = prom("Corners"), prom("Faltas")
+        lam_co_rival_raw = prom("Corners Rival") if "Corners Rival" in historial.columns else prom("Corners")
 
-    if len(df_exactos) >= 2:
-        semaforo_val = "verde"
-    elif len(df_exactos) == 1:
-        semaforo_val = "amarillo"
-    else:
-        semaforo_val = "rojo"
+        ic_goles = calc_ci("Goles")
+        ic_goles_rival = calc_ci("Goles Rival")
+        ic_tiros = calc_ci("Tiros")
+        ic_puerta = calc_ci("A Puerta")
+        ic_corners = calc_ci("Corners")
 
-    hoy = pd.Timestamp.today().normalize()
-    half_life_days = 30.0
-    if "Fecha" in historial.columns:
-        historial["Dias_Pasados"] = (hoy - pd.to_datetime(historial["Fecha"])).dt.days.clip(lower=0)
-        historial["Peso_Temporal"] = np.power(0.5, historial["Dias_Pasados"] / half_life_days)
-    else:
-        historial["Peso_Temporal"] = 1.0
+        df_nivel = df[(df["Liga"] == liga_sel) & (df["Nivel Rival"] == nivel_sel)]
+        if len(df_nivel) == 0:
+            df_nivel = df[df["Nivel Rival"] == nivel_sel]
 
-    if "Peso_Contexto" not in historial.columns:
-        historial["Peso_Contexto"] = 1.0
+        prior_f = float(df_nivel["Goles"].mean()) if len(df_nivel) else lam_f_raw
+        prior_c = float(df_nivel["Goles Rival"].mean()) if len(df_nivel) and "Goles Rival" in df_nivel.columns else lam_c_raw
+        prior_t = float(df_nivel["Tiros"].mean()) if len(df_nivel) and "Tiros" in df_nivel.columns else lam_t_raw
+        prior_tp = float(df_nivel["A Puerta"].mean()) if len(df_nivel) and "A Puerta" in df_nivel.columns else lam_tp_raw
+        prior_co = float(df_nivel["Corners"].mean()) if len(df_nivel) and "Corners" in df_nivel.columns else lam_co_raw
+        prior_co_rival = float(df_nivel["Corners Rival"].mean()) if len(df_nivel) and "Corners Rival" in df_nivel.columns else lam_co_rival_raw
+        prior_fa = float(df_nivel["Faltas"].mean()) if len(df_nivel) and "Faltas" in df_nivel.columns else lam_fa_raw
 
-    historial["Peso_Total"] = historial["Peso_Temporal"] * historial["Peso_Contexto"]
-    suma_pesos = historial["Peso_Total"].sum()
-    pesos = historial["Peso_Total"] / suma_pesos if suma_pesos > 0 else np.ones(len(historial)) / len(historial)
+        if usar_shrinkage:
+            lam_f = shrinkage_lambda(lam_f_raw, prior_f, n_obs, k_shrink)
+            lam_c = shrinkage_lambda(lam_c_raw, prior_c, n_obs, k_shrink)
+            lam_t = shrinkage_lambda(lam_t_raw, prior_t, n_obs, k_shrink)
+            lam_tp = shrinkage_lambda(lam_tp_raw, prior_tp, n_obs, k_shrink)
+            lam_co = shrinkage_lambda(lam_co_raw, prior_co, n_obs, k_shrink)
+            lam_co_rival = shrinkage_lambda(lam_co_rival_raw, prior_co_rival, n_obs, k_shrink)
+            lam_fa = shrinkage_lambda(lam_fa_raw, prior_fa, n_obs, k_shrink)
+        else:
+            lam_f, lam_c, lam_t, lam_tp, lam_co, lam_co_rival, lam_fa = lam_f_raw, lam_c_raw, lam_t_raw, lam_tp_raw, lam_co_raw, lam_co_rival_raw, lam_fa_raw
 
-    def prom(col):
-        if col not in historial.columns or len(historial) == 0:
-            return 0.05
-        return round(float(np.average(historial[col].fillna(0), weights=pesos)), 4)
+        num_sim = 10000
+        if usar_dc:
+            sg_fav, sg_con = simular_goles_dixon_coles(lam_f, lam_c, rho=rho_dc, num_sim=num_sim)
+        else:
+            rng = np.random.default_rng(42)
+            sg_fav = rng.poisson(max(lam_f, 0.01), num_sim)
+            sg_con = rng.poisson(max(lam_c, 0.01), num_sim)
 
-    def std_w(col):
-        return float(historial[col].std()) if col in historial.columns and len(historial) > 1 else 0.0
+        s_tir, s_tpuerta, s_corn, s_faltas = simular_stats_poisson(lam_t, lam_tp, lam_co, lam_fa, num_sim=num_sim)
+
+        triunfos_base = (sg_fav > sg_con).mean() * 100
+        empates_base = (sg_fav == sg_con).mean() * 100
+        derrotas_base = (sg_fav < sg_con).mean() * 100
+
+        features_modelo = ["Goles_Media_Movil_5", "Goles_Volatilidad_5", "Tiros_Media_Movil_5", "Conversion_Tiros", "Momentum_Goles", "Diff_Goles"]
+        modelo_xgb_global = _entrenar_xgboost_real(df, features_modelo)
         
-    def calc_ci(col_name):
-        vals = historial[col_name].fillna(0).values if col_name in historial.columns else np.array([0])
-        w = pesos.values if len(pesos) == len(vals) else None
-        _, inf, sup = bootstrap_lambda_intervalo(vals, w)
-        return inf, sup
+        triunfos_hibrido = predecir_probabilidad_hibrida(triunfos_base, historial, features_modelo, modelo_xgb_global, n_obs)
+        derrotas_hibrido = predecir_probabilidad_hibrida(derrotas_base, historial, features_modelo, modelo_xgb_global, n_obs)
+        
+        resto = max(0.0, 100.0 - triunfos_hibrido)
+        suma_emp_der = empates_base + derrotas_base
+        if suma_emp_der > 0:
+            empates_hibrido = (empates_base / suma_emp_der) * resto
+            derrotas_hibrido = (derrotas_base / suma_emp_der) * resto
+        else:
+            empates_hibrido = resto / 2.0
+            derrotas_hibrido = resto / 2.0
 
-    lam_f_raw, lam_c_raw = prom("Goles"), prom("Goles Rival")
-    lam_t_raw, lam_tp_raw = prom("Tiros"), prom("A Puerta")
-    lam_co_raw, lam_fa_raw = prom("Corners"), prom("Faltas")
-    lam_co_rival_raw = prom("Corners Rival") if "Corners Rival" in historial.columns else prom("Corners")
+        triunfos, empates, derrotas = aplicar_devig_y_blend_1x2(
+            triunfos_hibrido, empates_hibrido, derrotas_hibrido, cuota_casa_1, cuota_casa_x, cuota_casa_2
+        )
 
-    ic_goles = calc_ci("Goles")
-    ic_goles_rival = calc_ci("Goles Rival")
-    ic_tiros = calc_ci("Tiros")
-    ic_puerta = calc_ci("A Puerta")
-    ic_corners = calc_ci("Corners")
+        ambos_anotan = ((sg_fav > 0) & (sg_con > 0)).mean() * 100
+        doble_1x, doble_x2 = triunfos + empates, derrotas + empates
+        tot_sin_emp = triunfos + derrotas
+        dnb = (triunfos / tot_sin_emp * 100) if tot_sin_emp > 0 else 50.0
 
-    df_nivel = df[(df["Liga"] == liga_sel) & (df["Nivel Rival"] == nivel_sel)]
-    if len(df_nivel) == 0:
-        df_nivel = df[df["Nivel Rival"] == nivel_sel]
+        prob_over_goles = (sg_fav > linea_goles).mean() * 100
+        prob_over_tiros = (s_tir > linea_tiros).mean() * 100
+        prob_over_puerta = (s_tpuerta > linea_tiros_puerta).mean() * 100
+        prob_over_corners = (s_corn > linea_corners).mean() * 100
+        prob_over_faltas = (s_faltas > linea_faltas).mean() * 100
+        prob_over_total = ((sg_fav + sg_con) > linea_total_partido).mean() * 100
 
-    prior_f = float(df_nivel["Goles"].mean()) if len(df_nivel) else lam_f_raw
-    prior_c = float(df_nivel["Goles Rival"].mean()) if len(df_nivel) and "Goles Rival" in df_nivel.columns else lam_c_raw
-    prior_t = float(df_nivel["Tiros"].mean()) if len(df_nivel) and "Tiros" in df_nivel.columns else lam_t_raw
-    prior_tp = float(df_nivel["A Puerta"].mean()) if len(df_nivel) and "A Puerta" in df_nivel.columns else lam_tp_raw
-    prior_co = float(df_nivel["Corners"].mean()) if len(df_nivel) and "Corners" in df_nivel.columns else lam_co_raw
-    prior_co_rival = float(df_nivel["Corners Rival"].mean()) if len(df_nivel) and "Corners Rival" in df_nivel.columns else lam_co_rival_raw
-    prior_fa = float(df_nivel["Faltas"].mean()) if len(df_nivel) and "Faltas" in df_nivel.columns else lam_fa_raw
+        marcadores = [f"{f}-{c}" for f, c in zip(sg_fav, sg_con)]
+        conteo = Counter(marcadores)
+        marcador_mas_comun = conteo.most_common(1)[0][0]
 
-    if usar_shrinkage:
-        lam_f = shrinkage_lambda(lam_f_raw, prior_f, n_obs, k_shrink)
-        lam_c = shrinkage_lambda(lam_c_raw, prior_c, n_obs, k_shrink)
-        lam_t = shrinkage_lambda(lam_t_raw, prior_t, n_obs, k_shrink)
-        lam_tp = shrinkage_lambda(lam_tp_raw, prior_tp, n_obs, k_shrink)
-        lam_co = shrinkage_lambda(lam_co_raw, prior_co, n_obs, k_shrink)
-        lam_co_rival = shrinkage_lambda(lam_co_rival_raw, prior_co_rival, n_obs, k_shrink)
-        lam_fa = shrinkage_lambda(lam_fa_raw, prior_fa, n_obs, k_shrink)
-    else:
-        lam_f, lam_c, lam_t, lam_tp, lam_co, lam_co_rival, lam_fa = lam_f_raw, lam_c_raw, lam_t_raw, lam_tp_raw, lam_co_raw, lam_co_rival_raw, lam_fa_raw
+        analisis_texto = generar_analisis_dinamico(
+            equipo_sel, condicion_label, nivel_sel, n_obs,
+            lam_f, lam_c, lam_t, lam_tp, lam_co,
+            triunfos, ambos_anotan,
+            prob_over_goles, prob_over_corners, prob_over_puerta,
+        )
 
-    num_sim = 10000
-    if usar_dc:
-        sg_fav, sg_con = simular_goles_dixon_coles(lam_f, lam_c, rho=rho_dc, num_sim=num_sim)
-    else:
-        rng = np.random.default_rng(42)
-        sg_fav = rng.poisson(max(lam_f, 0.01), num_sim)
-        sg_con = rng.poisson(max(lam_c, 0.01), num_sim)
+        items_1x2 = [
+            ("Victoria (1)", round(100 / triunfos, 2) if triunfos > 0 else 99, cuota_casa_1, calcular_ev(triunfos, cuota_casa_1), triunfos),
+            ("Empate (X)", round(100 / empates, 2) if empates > 0 else 99, cuota_casa_x, calcular_ev(empates, cuota_casa_x), empates),
+            ("Derrota (2)", round(100 / derrotas, 2) if derrotas > 0 else 99, cuota_casa_2, calcular_ev(derrotas, cuota_casa_2), derrotas),
+            ("1X", round(100 / doble_1x, 2) if doble_1x > 0 else 99, cuota_casa_1x, calcular_ev(doble_1x, cuota_casa_1x), doble_1x),
+            ("X2", round(100 / doble_x2, 2) if doble_x2 > 0 else 99, cuota_casa_x2, calcular_ev(doble_x2, cuota_casa_x2), doble_x2),
+            ("BTTS Si", round(100 / ambos_anotan, 2) if ambos_anotan > 0 else 99, cuota_casa_btts_si, calcular_ev(ambos_anotan, cuota_casa_btts_si), ambos_anotan),
+            ("BTTS No", round(100 / (100 - ambos_anotan), 2) if ambos_anotan < 100 else 99, cuota_casa_btts_no, calcular_ev(100 - ambos_anotan, cuota_casa_btts_no), 100 - ambos_anotan),
+            ("DNB", round(100 / dnb, 2) if dnb > 0 else 99, cuota_casa_dnb, calcular_ev(dnb, cuota_casa_dnb), dnb),
+        ]
+        items_lineas = [
+            (f"Over {linea_goles} Goles", round(100 / prob_over_goles, 2) if prob_over_goles > 0 else 99, cuota_over_goles, calcular_ev(prob_over_goles, cuota_over_goles), prob_over_goles),
+            (f"Over {linea_tiros} Tiros", round(100 / prob_over_tiros, 2) if prob_over_tiros > 0 else 99, cuota_over_tiros, calcular_ev(prob_over_tiros, cuota_over_tiros), prob_over_tiros),
+            (f"Over {linea_tiros_puerta} a Puerta", round(100 / prob_over_puerta, 2) if prob_over_puerta > 0 else 99, cuota_over_puerta, calcular_ev(prob_over_puerta, cuota_over_puerta), prob_over_puerta),
+            (f"Over {linea_corners} Corners", round(100 / prob_over_corners, 2) if prob_over_corners > 0 else 99, cuota_over_corners, calcular_ev(prob_over_corners, cuota_over_corners), prob_over_corners),
+            (f"Over {linea_faltas} Faltas", round(100 / prob_over_faltas, 2) if prob_over_faltas > 0 else 99, cuota_over_faltas, calcular_ev(prob_over_faltas, cuota_over_faltas), prob_over_faltas),
+            (f"Over {linea_total_partido} Goles partido", round(100 / prob_over_total, 2) if prob_over_total > 0 else 99, cuota_over_total, calcular_ev(prob_over_total, cuota_over_total), prob_over_total),
+        ]
+        items_1x2.sort(key=lambda x: x[3], reverse=True)
+        items_lineas.sort(key=lambda x: x[3], reverse=True)
+        todos_mercados_eq = items_1x2 + items_lineas
+        lista_mercados_eq_dict = [{"nombre": m[0], "prob": m[4], "cuota": m[2], "ev": m[3]} for m in todos_mercados_eq]
+        value_bets_eq = [m for m in lista_mercados_eq_dict if m["ev"] > 0]
+        if value_bets_eq:
+            top_eq = max(value_bets_eq, key=lambda x: x["ev"])
+            stake_top_eq = calcular_kelly_seguro(top_eq["prob"], top_eq["cuota"], n_obs)
+            top_ev_val, top_ev_nombre = top_eq["ev"], top_eq["nombre"]
+        else:
+            top_eq = None
+            stake_top_eq = 0.0
+            top_ev_val, top_ev_nombre = 0.0, "Sin value"
 
-    s_tir, s_tpuerta, s_corn, s_faltas = simular_stats_poisson(lam_t, lam_tp, lam_co, lam_fa, num_sim=num_sim)
-
-    triunfos_base = (sg_fav > sg_con).mean() * 100
-    empates_base = (sg_fav == sg_con).mean() * 100
-    derrotas_base = (sg_fav < sg_con).mean() * 100
-
-    features_modelo = ["Goles_Media_Movil_5", "Goles_Volatilidad_5", "Tiros_Media_Movil_5", "Conversion_Tiros", "Momentum_Goles", "Diff_Goles"]
-    modelo_xgb_global = _entrenar_xgboost_real(df, features_modelo)
-    
-    triunfos_hibrido = predecir_probabilidad_hibrida(triunfos_base, historial, features_modelo, modelo_xgb_global, n_obs)
-    derrotas_hibrido = predecir_probabilidad_hibrida(derrotas_base, historial, features_modelo, modelo_xgb_global, n_obs)
-    
-    resto = max(0.0, 100.0 - triunfos_hibrido)
-    suma_emp_der = empates_base + derrotas_base
-    if suma_emp_der > 0:
-        empates_hibrido = (empates_base / suma_emp_der) * resto
-        derrotas_hibrido = (derrotas_base / suma_emp_der) * resto
-    else:
-        empates_hibrido = resto / 2.0
-        derrotas_hibrido = resto / 2.0
-
-    triunfos, empates, derrotas = aplicar_devig_y_blend_1x2(
-        triunfos_hibrido, empates_hibrido, derrotas_hibrido, cuota_casa_1, cuota_casa_x, cuota_casa_2
-    )
-
-    ambos_anotan = ((sg_fav > 0) & (sg_con > 0)).mean() * 100
-    doble_1x, doble_x2 = triunfos + empates, derrotas + empates
-    tot_sin_emp = triunfos + derrotas
-    dnb = (triunfos / tot_sin_emp * 100) if tot_sin_emp > 0 else 50.0
-
-    prob_over_goles = (sg_fav > linea_goles).mean() * 100
-    prob_over_tiros = (s_tir > linea_tiros).mean() * 100
-    prob_over_puerta = (s_tpuerta > linea_tiros_puerta).mean() * 100
-    prob_over_corners = (s_corn > linea_corners).mean() * 100
-    prob_over_faltas = (s_faltas > linea_faltas).mean() * 100
-    prob_over_total = ((sg_fav + sg_con) > linea_total_partido).mean() * 100
-
-    marcadores = [f"{f}-{c}" for f, c in zip(sg_fav, sg_con)]
-    conteo = Counter(marcadores)
-    marcador_mas_comun = conteo.most_common(1)[0][0]
-
-    analisis_texto = generar_analisis_dinamico(
-        equipo_sel, condicion_label, nivel_sel, n_obs,
-        lam_f, lam_c, lam_t, lam_tp, lam_co,
-        triunfos, ambos_anotan,
-        prob_over_goles, prob_over_corners, prob_over_puerta,
-    )
-
-    # ---- Precalcular items value (para KPI Top EV y tab Value) ----
-    items_1x2 = [
-        ("Victoria (1)", round(100 / triunfos, 2) if triunfos > 0 else 99, cuota_casa_1, calcular_ev(triunfos, cuota_casa_1), triunfos),
-        ("Empate (X)", round(100 / empates, 2) if empates > 0 else 99, cuota_casa_x, calcular_ev(empates, cuota_casa_x), empates),
-        ("Derrota (2)", round(100 / derrotas, 2) if derrotas > 0 else 99, cuota_casa_2, calcular_ev(derrotas, cuota_casa_2), derrotas),
-        ("1X", round(100 / doble_1x, 2) if doble_1x > 0 else 99, cuota_casa_1x, calcular_ev(doble_1x, cuota_casa_1x), doble_1x),
-        ("X2", round(100 / doble_x2, 2) if doble_x2 > 0 else 99, cuota_casa_x2, calcular_ev(doble_x2, cuota_casa_x2), doble_x2),
-        ("BTTS Si", round(100 / ambos_anotan, 2) if ambos_anotan > 0 else 99, cuota_casa_btts_si, calcular_ev(ambos_anotan, cuota_casa_btts_si), ambos_anotan),
-        ("BTTS No", round(100 / (100 - ambos_anotan), 2) if ambos_anotan < 100 else 99, cuota_casa_btts_no, calcular_ev(100 - ambos_anotan, cuota_casa_btts_no), 100 - ambos_anotan),
-        ("DNB", round(100 / dnb, 2) if dnb > 0 else 99, cuota_casa_dnb, calcular_ev(dnb, cuota_casa_dnb), dnb),
-    ]
-    items_lineas = [
-        (f"Over {linea_goles} Goles", round(100 / prob_over_goles, 2) if prob_over_goles > 0 else 99, cuota_over_goles, calcular_ev(prob_over_goles, cuota_over_goles), prob_over_goles),
-        (f"Over {linea_tiros} Tiros", round(100 / prob_over_tiros, 2) if prob_over_tiros > 0 else 99, cuota_over_tiros, calcular_ev(prob_over_tiros, cuota_over_tiros), prob_over_tiros),
-        (f"Over {linea_tiros_puerta} a Puerta", round(100 / prob_over_puerta, 2) if prob_over_puerta > 0 else 99, cuota_over_puerta, calcular_ev(prob_over_puerta, cuota_over_puerta), prob_over_puerta),
-        (f"Over {linea_corners} Corners", round(100 / prob_over_corners, 2) if prob_over_corners > 0 else 99, cuota_over_corners, calcular_ev(prob_over_corners, cuota_over_corners), prob_over_corners),
-        (f"Over {linea_faltas} Faltas", round(100 / prob_over_faltas, 2) if prob_over_faltas > 0 else 99, cuota_over_faltas, calcular_ev(prob_over_faltas, cuota_over_faltas), prob_over_faltas),
-        (f"Over {linea_total_partido} Goles partido", round(100 / prob_over_total, 2) if prob_over_total > 0 else 99, cuota_over_total, calcular_ev(prob_over_total, cuota_over_total), prob_over_total),
-    ]
-    items_1x2.sort(key=lambda x: x[3], reverse=True)
-    items_lineas.sort(key=lambda x: x[3], reverse=True)
-    todos_mercados_eq = items_1x2 + items_lineas
-    lista_mercados_eq_dict = [{"nombre": m[0], "prob": m[4], "cuota": m[2], "ev": m[3]} for m in todos_mercados_eq]
-    value_bets_eq = [m for m in lista_mercados_eq_dict if m["ev"] > 0]
-    if value_bets_eq:
-        top_eq = max(value_bets_eq, key=lambda x: x["ev"])
-        stake_top_eq = calcular_kelly_seguro(top_eq["prob"], top_eq["cuota"], n_obs)
-        top_ev_val, top_ev_nombre = top_eq["ev"], top_eq["nombre"]
-    else:
-        top_eq = None
-        stake_top_eq = 0.0
-        top_ev_val, top_ev_nombre = 0.0, "Sin value"
-
-    # ===================== UI LIMPIA =====================
+    # ===================== UI LIMPIA (CON ANIMACIONES) =====================
     render_header_equipo(liga_sel, equipo_sel, condicion_label, nivel_sel)
 
     if semaforo_val == "verde":
