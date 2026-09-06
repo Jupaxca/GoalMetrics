@@ -22,10 +22,8 @@ st.set_page_config(
     layout="wide"
 )
 
-
 @st.cache_data(ttl=600)
 def cargar_datos_jugadores():
-    # Intenta buscar JUGADORES_SHEET_ID, si no está, recurre a EQUIPOS_SHEET_ID de respaldo
     sheet_id = st.secrets.get("JUGADORES_SHEET_ID") or st.secrets.get("EQUIPOS_SHEET_ID")
     if not sheet_id:
         st.error("Error crítico: No se ha configurado 'JUGADORES_SHEET_ID' ni 'EQUIPOS_SHEET_ID' en st.secrets.")
@@ -191,7 +189,6 @@ def entrenar_predictor_xgboost_jugadores(df_historico, features_modelo):
         model.fit(X, y)
         return model
     except Exception:
-        # Sin sklearn u otro fallo: sigue solo con Poisson
         return None
 
 def predecir_probabilidad_hibrida_jugador(prob_poisson, jugador_actual_df, features_modelo, modelo_xgb, n_obs):
@@ -442,12 +439,13 @@ else:
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+/* Estilo SaaS de Élite para Jugadores */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
-    background-color: #0B0F19;
-    color: #F3F4F6;
+    background-color: #0b0f19;
+    color: #f3f4f6;
 }
 
 #MainMenu {visibility: hidden;}
@@ -461,6 +459,7 @@ header[data-testid="stHeader"] {
 .block-container {
     padding-top: 2rem;
     padding-bottom: 2rem;
+    max-width: 1400px;
 }
 
 [data-testid="stSidebar"] {
@@ -469,16 +468,16 @@ header[data-testid="stHeader"] {
 }
 
 .header-box {
-    background: linear-gradient(135deg, #3B82F6 0%, #111827 100%);
+    background: linear-gradient(135deg, #3B82F6 0%, #0f172a 100%);
     padding: 24px 30px; 
     border-radius: 16px; 
     color: white;
     font-weight: 700; 
-    font-size: 26px; 
-    margin-bottom: 20px; 
+    font-size: 24px; 
+    margin-bottom: 25px; 
     text-align: center;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .pill-badge {
@@ -504,27 +503,28 @@ header[data-testid="stHeader"] {
 }
 .analisis-dinamico-box {
     background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
-    padding: 20px;
+    padding: 22px;
     border-radius: 14px;
     border: 1px solid #3B82F666;
     margin-bottom: 20px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
     font-size: 15px;
     line-height: 1.6;
     color: #e5e7eb;
 }
-.value-box { padding: 14px 16px; border-radius: 12px; margin-bottom: 10px; font-size: 14px; border: 1px solid #1f2937; }
+.value-box { padding: 14px 16px; border-radius: 12px; margin-bottom: 12px; font-size: 14px; border: 1px solid #1f2937; transition: all 0.2s ease; }
 .value-yes { background-color: rgba(6, 78, 59, 0.4); border-left: 4px solid #10b981; }
 .value-no { background-color: #111827; border-left: 4px solid #4b5563; }
-.top-pick-box { background: linear-gradient(135deg, rgba(6, 95, 70, 0.8) 0%, #111827 100%); padding: 22px; border-radius: 14px; border: 2px solid #10b981; margin-bottom: 20px; box-shadow: 0 8px 20px rgba(16, 185, 129, 0.15); }
+.top-pick-box { background: linear-gradient(135deg, rgba(6, 95, 70, 0.8) 0%, #111827 100%); padding: 24px; border-radius: 14px; border: 2px solid #10b981; margin-bottom: 20px; box-shadow: 0 10px 25px rgba(16, 185, 129, 0.2); }
 
 div[data-testid="stMetric"] {
     background-color: #111827;
     border: 1px solid #1f2937;
     padding: 16px 20px;
     border-radius: 12px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     transition: all 0.2s ease-in-out;
+    margin-bottom: 12px;
 }
 div[data-testid="stMetric"]:hover {
     border-color: #374151;
@@ -547,14 +547,14 @@ div[data-testid="stMetric"] [data-testid="stMetricValue"] {
     background-color: #111827;
     border: 1px solid #3B82F644;
     border-radius: 14px;
-    padding: 20px;
+    padding: 22px;
     margin-bottom: 20px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    transition: all 0.2s ease-in-out;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
+    transition: all 0.25s ease-in-out;
 }
 .saas-card:hover {
     border-color: #3B82F6;
-    box-shadow: 0 6px 25px #3B82F622;
+    box-shadow: 0 10px 30px rgba(59, 130, 246, 0.15);
 }
 
 [data-testid="stDataFrame"] {
@@ -616,7 +616,7 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, n_obs, real=None, m
         unsafe_allow_html=True,
     )
 
-st.markdown("### Centro de Analisis Individual de Jugadores (Híbrido Pro)")
+st.markdown("### Centro de Análisis Individual de Jugadores (Híbrido Pro)")
 st.caption("Asistente inteligente con semáforo de confiabilidad, compensación estadística (Shrinkage), Bootstrap IC y gráficos integrados.")
 
 with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis?", expanded=False):
@@ -624,12 +624,12 @@ with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis?", expande
     Bienvenido al centro analítico de jugadores. A continuación se detalla cómo operan los módulos principales:
     
     * **1. Semáforo de Confiabilidad:** Clasifica la robustez de la muestra de partidos exactos. 
-      * 🟢 *Verde:* Suficientes partidos exactos en el escenario buscado (≥ 2).
+      * 🟢 *Verde:* Suficientes partidos exactos en el escenario buscado ($\ge 2$).
       * 🟡 *Amarillo:* Muestra mixta o con 1 solo partido exacto, activando el respaldo inteligente ajustado por *Tier*.
       * 🔴 *Rojo:* Muestra crítica o escasa, requiere máxima precaución.
     * **2. Shrinkage (Compensación Estadística):** Cuando un jugador cuenta con pocos partidos en un escenario específico, sus promedios aparentes pueden estar sesgados. El **Shrinkage** corrige esto encogiendo o ajustando las tasas empíricas hacia una media previa (*prior*) de la liga para ese mismo nivel de rival.
     * **3. Modelo Híbrido (Poisson + XGBoost):** Modela las variables de conteo mediante distribuciones de Poisson y refina las probabilidades con Machine Learning (XGBoost), evaluando momentum y medias móviles recientes de rendimiento.
-    * **4. Métricas, Volatilidad (σ) e Intervalos (IC 95%):** Cada tarjeta muestra la tasa esperada (λ) junto con su desviación estándar e intervalos de confianza generados por Bootstrap (remuestreo 500x) para cuantificar la incertidumbre.
+    * **4. Métricas, Volatilidad ($\sigma$) e Intervalos (IC 95%):** Cada tarjeta muestra la tasa esperada ($\lambda$) junto con su desviación estándar e intervalos de confianza generados por Bootstrap (remuestreo 500x) para cuantificar la incertidumbre.
     * **5. Value Bets & Criterio de Half-Kelly:** Evalúa el Valor Esperado (EV) comparando la probabilidad del modelo frente a las cuotas de la casa de apuestas y dimensiona el stake de forma conservadora usando el criterio fraccional de Kelly.
     * **6. Validación y Curva de Calibración:** El sistema evalúa retrospectivamente su precisión prediciendo si el jugador anotará (Log Loss / Brier Score) y lo mapea visualmente para detectar sesgos.
     """)
