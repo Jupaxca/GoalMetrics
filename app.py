@@ -409,8 +409,8 @@ if st.sidebar.button("Cerrar sesión", use_container_width=True):
     st.rerun()
 
 # Definición correcta de las páginas apuntando a la carpeta pages/
-Analisis_equipos = st.Page(
-    "pages/analisis_equipos.py",
+analisis_equipos = st.Page(
+    "pages/Analisis_equipos.py",
     title="Equipos",
     icon="📊",
     default=True,
