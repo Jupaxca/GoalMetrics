@@ -1,6 +1,8 @@
-streamlit
+streamlit>=1.36.0
+supabase
 pandas
 numpy
-altair
 plotly
-supabase
+altair
+xgboost
+requests
