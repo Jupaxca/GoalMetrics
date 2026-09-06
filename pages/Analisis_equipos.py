@@ -176,7 +176,7 @@ def bootstrap_lambda_intervalo(valores, pesos=None, n_bootstrap=500, alpha=0.05)
 
 def calcular_backtesting_retrospectivo(historial_filtrado):
     if len(historial_filtrado) < 5:
-        return None, None
+        return None, None, None, None, None
     y_true, y_prob = [], []
     sub_df = historial_filtrado.tail(30)
     for i in range(2, len(sub_df)):
@@ -189,14 +189,32 @@ def calcular_backtesting_retrospectivo(historial_filtrado):
         prob_est = 1.0 / (1.0 + np.exp(-mean_diff))
         y_true.append(actual_win)
         y_prob.append(np.clip(prob_est, 0.01, 0.99))
+        
     if not y_true:
-        return None, None
+        return None, None, None, None, None
+        
     y_true, y_prob = np.array(y_true), np.array(y_prob)
     eps = 1e-15
     y_prob_clipped = np.clip(y_prob, eps, 1 - eps)
+    
     log_loss = -np.mean(y_true * np.log(y_prob_clipped) + (1 - y_true) * np.log(1 - y_prob_clipped))
     brier_score = np.mean((y_prob - y_true) ** 2)
-    return round(float(log_loss), 4), round(float(brier_score), 4)
+    
+    # Generar Curva de Calibración (Buckets 10%)
+    bins = np.linspace(0, 1, 11)
+    binned_prob = []
+    binned_true = []
+    counts = []
+    for i in range(10):
+        lower = bins[i]
+        upper = bins[i+1] if i < 9 else 1.01
+        mask = (y_prob >= lower) & (y_prob < upper)
+        if np.any(mask):
+            binned_prob.append(float(y_prob[mask].mean()))
+            binned_true.append(float(y_true[mask].mean()))
+            counts.append(int(np.sum(mask)))
+            
+    return round(float(log_loss), 4), round(float(brier_score), 4), binned_prob, binned_true, counts
 
 def generar_analisis_dinamico(equipo, condicion, nivel, n_obs, lam_f, lam_c, lam_t, lam_tp, lam_co, triunfos, ambos_anotan, prob_over_goles, prob_over_corners, prob_over_puerta):
     if triunfos >= 55:
@@ -710,7 +728,7 @@ def mostrar_value(nombre, cuota_justa, cuota_casa, ev, prob, n_obs, muestra_pequ
     caution = " (muestra pequeña)" if muestra_pequena and es_value else ""
     st.markdown(
         f'<div class="value-box {clase}"><b>{html.escape(nombre)}</b>{caution}<br>'
-        f"Prob: <b>{prob:.1f}%</b> | Justa: <b>{cuota_justa}</b> | Casa: <b>{cuota_casa}</b>{kelly_txt}<br>"
+        f"Prob: <b>{prob:.1f}%</b> | Justa: <b>{cuota_justa}</b> | Casa: <b>{cuota_casa}</b>{kelly_txt}<br>'
         f'<span style="color:{color_ev}; font-weight:bold; font-size:15px;">'
         f"EV: {ev:+.2%} -> {'VALUE' if es_value else 'Sin valor'}</span></div>",
         unsafe_allow_html=True,
@@ -731,9 +749,9 @@ with st.expander("📖 Guía Detallada: ¿Cómo funciona el Análisis de Equipos
     * **3. Modelo Dixon-Coles (Corrección de Empates y Bajas):** Introduce un factor de corrección (tau) controlado por el parámetro de correlación $\rho$ para ajustar la probabilidad en marcadores cerrados y de baja anotación.
     * **4. Ensemble Híbrido (Poisson/Dixon-Coles + XGBoost + De-vig de Mercado):** Integra la solidez estocástica de las distribuciones de goles, Machine Learning y ajuste probabilístico frente a las cuotas de las casas.
     * **5. Value Bets & Criterio de Half-Kelly con Cap:** Evalúa el Valor Esperado (EV) contrastando las probabilidades frente a las cuotas, aplicando un límite estricto de stake en muestras pequeñas para blindar el capital real.
-    * **6. Bootstrap e Intervalos de Confianza:** Remuestreo no paramétrico que repite el cálculo de la tasa de goles ($\lambda$) cientos de veces para entregarte un intervalo de confianza real (IC 95%) y medir la incertidumbre.
-    * **7. Half-Life Decay (Decaimiento Exponencial Temporal):** Asigna mayor peso a los partidos recientes mediante una vida media de 30 días, haciendo que los encuentros más antiguos pierdan peso analítico de forma no lineal para reflejar mejor el momento actual del equipo.
-    * **8. Validación Retrospectiva (Log Loss & Brier Score):** Auditoría interna en ventana rodante que mide el error logarítmico y la calibración real de las probabilidades del modelo frente a los resultados históricos.
+    * **6. Bootstrap e Intervalos de Confianza (95%):** Remuestreo no paramétrico que repite el cálculo de la tasa de acierto en todas las estadísticas principales (Goles, Tiros, Córners) para entregarte un intervalo real y medir la incertidumbre.
+    * **7. Half-Life Decay (Decaimiento Exponencial Temporal):** Asigna mayor peso a los partidos recientes mediante una vida media de 30 días, haciendo que los encuentros más antiguos pierdan peso analítico de forma no lineal.
+    * **8. Validación Retrospectiva & Curva de Calibración:** Auditoría interna que mide el error (Log Loss, Brier Score) y un Diagrama de Confiabilidad (Reliability Diagram) para visualizar si el modelo peca de optimista o pesimista en distintos rangos de probabilidad.
     """)
 
 if "analizado_equipos" not in st.session_state:
@@ -870,14 +888,24 @@ if st.session_state.analizado_equipos:
 
     def std_w(col):
         return float(historial[col].std()) if col in historial.columns and len(historial) > 1 else 0.0
+        
+    def calc_ci(col_name):
+        vals = historial[col_name].fillna(0).values if col_name in historial.columns else np.array([0])
+        w = pesos.values if len(pesos) == len(vals) else None
+        _, inf, sup = bootstrap_lambda_intervalo(vals, w)
+        return inf, sup
 
     lam_f_raw, lam_c_raw = prom("Goles"), prom("Goles Rival")
     lam_t_raw, lam_tp_raw = prom("Tiros"), prom("A Puerta")
     lam_co_raw, lam_fa_raw = prom("Corners"), prom("Faltas")
     lam_co_rival_raw = prom("Corners Rival") if "Corners Rival" in historial.columns else prom("Corners")
 
-    goles_vals = historial["Goles"].fillna(0).values if "Goles" in historial.columns else np.array([0])
-    _, lam_f_inf, lam_f_sup = bootstrap_lambda_intervalo(goles_vals, pesos.values if len(pesos)==len(goles_vals) else None)
+    # IC 95% Bootstrap para variables clave
+    ic_goles = calc_ci("Goles")
+    ic_goles_rival = calc_ci("Goles Rival")
+    ic_tiros = calc_ci("Tiros")
+    ic_puerta = calc_ci("A Puerta")
+    ic_corners = calc_ci("Corners")
 
     df_nivel = df[(df["Liga"] == liga_sel) & (df["Nivel Rival"] == nivel_sel)]
     if len(df_nivel) == 0:
@@ -971,7 +999,7 @@ if st.session_state.analizado_equipos:
     )
     st.markdown(f'<div class="analisis-dinamico-box">{analisis_texto}</div>', unsafe_allow_html=True)
 
-    st.caption(f"Base: {n_obs} partidos - {fuente_datos} | Half-Life Decay (30d) | IC 95% Bootstrap λ: [{lam_f_inf:.2f} - {lam_f_sup:.2f}]")
+    st.caption(f"Base: {n_obs} partidos - {fuente_datos} | Half-Life Decay (30d)")
 
     if muestra_pequena:
         st.warning("Muestra pequeña (Respaldo activo con 1-2 partidos). Stake limitado por seguridad.")
@@ -998,18 +1026,19 @@ if st.session_state.analizado_equipos:
         g.metric("DNB", f"{dnb:.1f}%")
         
         metrics_data_eq = {
-            "Goles": {"val": lam_f, "vol": std_w("Goles"), "format": ".2f"},
-            "Goles Rival": {"val": lam_c, "vol": std_w("Goles Rival"), "format": ".2f"},
-            "Tiros": {"val": lam_t, "vol": std_w("Tiros"), "format": ".1f"},
-            "A Puerta": {"val": lam_tp, "vol": std_w("A Puerta"), "format": ".1f"},
-            "Corners": {"val": lam_co, "vol": std_w("Corners"), "format": ".1f"},
+            "Goles": {"val": lam_f, "vol": std_w("Goles"), "ic": ic_goles, "format": ".2f"},
+            "Goles Rival": {"val": lam_c, "vol": std_w("Goles Rival"), "ic": ic_goles_rival, "format": ".2f"},
+            "Tiros": {"val": lam_t, "vol": std_w("Tiros"), "ic": ic_tiros, "format": ".1f"},
+            "A Puerta": {"val": lam_tp, "vol": std_w("A Puerta"), "ic": ic_puerta, "format": ".1f"},
+            "Corners": {"val": lam_co, "vol": std_w("Corners"), "ic": ic_corners, "format": ".1f"},
         }
 
         cols_m = st.columns(3)
         for i, (var, data) in enumerate(metrics_data_eq.items()):
             col_target = cols_m[i % 3]
             fmt = data["format"]
-            col_target.metric(var, f"{data['val']:{fmt}}", f"λ: {data['val']:{fmt}} | σ: {data['vol']:.2f}")
+            ic_text = f" | IC 95%: [{data['ic'][0]:.1f} - {data['ic'][1]:.1f}]"
+            col_target.metric(var, f"{data['val']:{fmt}}", f"λ: {data['val']:{fmt}} | σ: {data['vol']:.2f}{ic_text}")
 
         st.markdown("---")
         st.subheader("🎯 Matriz de Probabilidad del Resultado Exacto")
@@ -1233,15 +1262,41 @@ if st.session_state.analizado_equipos:
 
     with tab3:
         st.subheader("📈 Validación Retrospectiva (Backtesting & Métricas de Error)")
-        log_loss_val, brier_val = calcular_backtesting_retrospectivo(historial)
+        log_loss_val, brier_val, bin_p, bin_t, bin_c = calcular_backtesting_retrospectivo(historial)
         
         bc1, bc2 = st.columns(2)
         if log_loss_val is not None:
             bc1.metric("Log Loss (Pérdida Logarítmica)", f"{log_loss_val:.4f}", "Menor es mejor calibración")
             bc2.metric("Brier Score", f"{brier_val:.4f}", "Precisión global 0 a 1 (0 es perfecto)")
             st.caption("ℹ️ Estas métricas evalúan retrospectivamente el error de las probabilidades del modelo frente a los resultados reales en este escenario filtrado.")
+            
+            st.markdown("---")
+            st.markdown("#### 🎯 Diagrama de Confiabilidad (Reliability / Calibration Curve)")
+            st.write("Visualiza si el modelo peca de optimista o pesimista al estimar probabilidades de victoria.")
+            
+            if bin_p and len(bin_p) > 0:
+                fig_cal = go.Figure()
+                fig_cal.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode='lines', name='Calibración Perfecta', line=dict(dash='dash', color='#9ca3af')))
+                fig_cal.add_trace(go.Scatter(
+                    x=bin_p, y=bin_t, mode='lines+markers', name='Modelo Empírico',
+                    text=[f"Partidos evaluados: {c}" for c in bin_c], hoverinfo='text+x+y',
+                    marker=dict(size=[max(8, c*3) for c in bin_c], color='#3B82F6', line=dict(width=2, color='white')),
+                    line=dict(color='#3B82F6', width=2)
+                ))
+                fig_cal.update_layout(
+                    xaxis_title="Probabilidad Predicha por el Modelo",
+                    yaxis_title="Frecuencia Real de Victoria",
+                    paper_bgcolor="#111827", plot_bgcolor="#111827", font=dict(color="#F3F4F6"),
+                    xaxis=dict(range=[0, 1], gridcolor="#1f2937", tickformat='.0%'),
+                    yaxis=dict(range=[0, 1], gridcolor="#1f2937", tickformat='.0%'),
+                    height=380, margin=dict(l=40, r=40, t=40, b=40),
+                    legend=dict(yanchor="top", y=0.95, xanchor="left", x=0.05)
+                )
+                st.markdown('<div class="saas-card">', unsafe_allow_html=True)
+                st.plotly_chart(fig_cal, use_container_width=True)
+                st.markdown('</div>', unsafe_allow_html=True)
         else:
-            st.info("ℹ️ Se requieren al menos 5 partidos en este filtro exacto para calcular las métricas de backtesting retrospectivo.")
+            st.info("ℹ️ Se requieren al menos 5 partidos en este filtro exacto para calcular las métricas de backtesting retrospectivo y la curva de calibración.")
 
         st.markdown("---")
         st.markdown("#### 📘 Guía de Interpretación: Log Loss & Brier Score")
