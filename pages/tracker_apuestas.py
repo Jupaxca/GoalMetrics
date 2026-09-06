@@ -5,13 +5,146 @@ import datetime
 st.set_page_config(page_title="Tracker Pro | GoalMetrics", page_icon="📈", layout="wide")
 
 # ----------------------------------------------------------------------
+# Estilos CSS de Élite y Animaciones (SaaS Theme)
+# ----------------------------------------------------------------------
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+    background-color: #0b0f19;
+    color: #f3f4f6;
+}
+
+/* ================== KEYFRAMES ANIMACIONES ================== */
+@keyframes fadeInUp {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes glowPulse {
+    0% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); }
+    50% { box-shadow: 0 0 15px rgba(16, 185, 129, 0.5); border-color: rgba(16, 185, 129, 0.8); }
+    100% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); }
+}
+/* =========================================================== */
+
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+
+header[data-testid="stHeader"] {
+    visibility: visible !important;
+    background: transparent !important;
+}
+
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    max-width: 1400px;
+}
+
+[data-testid="stSidebar"] {
+    background-color: #111827;
+    border-right: 1px solid #1f2937;
+}
+
+.header-box {
+    background: linear-gradient(135deg, #10B981 0%, #0f172a 100%);
+    padding: 24px 30px; 
+    border-radius: 16px; 
+    color: white;
+    font-weight: 700; 
+    font-size: 24px; 
+    margin-bottom: 25px; 
+    text-align: center;
+    box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.pill-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 9999px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    animation: fadeInUp 0.6s ease-out forwards;
+}
+.pill-green { background-color: rgba(6, 78, 59, 0.7); color: #34d399; border-color: rgba(16, 185, 129, 0.3); }
+
+.veredicto-box {
+    padding: 18px 22px; border-radius: 14px; background-color: #111827;
+    border: 1px solid #1f2937; border-left: 5px solid #10B981; margin-bottom: 20px; font-size: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    animation: fadeInUp 0.7s ease-out forwards;
+    transition: transform 0.3s ease;
+}
+.veredicto-box:hover {
+    transform: translateY(-2px);
+}
+
+/* Animación en cascada para los KPIs */
+div[data-testid="stMetric"] {
+    background-color: #111827;
+    border: 1px solid #1f2937;
+    padding: 16px 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease-in-out;
+    margin-bottom: 12px;
+    opacity: 0;
+    animation: fadeInUp 0.5s ease-out forwards;
+}
+div[data-testid="stMetric"]:nth-child(1) { animation-delay: 0.1s; }
+div[data-testid="stMetric"]:nth-child(2) { animation-delay: 0.2s; }
+div[data-testid="stMetric"]:nth-child(3) { animation-delay: 0.3s; }
+div[data-testid="stMetric"]:nth-child(4) { animation-delay: 0.4s; }
+
+div[data-testid="stMetric"]:hover {
+    border-color: #374151;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+    transform: translateY(-2px) scale(1.02);
+}
+div[data-testid="stMetric"] label {
+    color: #9ca3af !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+    color: #ffffff !important;
+    font-size: 1.6rem !important;
+    font-weight: 700 !important;
+}
+
+[data-testid="stDataFrame"] {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #1f2937;
+    animation: fadeInUp 0.8s ease-out forwards;
+}
+[data-testid="stDataFrame"] th {
+    background-color: #1f2937 !important;
+    color: #f3f4f6 !important;
+    font-weight: 600 !important;
+}
+[data-testid="stDataFrame"] td {
+    background-color: #111827 !important;
+    color: #9ca3af !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ----------------------------------------------------------------------
 # Cliente de Supabase
 # ----------------------------------------------------------------------
-# IMPORTANTE: ya NO creamos un cliente propio con @st.cache_resource aquí.
-# Eso generaba un cliente COMPARTIDO entre todos los usuarios de la app
-# (riesgo de mezclar sesiones). En su lugar, reutilizamos el cliente que
-# app.py ya creó y guardó en st.session_state para esta sesión.
-
 if "user" not in st.session_state or st.session_state.user is None:
     st.warning("Sesión no detectada. Regresa a la página principal e inicia sesión.")
     st.stop()
@@ -25,7 +158,10 @@ supabase = st.session_state.supabase_client
 user = st.session_state.user
 user_id = user.id
 
-st.markdown("## 📈 Tracker de Apuestas & Análisis Pro")
+st.markdown(
+    '<div class="header-box">📈 Tracker de Apuestas & Análisis Pro</div>',
+    unsafe_allow_html=True
+)
 st.caption("Simples · Combinadas · Bank · ROI · Historial")
 
 # ====================== SIDEBAR ======================
@@ -108,7 +244,6 @@ with st.sidebar:
                         st.success("Apuesta simple registrada.")
                         st.rerun()
                     except Exception as e:
-                        # Fallback si la tabla no tiene tipo/n_legs/detalle
                         try:
                             data_min = {
                                 "user_id": user_id,
@@ -128,7 +263,6 @@ with st.sidebar:
                         except Exception as e2:
                             st.error(f"Error al guardar: {e2}")
             else:
-                # Combinada
                 if not evento.strip():
                     st.error("Pon un nombre a la combinada.")
                 elif not detalle_legs.strip():
@@ -257,7 +391,6 @@ c2.metric("💰 P&L", f"{total_pnl:+,.2f} $")
 c3.metric("📊 ROI", f"{roi:+.1f}%")
 c4.metric("🎯 Winrate", f"{winrate:.1f}%", delta=f"{ganadas}G / {total_decididas - ganadas}P")
 
-# % combinadas
 if "mercado" in df.columns:
     n_comb = len(df[df["mercado"] == "Combinada"])
     st.caption(f"Combinadas en historial: {n_comb} / {len(df)} apuestas")
@@ -295,7 +428,6 @@ if estados_filtro:
     df_hist = df_hist[df_hist["estado"].isin(estados_filtro)]
 if mercados_filtro and "mercado" in df_hist.columns:
     df_hist = df_hist[df_hist["mercado"].isin(mercados_filtro)]
-# Filtrar combinadas/simples por mercado si no existe columna tipo
 if "tipo" in df_hist.columns and tipo_filtro:
     df_hist = df_hist[df_hist["tipo"].isin(tipo_filtro)]
 elif "mercado" in df_hist.columns and tipo_filtro:
@@ -308,7 +440,6 @@ cols_mostrar = [c for c in ["id", "fecha", "evento", "seleccion", "mercado", "cu
 df_hist = df_hist.sort_values(by="id", ascending=False)
 st.dataframe(df_hist[cols_mostrar], use_container_width=True, hide_index=True)
 
-# Detalle de combinada
 if "detalle" in df.columns or "seleccion" in df.columns:
     with st.expander("🔎 Ver detalle de una combinada"):
         combos = df[df.get("mercado", pd.Series()) == "Combinada"] if "mercado" in df.columns else pd.DataFrame()
