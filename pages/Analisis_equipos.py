@@ -132,26 +132,30 @@ def predecir_probabilidad_hibrida(prob_poisson, equipo_actual_df, features_model
     prob_hibrida = (peso_poisson * prob_poisson) + (peso_xgb * prob_xgb)
     return round(prob_hibrida, 2)
 
-def aplicar_devig_y_blend_1x2(triunfos_mod, empates_mod, derrotas_mod, c1, cx, c2):
-    inv1, invx, inv2 = 1.0 / c1, 1.0 / cx, 1.0 / c2
+def aplicar_devig_y_blend_1x2(triunfos_mod, empates_mod, derrotas_mod, c1, cx, c2, n_obs=10, semaforo="verde"):
+    """Blend modelo + mercado. Más peso al mercado si muestra débil."""
+    inv1, invx, inv2 = 1.0 / max(c1, 1.01), 1.0 / max(cx, 1.01), 1.0 / max(c2, 1.01)
     suma_inv = inv1 + invx + inv2
     if suma_inv <= 0:
         return triunfos_mod, empates_mod, derrotas_mod
-    
     p1_mercado = (inv1 / suma_inv) * 100.0
     px_mercado = (invx / suma_inv) * 100.0
     p2_mercado = (inv2 / suma_inv) * 100.0
-    
-    p1_final = 0.85 * triunfos_mod + 0.15 * p1_mercado
-    px_final = 0.85 * empates_mod + 0.15 * px_mercado
-    p2_final = 0.85 * derrotas_mod + 0.15 * p2_mercado
-    
+    if semaforo == "rojo" or n_obs <= 2:
+        w_mkt = 0.40
+    elif semaforo == "amarillo" or n_obs <= 5:
+        w_mkt = 0.25
+    else:
+        w_mkt = 0.12
+    w_mod = 1.0 - w_mkt
+    p1_final = w_mod * triunfos_mod + w_mkt * p1_mercado
+    px_final = w_mod * empates_mod + w_mkt * px_mercado
+    p2_final = w_mod * derrotas_mod + w_mkt * p2_mercado
     total = p1_final + px_final + p2_final
     if total > 0:
         p1_final = (p1_final / total) * 100.0
         px_final = (px_final / total) * 100.0
         p2_final = (p2_final / total) * 100.0
-        
     return round(p1_final, 2), round(px_final, 2), round(p2_final, 2)
 
 def shrinkage_lambda(lam_obs, lam_prior, n_obs, k=5.0):
@@ -179,45 +183,55 @@ def bootstrap_lambda_intervalo(valores, pesos=None, n_bootstrap=500, alpha=0.05)
     upper = np.percentile(boot_means, 100 * (1 - alpha / 2))
     return float(np.mean(vals)), float(lower), float(upper)
 
-def calcular_backtesting_retrospectivo(historial_filtrado):
+def calcular_backtesting_retrospectivo(historial_filtrado, rho=-0.10):
+    """Walk-forward usando el mismo motor Poisson/Dixon-Coles (no sigmoid proxy)."""
     if len(historial_filtrado) < 5:
         return None, None, None, None, None
     y_true, y_prob = [], []
-    sub_df = historial_filtrado.tail(30)
+    if "Fecha" in historial_filtrado.columns:
+        sub_df = historial_filtrado.sort_values("Fecha").tail(30).reset_index(drop=True)
+    else:
+        sub_df = historial_filtrado.tail(30).reset_index(drop=True)
     for i in range(2, len(sub_df)):
         train_window = sub_df.iloc[:i]
-        test_row = sub_df.iloc[i:i+1]
-        g_fav = test_row["Goles"].values[0]
-        g_con = test_row["Goles Rival"].values[0]
+        test_row = sub_df.iloc[i]
+        g_fav = float(test_row["Goles"])
+        g_con = float(test_row["Goles Rival"])
         actual_win = 1 if g_fav > g_con else 0
-        mean_diff = train_window["Diff_Goles"].mean() if "Diff_Goles" in train_window.columns else 0.0
-        prob_est = 1.0 / (1.0 + np.exp(-mean_diff))
+        lam_f = max(float(train_window["Goles"].mean()), 0.05)
+        lam_c = max(float(train_window["Goles Rival"].mean()), 0.05)
+        p_win = 0.0
+        total = 0.0
+        for x in range(0, 9):
+            px = poisson_pmf(x, lam_f)
+            for y in range(0, 9):
+                py = poisson_pmf(y, lam_c)
+                tau = dixon_coles_tau(x, y, lam_f, lam_c, rho)
+                mass = max(px * py * tau, 0.0)
+                total += mass
+                if x > y:
+                    p_win += mass
+        if total > 0:
+            p_win = p_win / total
         y_true.append(actual_win)
-        y_prob.append(np.clip(prob_est, 0.01, 0.99))
-        
+        y_prob.append(float(np.clip(p_win, 0.01, 0.99)))
     if not y_true:
         return None, None, None, None, None
-        
     y_true, y_prob = np.array(y_true), np.array(y_prob)
     eps = 1e-15
     y_prob_clipped = np.clip(y_prob, eps, 1 - eps)
-    
     log_loss = -np.mean(y_true * np.log(y_prob_clipped) + (1 - y_true) * np.log(1 - y_prob_clipped))
     brier_score = np.mean((y_prob - y_true) ** 2)
-    
     bins = np.linspace(0, 1, 11)
-    binned_prob = []
-    binned_true = []
-    counts = []
+    binned_prob, binned_true, counts = [], [], []
     for i in range(10):
         lower = bins[i]
-        upper = bins[i+1] if i < 9 else 1.01
+        upper = bins[i + 1] if i < 9 else 1.01
         mask = (y_prob >= lower) & (y_prob < upper)
         if np.any(mask):
             binned_prob.append(float(y_prob[mask].mean()))
             binned_true.append(float(y_true[mask].mean()))
             counts.append(int(np.sum(mask)))
-            
     return round(float(log_loss), 4), round(float(brier_score), 4), binned_prob, binned_true, counts
 
 def generar_analisis_dinamico(equipo, condicion, nivel, n_obs, lam_f, lam_c, lam_t, lam_tp, lam_co, triunfos, ambos_anotan, prob_over_goles, prob_over_corners, prob_over_puerta):
@@ -292,6 +306,15 @@ def calcular_factores_respaldo(row_data, condicion_buscada, tier_objetivo):
 
     return f_cond * f_tier, f"Respaldo | {tipo_cond} | {tipo_tier} ({tier_partido})"
 
+
+def aplicar_descuento_dependencia(p_conj, n_legs_mismo_partido):
+    """Reduce prob conjunta si hay varios mercados del mismo partido (no independientes)."""
+    if n_legs_mismo_partido <= 1:
+        return p_conj
+    factor = max(0.55, 1.0 - 0.08 * (n_legs_mismo_partido - 1))
+    return p_conj * factor
+
+
 def dixon_coles_tau(x, y, lam_x, lam_y, rho):
     if x == 0 and y == 0:
         return 1.0 - lam_x * lam_y * rho
@@ -337,13 +360,14 @@ def simular_goles_dixon_coles(lam_fav, lam_con, rho=-0.10, num_sim=10000, max_go
 
 @st.cache_data
 def simular_stats_poisson(lam_tir, lam_tpuerta, lam_corn, lam_faltas, num_sim=10000, seed=42):
+    """Tiros ~ Poisson; a puerta condicionada a tiros (evita a_puerta > tiros)."""
     rng = np.random.default_rng(seed)
-    return (
-        rng.poisson(max(lam_tir, 0.01), num_sim),
-        rng.poisson(max(lam_tpuerta, 0.01), num_sim),
-        rng.poisson(max(lam_corn, 0.01), num_sim),
-        rng.poisson(max(lam_faltas, 0.01), num_sim),
-    )
+    s_tir = rng.poisson(max(lam_tir, 0.01), num_sim)
+    rate = float(np.clip(lam_tpuerta / max(lam_tir, 0.01), 0.05, 0.95))
+    s_tpuerta = rng.binomial(s_tir, rate)
+    s_corn = rng.poisson(max(lam_corn, 0.01), num_sim)
+    s_faltas = rng.poisson(max(lam_faltas, 0.01), num_sim)
+    return s_tir, s_tpuerta, s_corn, s_faltas
 
 try:
     df_raw = cargar_datos()
@@ -964,10 +988,11 @@ if st.session_state.analizado_equipos:
 
         historial = pd.DataFrame(historial_list)
 
-        cols_numericas_ajustar = ["Goles", "Goles Rival", "Tiros", "A Puerta", "Corners", "Faltas", "Atajadas", "Amarillas", "Rojas", "Corners Rival", "Tiros a Puerta Rival"]
-        for col in cols_numericas_ajustar:
-            if col in historial.columns:
-                historial[col] = historial[col] * historial["Factor_Ajuste"]
+        # Factor_Ajuste como peso de contexto (no multiplica conteos)
+        if "Factor_Ajuste" in historial.columns:
+            if "Peso_Contexto" not in historial.columns:
+                historial["Peso_Contexto"] = 1.0
+            historial["Peso_Contexto"] = historial["Peso_Contexto"] * historial["Factor_Ajuste"].clip(0.5, 1.5)
 
         if "Goles" in historial.columns and "Goles Rival" in historial.columns:
             historial["Diff_Goles"] = historial["Goles"] - historial["Goles Rival"]
@@ -1076,9 +1101,7 @@ if st.session_state.analizado_equipos:
             empates_hibrido = resto / 2.0
             derrotas_hibrido = resto / 2.0
 
-        triunfos, empates, derrotas = aplicar_devig_y_blend_1x2(
-            triunfos_hibrido, empates_hibrido, derrotas_hibrido, cuota_casa_1, cuota_casa_x, cuota_casa_2
-        )
+        triunfos, empates, derrotas = aplicar_devig_y_blend_1x2(triunfos_hibrido, empates_hibrido, derrotas_hibrido, cuota_casa_1, cuota_casa_x, cuota_casa_2, n_obs=n_obs, semaforo=semaforo_val)
 
         ambos_anotan = ((sg_fav > 0) & (sg_con > 0)).mean() * 100
         doble_1x, doble_x2 = triunfos + empates, derrotas + empates
@@ -1342,6 +1365,8 @@ if st.session_state.analizado_equipos:
                     m_info = next(m for m in lista_mercados_eq_dict if m["nombre"] == n)
                     p_indep *= m_info["prob"] / 100.0
                 p_conj = p_goles_conjunta * p_indep
+                n_legs_dep = len(parlay_eq)
+                p_conj = aplicar_descuento_dependencia(p_conj, n_legs_dep)
                 p_conj_pct = p_conj * 100.0
                 c_justa_parlay = round(100 / p_conj_pct, 2) if p_conj_pct > 0 else 99.0
                 st.markdown(f"**Probabilidad conjunta:** `{p_conj_pct:.2f}%`")
@@ -1368,7 +1393,7 @@ if st.session_state.analizado_equipos:
     # ---------- DATOS ----------
     with tab_datos:
         with st.expander("Backtesting y calibración", expanded=True):
-            log_loss_val, brier_val, bin_p, bin_t, bin_c = calcular_backtesting_retrospectivo(historial)
+            log_loss_val, brier_val, bin_p, bin_t, bin_c = calcular_backtesting_retrospectivo(historial, rho=float(locals().get('rho_dc', -0.10)))
             bc1, bc2 = st.columns(2)
             if log_loss_val is not None:
                 bc1.metric("Log Loss", f"{log_loss_val:.4f}", "Menor es mejor")
