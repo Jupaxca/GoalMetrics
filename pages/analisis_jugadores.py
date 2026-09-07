@@ -373,6 +373,13 @@ def predecir_probabilidad_hibrida_jugador(prob_poisson, jugador_actual_df, featu
     prob_hibrida = (peso_poisson * prob_poisson) + (peso_xgb * prob_xgb)
     return round(prob_hibrida, 2)
 
+def aplicar_descuento_dependencia(p_conj, n_legs_mismo_partido):
+    if n_legs_mismo_partido <= 1:
+        return p_conj
+    factor = max(0.55, 1.0 - 0.08 * (n_legs_mismo_partido - 1))
+    return p_conj * factor
+
+
 def shrinkage_lambda(lam_obs, lam_prior, n_obs, k=5.0):
     n = max(float(n_obs), 0.0)
     return (n * lam_obs + k * lam_prior) / (n + k)
@@ -399,47 +406,39 @@ def bootstrap_lambda_intervalo(valores, pesos=None, n_bootstrap=500, alpha=0.05)
     return float(np.mean(vals)), float(lower), float(upper)
 
 def calcular_backtesting_retrospectivo_jugadores(historial_filtrado):
+    """Walk-forward Poisson: P(gol>=1)=1-e^{-λ} con λ del train (misma familia que el motor)."""
     if len(historial_filtrado) < 5:
         return None, None, None, None, None
     y_true, y_prob = [], []
-    sub_df = historial_filtrado.tail(30).copy()
-    
+    if "Fecha" in historial_filtrado.columns:
+        sub_df = historial_filtrado.sort_values("Fecha").tail(30).reset_index(drop=True)
+    else:
+        sub_df = historial_filtrado.tail(30).reset_index(drop=True)
     for i in range(2, len(sub_df)):
         train_window = sub_df.iloc[:i]
-        test_row = sub_df.iloc[i:i+1]
-        
-        g_jugador = test_row["Goles"].values[0]
-        actual_gol = 1 if g_jugador > 0 else 0
-        
-        mean_goles = train_window["Goles"].mean()
-        prob_est = 1.0 - np.exp(-mean_goles)
-        
+        test_row = sub_df.iloc[i]
+        actual_gol = 1 if float(test_row["Goles"]) > 0 else 0
+        lam = max(float(train_window["Goles"].mean()), 0.01)
+        prob_est = 1.0 - float(np.exp(-lam))
         y_true.append(actual_gol)
-        y_prob.append(np.clip(prob_est, 0.01, 0.99))
-        
+        y_prob.append(float(np.clip(prob_est, 0.01, 0.99)))
     if not y_true:
         return None, None, None, None, None
-        
     y_true, y_prob = np.array(y_true), np.array(y_prob)
     eps = 1e-15
     y_prob_clipped = np.clip(y_prob, eps, 1 - eps)
-    
     log_loss = -np.mean(y_true * np.log(y_prob_clipped) + (1 - y_true) * np.log(1 - y_prob_clipped))
     brier_score = np.mean((y_prob - y_true) ** 2)
-    
     bins = np.linspace(0, 1, 11)
-    binned_prob = []
-    binned_true = []
-    counts = []
+    binned_prob, binned_true, counts = [], [], []
     for i in range(10):
         lower = bins[i]
-        upper = bins[i+1] if i < 9 else 1.01
+        upper = bins[i + 1] if i < 9 else 1.01
         mask = (y_prob >= lower) & (y_prob < upper)
         if np.any(mask):
             binned_prob.append(float(y_prob[mask].mean()))
             binned_true.append(float(y_true[mask].mean()))
             counts.append(int(np.sum(mask)))
-            
     return round(float(log_loss), 4), round(float(brier_score), 4), binned_prob, binned_true, counts
 
 def generar_analisis_dinamico_jugador(jugador, condicion, nivel, n_obs, lam_g, lam_t, lam_p, prob_goles, prob_puerta, prob_contrib):
@@ -747,9 +746,10 @@ if st.session_state.analizado_jugadores:
 
         historial = pd.DataFrame(historial_list)
 
-        for col in ["Goles", "Asistencias", "Tiros", "A Puerta", "Faltas"]:
-            if col in historial.columns:
-                historial[col] = historial[col] * historial["Factor_Ajuste"]
+        if "Factor_Ajuste" in historial.columns:
+            if "Peso_Contexto" not in historial.columns:
+                historial["Peso_Contexto"] = 1.0
+            historial["Peso_Contexto"] = historial["Peso_Contexto"] * historial["Factor_Ajuste"].clip(0.5, 1.5)
 
         n_obs = len(historial)
         muestra_pequena = n_obs <= 2
@@ -832,7 +832,8 @@ if st.session_state.analizado_jugadores:
         num_sim = 10000
         sim_goles = rng.poisson(max(lam_g, 0.01), num_sim)
         sim_tiros = rng.poisson(max(lam_t, 0.01), num_sim)
-        sim_puerta = rng.poisson(max(lam_p, 0.01), num_sim)
+        rate_puerta = float(np.clip(lam_p / max(lam_t, 0.01), 0.05, 0.95))
+        sim_puerta = rng.binomial(sim_tiros, rate_puerta)
         sim_asist = rng.poisson(max(lam_a, 0.01), num_sim)
         sim_faltas = rng.poisson(max(lam_f, 0.01), num_sim)
         sim_contrib = sim_goles + sim_asist
@@ -1076,7 +1077,9 @@ if st.session_state.analizado_jugadores:
                     for nombre in parlay_elegidos:
                         if nombre in condiciones_sim:
                             match_mask = match_mask & condiciones_sim[nombre]
-                    prob_conjunta_pct = float(match_mask.mean()) * 100.0
+                    p_raw = float(match_mask.mean())
+                    p_raw = aplicar_descuento_dependencia(p_raw, len(parlay_elegidos))
+                    prob_conjunta_pct = p_raw * 100.0
                     cuota_justa_combinada = round(100 / prob_conjunta_pct, 2) if prob_conjunta_pct > 0 else 99.0
                     st.markdown(f"**Probabilidad conjunta:** `{prob_conjunta_pct:.2f}%` · **Cuota justa:** `{cuota_justa_combinada}`")
                     cuota_casa_parlay = st.number_input(
