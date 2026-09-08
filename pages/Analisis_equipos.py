@@ -1042,6 +1042,9 @@ if st.session_state.analizado_equipos:
         lam_t_raw, lam_tp_raw = prom("Tiros"), prom("A Puerta")
         lam_co_raw, lam_fa_raw = prom("Corners"), prom("Faltas")
         lam_co_rival_raw = prom("Corners Rival") if "Corners Rival" in historial.columns else prom("Corners")
+        # --- NUEVO: Calcular los tiros a puerta recibidos ---
+        lam_tp_rival_raw = prom("Tiros a Puerta Rival") 
+        # ---------------------------------------------------
 
         ic_goles = calc_ci("Goles")
         ic_goles_rival = calc_ci("Goles Rival")
@@ -1060,6 +1063,9 @@ if st.session_state.analizado_equipos:
         prior_co = float(df_nivel["Corners"].mean()) if len(df_nivel) and "Corners" in df_nivel.columns else lam_co_raw
         prior_co_rival = float(df_nivel["Corners Rival"].mean()) if len(df_nivel) and "Corners Rival" in df_nivel.columns else lam_co_rival_raw
         prior_fa = float(df_nivel["Faltas"].mean()) if len(df_nivel) and "Faltas" in df_nivel.columns else lam_fa_raw
+        # --- NUEVO: Prior para el Shrinkage ---
+        prior_tp_rival = float(df_nivel["Tiros a Puerta Rival"].mean()) if len(df_nivel) and "Tiros a Puerta Rival" in df_nivel.columns else lam_tp_rival_raw
+        # --------------------------------------
 
         if usar_shrinkage:
             lam_f = shrinkage_lambda(lam_f_raw, prior_f, n_obs, k_shrink)
@@ -1069,8 +1075,12 @@ if st.session_state.analizado_equipos:
             lam_co = shrinkage_lambda(lam_co_raw, prior_co, n_obs, k_shrink)
             lam_co_rival = shrinkage_lambda(lam_co_rival_raw, prior_co_rival, n_obs, k_shrink)
             lam_fa = shrinkage_lambda(lam_fa_raw, prior_fa, n_obs, k_shrink)
+            # --- NUEVO: Aplicar Shrinkage ---
+            lam_tp_rival = shrinkage_lambda(lam_tp_rival_raw, prior_tp_rival, n_obs, k_shrink)
         else:
             lam_f, lam_c, lam_t, lam_tp, lam_co, lam_co_rival, lam_fa = lam_f_raw, lam_c_raw, lam_t_raw, lam_tp_raw, lam_co_raw, lam_co_rival_raw, lam_fa_raw
+            # --- NUEVO: Sin Shrinkage ---
+            lam_tp_rival = lam_tp_rival_raw
 
         num_sim = 10000
         if usar_dc:
@@ -1213,6 +1223,31 @@ if st.session_state.analizado_equipos:
         r2a.metric("1X", f"{doble_1x:.1f}%")
         r2b.metric("X2", f"{doble_x2:.1f}%")
         r2c.metric("DNB", f"{dnb:.1f}%")
+
+        # --- NUEVO APARTADO: PODER OFENSIVO Y DEFENSIVO ---
+        with st.expander("⚔️ Poder Ofensivo y Defensivo", expanded=True):
+            col_of, col_def = st.columns(2)
+            
+            # Calcular cuántos tiros a puerta se necesitan para 1 gol (evitando división por cero)
+            tiros_por_gol_of = round(lam_tp / lam_f, 2) if lam_f > 0 else 0
+            tiros_por_gol_def = round(lam_tp_rival / lam_c, 2) if lam_c > 0 else 0
+            
+            with col_of:
+                st.markdown(f"<h4 style='color: #10b981;'>🗡️ Poder Ofensivo</h4>", unsafe_allow_html=True)
+                st.markdown(f"**Goles a favor:** {lam_f:.2f}")
+                st.markdown(f"**Tiros totales:** {lam_t:.2f}")
+                st.markdown(f"**Tiros a puerta:** {lam_tp:.2f}")
+                st.markdown(f"**Efectividad:** Necesita **{tiros_por_gol_of}** tiros a puerta para hacer 1 gol")
+                st.markdown(f"**Córners a favor:** {lam_co:.2f}")
+                
+            with col_def:
+                st.markdown(f"<h4 style='color: #f87171;'>🛡️ Poder Defensivo</h4>", unsafe_allow_html=True)
+                st.markdown(f"**Goles en contra:** {lam_c:.2f}")
+                st.markdown(f"**Tiros a puerta rival:** {lam_tp_rival:.2f} *(Atajadas + Goles)*")
+                st.markdown(f"**Resistencia:** Le hacen 1 gol cada **{tiros_por_gol_def}** tiros a puerta")
+                st.markdown(f"**Córners en contra:** {lam_co_rival:.2f}")
+                st.caption("*(Nota: No se contabilizan tiros totales del rival)*")
+        # --------------------------------------------------
 
         with st.expander("ADN del equipo", expanded=False):
             renderizar_adn_altair(lam_f, lam_t, lam_tp, lam_co, lam_fa)
